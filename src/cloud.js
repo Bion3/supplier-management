@@ -38,3 +38,5 @@ export async function saveSupplier(data,id) {
  if(rows.length!==1) throw new Error('保存未成功，请确认账号权限后重试。');
  return fromRow(rows[0]);
 }
+export async function cloudRequest(path,options={}) {return request('/rest/v1/'+path,options,await token());}
+
