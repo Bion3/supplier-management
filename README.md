@@ -1,61 +1,15 @@
-# 供应商管理系统
+# 供应商管理系统（Supabase 云端版）
 
-可直接运行、部署至 Vercel 的中文供应商管理前端骨架。使用原生 JavaScript ES modules，无第三方运行依赖。
+原生 JavaScript 前端，连接现有 Eurasia 项目的 public.suppliers 表。
 
-## 本地运行
+## 运行
+Node.js 22+，执行 npm ci、npm run dev。验证：npm run check、npm test、npm run build。
+Vercel 使用 Other、npm run build、输出 dist。
 
-需要 Node.js 22 或更高版本（建议 24 LTS）。
+## 登录与数据
+使用已有 Supabase 邮箱密码账号登录，无公开注册入口。数据库 RLS 限定授权账号，匿名请求无法读取供应商。新增和编辑直接保存云端，刷新按钮读取最新数据。同一账号在不同设备共享记录。会话保存在 sessionStorage，关闭标签页后需要重新登录。前端只使用 publishable key，无 service role key。
 
-```sh
-npm ci
-npm run dev
-```
+既有浏览器本地数据不会自动导入或删除。名片记录已通过受授权的数据库插件迁入。地址、英文公司名等现有数据库字段保持原样；前端编辑仅修改列表表单字段。
 
-打开 http://localhost:3000 。生产构建与验证：
-
-```sh
-npm run check
-npm test
-npm run build
-npm run preview
-```
-
-## 功能
-
-- 供应商列表、搜索、合作状态筛选和统计。
-- 新增、编辑，必填字段及邮箱校验。
-- 物流分类、联系人、电话、邮箱、服务线路、备注及合作状态。
-- 浏览器 localStorage 持久化；保存失败保留表单，损坏数据不会被自动覆盖。
-- 响应式布局、语义化表格、原生模态对话框、键盘操作。
-
-首屏为空，不预填真实业务信息。所有用户输入通过 textContent 渲染。
-
-## 数据结构
-
-存储键 `supplier-hub:v1`，结构 `{ version: 1, suppliers: Supplier[] }`。
-
-| 字段 | 类型 / 含义 |
-| --- | --- |
-| id | UUID 字符串 |
-| name, contact | 必填字符串：公司、联系人 |
-| category | 铁路运输 / 公路运输 / 仓储服务 / 清关服务 / 综合物流 / 其他 |
-| phone, email, routes, notes | 字符串，可为空 |
-| status | 待评估 / 合作中 / 暂停合作 |
-| createdAt, updatedAt | ISO 8601 时间字符串 |
-
-校验、序列化及查询逻辑位于 `src/suppliers.js`；交互位于 `src/app.js`。后续可将读取与保存替换为后端 API。
-
-## Vercel 部署
-
-导入 GitHub 仓库 `Bion3/supplier-management`，根目录选择仓库根目录，Framework Preset 选择 Other。`vercel.json` 已配置：
-
-- Install Command：`npm ci`
-- Build Command：`npm run build`
-- Output Directory：`dist`
-- 无环境变量要求，无服务器函数。
-
-如已有项目使用旧的 Next.js / Vite 设置，请改为 Other 并清除冲突的 Dashboard 覆盖项；Node.js 选择 24.x。部署后检查首页及 `/src/app.js` 返回 200，新增、编辑并刷新确认数据保存。
-
-## 当前边界
-
-此版本是单浏览器前端骨架，尚无登录、数据库、团队共享、权限控制或备份。清除浏览器数据会丢失记录。公开部署的页面不含业务数据；录入内容保留在录入者的浏览器。投入团队使用前应接入数据库与认证。
+## 账号授权
+当前允许已有管理员账号访问；新增团队成员前需明确授权并调整 RLS 策略。使用 Supabase 控制台管理账号及密码。静态旧部署不会自动更新，请使用新的生产域名。

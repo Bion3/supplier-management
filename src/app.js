@@ -1,8 +1,16 @@
-import {STORAGE_KEY, validateSupplier, decodeSuppliers, encodeSuppliers, filterSuppliers} from './suppliers.js';
+import {login,logout,currentUser,listSuppliers,saveSupplier} from './cloud.js';
+import {validateSupplier, filterSuppliers} from './suppliers.js';
 const $ = id => document.getElementById(id);
-let suppliers = [], editingId = null, storageReadable = true;
-try { suppliers = decodeSuppliers(localStorage.getItem(STORAGE_KEY)); }
-catch { storageReadable = false; $('notice').textContent = '本地数据读取失败。为保护原始数据，已停用保存；请检查浏览器存储或联系维护人员。'; }
+let suppliers = [], editingId = null;
+async function loadCloud() {
+ $('add').disabled=true;
+ try { suppliers=await listSuppliers(); render(); $('notice').textContent='云端数据已同步。'; $('add').disabled=false; }
+ catch(error) {suppliers=[];render();$('notice').textContent=error.message;}
+}
+function authUI() {const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
+$('login-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try {await login($('login-email').value,$('login-password').value);$('login-password').value='';authUI();await loadCloud();}catch(error){$('login-error').textContent=error.message;}finally{button.disabled=false;}});
+$('logout').addEventListener('click',async()=>{try{await logout();}catch{}suppliers=[];render();authUI();});
+$('refresh').addEventListener('click',loadCloud);
 function cell(text) { const td = document.createElement('td'); td.textContent = text; return td; }
 function render() {
   $('total').textContent = suppliers.length;
@@ -31,16 +39,13 @@ function openEditor(s) {
 $('add').addEventListener('click', () => openEditor());
 for(const id of ['close','cancel']) $(id).addEventListener('click', () => $('editor').close());
 $('search').addEventListener('input', render); $('filter').addEventListener('change', render);
-$('supplier-form').addEventListener('submit', event => {
-  event.preventDefault();
-  try {
-    if (!storageReadable) throw new Error('本地数据无法读取，暂不能保存。');
-    const data = validateSupplier(Object.fromEntries(new FormData(event.currentTarget)));
-    const now = new Date().toISOString(), existing = suppliers.find(s => s.id === editingId);
-    const supplier = {...data, id:existing?.id ?? crypto.randomUUID(), createdAt:existing?.createdAt ?? now, updatedAt:now};
-    const next = existing ? suppliers.map(s => s.id === editingId ? supplier : s) : [supplier, ...suppliers];
-    try { localStorage.setItem(STORAGE_KEY, encodeSuppliers(next)); } catch { throw new Error('保存失败：浏览器存储不可用或空间不足，请保留表单内容后重试。'); }
-    suppliers = next; render(); $('editor').close(); $('notice').textContent = '供应商已保存。';
-  } catch(error) { $('form-error').textContent = error.message; }
+$('supplier-form').addEventListener('submit', async event => {
+ event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
+ try {
+  const data=validateSupplier(Object.fromEntries(new FormData(event.currentTarget)));
+  const saved=await saveSupplier(data,editingId);
+  suppliers=editingId?suppliers.map(s=>s.id===editingId?saved:s):[saved,...suppliers];
+  render();$('editor').close();$('notice').textContent='供应商已保存到云端。';
+ } catch(error) {$('form-error').textContent=error.message;} finally {button.disabled=false;}
 });
-render();
+render();authUI();if(currentUser())loadCloud();
