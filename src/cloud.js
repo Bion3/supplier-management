@@ -39,6 +39,12 @@ export async function saveSupplier(data,id) {
  return fromRow(rows[0]);
 }
 export async function cloudRequest(path,options={}) {return request('/rest/v1/'+path,options,await token());}
+export async function appRequest(path,options={}) {
+ const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',Authorization:'Bearer '+await token(),...options.headers}});
+ const data=await response.json().catch(()=>null);
+ if(!response.ok)throw Error(data?.error||'邮件服务请求失败。');
+ return data;
+}
 
 export async function storageUpload(path,file) {
  return request('/storage/v1/object/freight-knowledge/'+path,{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','x-upsert':'false'},body:file},await token());
@@ -54,3 +60,4 @@ export async function storageSignedURL(path) {
  if(result.origin!==url)throw Error('无效的文件链接。');
  return result.href;
 }
+
