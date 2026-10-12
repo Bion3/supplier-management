@@ -14,7 +14,7 @@ export function filterCompanies(companies,contacts,followups,{query='',status=''
  });
 }
 export function validateCompany(data){
- const r={};for(const [key,max] of Object.entries({company_name:240,role:80,owner:80,industry:120,current_routes:1000,notes:5000})){r[key]=String(data[key]||'').trim();if(r[key].length>max)throw Error('字段过长：'+key);}
+ const r={};for(const [key,max] of Object.entries({company_name:240,role:80,region:80,owner:80,industry:120,current_routes:1000,notes:5000})){r[key]=String(data[key]||'').trim();if(r[key].length>max)throw Error('字段过长：'+key);}
  if(!r.company_name)throw Error('请输入公司名称。');
  if(!customerStatuses.includes(data.status))throw Error('客户状态无效。');
  return {...r,status:data.status,addresses:String(data.addresses||'').split('\n').map(x=>x.trim()).filter(Boolean),updated_at:new Date().toISOString()};
@@ -26,3 +26,4 @@ export function validateContact(data){
  if(Object.values(r).some(x=>typeof x==='string'&&x.length>500))throw Error('联系方式字段过长。');
  return r;
 }
+
