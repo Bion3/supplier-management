@@ -1,0 +1,7 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {validateEntry,effectiveStatus,filterEntries,filePath} from '../src/knowledge-model.js';
+test('expired quotes cannot appear under verified filter',()=>{const e={title:'报价',route_id:'r',status:'已核实',valid_until:'2026-10-11'};assert.equal(effectiveStatus(e,'2026-10-12'),'已过期');assert.deepEqual(filterEntries([e],{status:'已核实',today:'2026-10-12'}),[]);assert.equal(effectiveStatus(e,'2026-10-11'),'已核实');});
+test('verified knowledge requires traceable content and source',()=>{const e={title:'测试',kind:'操作SOP',route_id:'r',status:'已核实'};assert.throws(()=>validateEntry(e),/核实依据/);assert.equal(validateEntry({...e,content:'步骤',source:'邮件',source_date:'2026-10-12'}).source,'邮件');assert.throws(()=>validateEntry({...e,content:'步骤',source:'邮件',source_date:'2026-02-30'}),/日期/);});
+test('search combines route supplier content and status',()=>{const e={title:'报关',content:'霍尔果斯',route_id:'r',supplier_name:'合作方',status:'待确认'};assert.equal(filterEntries([e],{query:'合作方',route:'r',status:'待确认'}).length,1);assert.equal(filterEntries([e],{query:'霍尔果斯',route:'other'}).length,0);});
+test('attachment paths are unique and do not embed original names',()=>{const file={name:'../客户报价.xlsx',size:100};const a=filePath('entry',file),b=filePath('entry',file);assert.notEqual(a,b);assert.match(a,/^entry\/[a-f0-9-]+\.xlsx$/);assert.throws(()=>filePath('entry',{name:'a.exe',size:1}),/上传/);assert.throws(()=>filePath('entry',{name:'a.pdf',size:21*1024*1024}),/20MB/);});

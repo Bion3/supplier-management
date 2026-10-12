@@ -40,3 +40,17 @@ export async function saveSupplier(data,id) {
 }
 export async function cloudRequest(path,options={}) {return request('/rest/v1/'+path,options,await token());}
 
+export async function storageUpload(path,file) {
+ return request('/storage/v1/object/freight-knowledge/'+path,{method:'POST',headers:{'Content-Type':file.type||'application/octet-stream','x-upsert':'false'},body:file},await token());
+}
+export async function storageRemove(path) {
+ return request('/storage/v1/object/freight-knowledge',{method:'DELETE',body:JSON.stringify({prefixes:[path]})},await token());
+}
+export async function storageSignedURL(path) {
+ const data=await request('/storage/v1/object/sign/freight-knowledge/'+path,{method:'POST',body:JSON.stringify({expiresIn:60})},await token());
+ const signed=data.signedURL||data.signedUrl;
+ if(!signed)throw Error('无法生成文件下载链接。');
+ const result=new URL(signed.startsWith('/object/')?'/storage/v1'+signed:signed,url);
+ if(result.origin!==url)throw Error('无效的文件链接。');
+ return result.href;
+}
