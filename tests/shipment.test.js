@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {shipmentRequirements,samePlace} from '../src/shipment-model.js';
+const input={cargo:'机械配件',origin:'西安',destination:'汉堡',shipment_type:'拼箱LCL',weight:'1000',volume:'2'};
+const route={id:'r',code:'XI-HAM',origin:'西安',destination:'汉堡'};
+const e={id:'e',route_id:'r',title:'订舱资料',content:'单据：《委托书》',kind:'单证要求',shipment_type:'拼箱LCL',status:'已核实',effective_from:'2026-01-01'};
+const run=(entries,extra={},query={})=>shipmentRequirements({...input,...query},{entries,routes:[route],...extra},'2026-10-13');
+test('exact active rule and density',()=>{const r=run([e]);assert.equal(r.approved,1);assert.equal(r.density,500);});
+test('other stations and routes cannot leak',()=>{assert.equal(run([e],{}, {destination:'莫斯科'}).relevant.length,0);assert.equal(run([{...e,station_id:'s'}],{stations:[{id:'s',name:'武汉'}]}).relevant.length,0);});
+test('expired future unknown and source expiry are not actionable',()=>{for(const v of [{valid_until:'2025-01-01'},{effective_from:'2027-01-01'},{effective_from:null},{status:'存在冲突'}])assert.equal(run([{...e,...v}]).approved,0);assert.equal(run([{...e,source_id:'s'}],{sources:[{id:'s',effective_from:'2020-01-01',valid_until:'2025-01-01'}]}).approved,0);});
+test('FCL and supplier specific rules are excluded for this LCL enquiry',()=>{assert.equal(run([{...e,shipment_type:'整箱FCL'}]).relevant.length,0);assert.equal(run([{...e,supplier_id:'other'}]).relevant.length,0);});
+test('history cannot approve a shipment',()=>{const r=run([{...e,title:'西安历史货物审核',content:'品名原文：机械配件\n原表可否发运结论：可以'}]);assert.equal(r.approved,0);assert.equal(r.references.length,1);assert.equal(run([{...e,title:'西安历史货物审核',content:'品名原文：电池'}]).relevant.length,0);});
+test('new effective version supersedes only matching scope',()=>{assert.equal(run([e,{...e,id:'new',supersedes_id:'e'}]).approved,1);assert.equal(run([e,{...e,id:'new',supersedes_id:'e',effective_from:'2027-01-01'}]).approved,1);});
+test('missing evidence and invalid input are explicit',()=>{assert.ok(run([]).risks.some(r=>r.includes('未匹配')));assert.throws(()=>run([],{}, {pieces:'1.5'}));assert.throws(()=>run([],{}, {weight:'-1'}));assert.throws(()=>run([],{}, {cargo:''}));});
+test('aliases are exact and not substrings',()=>{assert.ok(samePlace('新筑站','西安'));assert.equal(samePlace('西安','西安南'),false);});
