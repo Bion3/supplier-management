@@ -31,4 +31,7 @@ export function batchRecipients(selected,contacts,limit=10){
  if(rejected.length)throw Error(`已选中${rejected.length}条未核实、无效或停止联系的邮箱，请先批量标记有效或取消选择。`);
  return {rows:valid.slice(0,limit),total:valid.length,remaining:Math.max(0,valid.length-limit)};
 }
+export function selectRows(selected,rows,checked=true){const result=new Set(selected);for(const row of rows)if(checked)result.add(row.id);else result.delete(row.id);return result;}
+export function selectionState(selected,rows){const count=rows.filter(row=>selected.has(row.id)).length;return {checked:rows.length>0&&count===rows.length,indeterminate:count>0&&count<rows.length,disabled:rows.length===0};}
+export function emailContactScope(chosen,contacts){const emails=new Set(chosen.filter(c=>c.channel==='邮箱').map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>c.channel==='邮箱'&&emails.has(c.value.trim().toLowerCase())).map(c=>c.id);}
 
