@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {defaults,calculate} from '../src/cost-model.js';
+test('60计费方折算与各段独立重抛比',()=>{const s=defaults();s.weight=2500;const r=calculate(s);assert.equal(r.domesticQty,2500/300);assert.equal(r.railQty,5);assert.ok(Math.abs(r.unit-197.14285714285714)<1e-9);assert.ok(r.pending.includes('THC'));assert.ok(r.pending.includes('国内干线'));});
+test('重货铁路折算与跨档缺价',()=>{const s=defaults();s.weight=5000;const r=calculate(s);assert.equal(r.railQty,10);assert.ok(r.pending.includes('提货费'));assert.ok(Math.abs(r.lines.find(l=>l.name==='自营铁路折算').value-1971.4285714285713)<1e-8);});
+test('供应商切换重算不修改原供应商',()=>{const s=defaults();s.own[1].alternatives[1].amount=9000;s.own[1].selected=1;assert.ok(calculate(s).unit>calculate(defaults()).unit);assert.equal(s.own[1].alternatives[0].amount,8400);});
+test('外配不重复计入整柜费用并遵守最低收费',()=>{const s=defaults();s.mode='external';s.domesticRate=0;s.external[0]={rate:200,ratio:500,minimum:1200,fees:50};const r=calculate(s);assert.equal(r.cost,1330);assert.equal(r.complete,true);assert.equal(r.unit,200);});
+test('加成毛利固定利润口径',()=>{const s=defaults();const c=calculate(s).cost;s.profitMode='margin';assert.equal(calculate(s).price,c/0.9);s.profitMode='fixed';s.profit=150;assert.equal(calculate(s).price,c+150);});
+test('缺价不默认为完整零成本',()=>{const s=defaults();s.mode='external';assert.equal(calculate(s).unit,null);assert.ok(calculate(s).pending.includes('外配铁路'));s.volume=5.5;assert.ok(calculate(s).pending.includes('提货费'));});
+test('无效参数拒绝计算',()=>{for(const k of ['fx','capacity','railRatio','domesticRatio']){const s=defaults();s[k]=0;assert.throws(()=>calculate(s));}const s=defaults();s.profitMode='margin';s.profit=100;assert.throws(()=>calculate(s));});
