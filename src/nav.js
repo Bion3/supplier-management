@@ -1,7 +1,7 @@
 const pages=[
  {group:'首页',items:[['/hub.html','系统首页']]},
  {group:'基础资料',items:[['/','供应商档案']]},
- {group:'成本中心',items:[['/cost.html','成本测算'],['/rates.html','国内采购价'],['/rail-rates.html','铁路采购方案']]},
+ {group:'成本中心',items:[['/cost.html','成本测算'],['/rates.html','国内采购价'],['/rail-rates.html','拼箱铁路运费']]},
  {group:'客户开发',items:[['/crm.html','客户资源'],['/mail.html','邮件工作台']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];

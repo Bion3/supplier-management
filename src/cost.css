@@ -4,3 +4,4 @@
 
 main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointer;font-weight:600;padding:8px 0}details.panel{margin-top:12px;padding:16px 20px}details[open]>summary{margin-bottom:14px}.pager{padding:16px;display:flex;justify-content:space-between;align-items:center}.tier{padding:12px 0;border-bottom:1px solid #eee}
 .select-col{width:46px;min-width:46px;text-align:center}.select-col input,td.row-select input{width:18px;height:18px}.bulk-summary{background:#f2f7f6;border-radius:9px;padding:12px;margin:16px 0}.bulk-summary strong{color:#173f46}.bulk-skipped{color:#a65c00}
+.rail-tag{display:inline-block;padding:4px 8px;background:#eaf4f2;color:#27655e;border-radius:12px;font-size:12px;margin:2px}#rail-editor{width:min(900px,94vw);max-height:88vh;overflow:auto}
