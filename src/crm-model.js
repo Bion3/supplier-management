@@ -10,7 +10,7 @@ export function filterCompanies(companies,contacts,followups,{query='',status=''
  for(const c of contacts)text.set(c.company_id,(text.get(c.company_id)||'')+' '+c.name+' '+c.value);
  return companies.filter(c=>{
   const next=latest.get(c.id)?.next_date;
-  return (!status||c.status===status)&&(!due||(next&&next<=today))&&[c.company_name,c.owner,c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
+  return (!status||c.status===status)&&(!due||(next&&next<=today))&&[c.company_name,c.owner,c.role,c.region,c.industry,c.notes,JSON.stringify(c.source_refs),c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
  });
 }
 export function validateCompany(data){
