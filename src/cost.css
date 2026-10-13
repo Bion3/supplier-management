@@ -3,3 +3,4 @@
 .supplier-stack{display:grid;grid-template-columns:1fr;gap:12px}.supplier-stack .cost-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cost-row>button,#add-external{margin-top:12px}@media(max-width:800px){.supplier-stack .cost-card{grid-template-columns:1fr}}
 
 main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointer;font-weight:600;padding:8px 0}details.panel{margin-top:12px;padding:16px 20px}details[open]>summary{margin-bottom:14px}.pager{padding:16px;display:flex;justify-content:space-between;align-items:center}.tier{padding:12px 0;border-bottom:1px solid #eee}
+.select-col{width:46px;min-width:46px;text-align:center}.select-col input,td.row-select input{width:18px;height:18px}.bulk-summary{background:#f2f7f6;border-radius:9px;padding:12px;margin:16px 0}.bulk-summary strong{color:#173f46}.bulk-skipped{color:#a65c00}
