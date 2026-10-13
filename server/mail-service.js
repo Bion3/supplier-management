@@ -1,3 +1,4 @@
+import {mailContent} from '../src/mail-content.js';
 import {queueOptions} from '../src/mail-rules.js';
 import {validEmail,validateMail} from '../src/mail-model.js';
 const base='https://hcorkkudgicarsmexnqf.supabase.co';
@@ -32,7 +33,7 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
   const claimed=await request('/rest/v1/rpc/freight_mail_claim',token,{method:'POST',body:JSON.stringify({p_id:id})});if(claimed.length!==1)throw Error('邮件已由其他请求处理，请刷新记录。');
   const row=claimed[0];if(row.subject!==d.subject||row.body!==d.body||row.recipient!==d.recipient||row.contact_id!==d.contact_id||row.purpose!==d.purpose||row.company_id!==d.company_id){await patch(id,{status:'failed',error:'草稿在发送前已修改，请重新预览并新建草稿。'},token);throw Error('草稿已修改，请重新预览。');}
   let info;const transport=createTransport(smtpOptions(password));
-  try{info=await transport.sendMail({from:{name:'Benjamin · Eurasiago',address:sender},replyTo:sender,to:row.recipient,subject:row.subject,text:row.body,messageId:`<${id}@eurasiago.com>`});if(!info.accepted?.length)throw Object.assign(Error('收件人被服务器拒绝'),{code:'EENVELOPE'});}
+  try{info=await transport.sendMail({from:{name:'Benjamin · Eurasiago',address:sender},replyTo:sender,to:row.recipient,subject:row.subject,...mailContent(row.body),messageId:`<${id}@eurasiago.com>`});if(!info.accepted?.length)throw Object.assign(Error('收件人被服务器拒绝'),{code:'EENVELOPE'});}
   catch(e){const failed=['EAUTH','EENVELOPE','EDNS'].includes(e.code)||(e.responseCode>=400&&e.responseCode<600);const message=failed?'发信服务器拒绝或连接失败，请检查邮箱配置。':'发送结果不确定，请先检查飞书已发送邮件，避免重复发送。';await patch(id,{status:failed?'failed':'unknown',error:message},token).catch(()=>{});throw Error(message);}
   finally{transport.close?.();}
   try{await patch(id,{status:'sent',sent_at:new Date().toISOString(),message_id:info.messageId,error:null},token);}catch{throw Error('服务器已接受邮件，但发送记录更新失败。请检查飞书邮件，勿重复发送。');}
@@ -40,4 +41,5 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
  }
  return {authorize,send,schedule,cancel,rules,configured:!!password};
 }
+
 

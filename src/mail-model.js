@@ -1,7 +1,8 @@
+import {mailContent} from './mail-content.js';
 export function validEmail(value){return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(String(value))&&String(value).length<=254;}
 export function eligibleContacts(contacts){const seen=new Set(),blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>{const e=c.value?.trim().toLowerCase();if(c.channel!=='邮箱'||c.status!=='有效'||blocked.has(e)||!validEmail(e)||seen.has(e))return false;seen.add(e);return true;});}
 export function personalise(text,company,contact){return String(text).replace(/\{\{(company|name|routes)\}\}/g,(_,key)=>({company:company?.company_name||'',name:contact?.name||'',routes:company?.current_routes||'您的运输线路'}[key]));}
-export function validateMail(subject,body){subject=String(subject||'').trim();body=String(body||'').trim();if(!subject||subject.length>200||/[\r\n]/.test(subject))throw Error('主题需为1至200字的单行文本。');if(!body||body.length>20000)throw Error('正文需为1至20000字。');if(/\{\{[^}]+\}\}/.test(subject+body))throw Error('邮件仍有未替换的模板变量。');return {subject,body};}
+export function validateMail(subject,body){subject=String(subject||'').trim();body=String(body||'').trim();if(!subject||subject.length>200||/[\r\n]/.test(subject))throw Error('主题需为1至200字的单行文本。');if(!body||body.length>20000)throw Error('正文需为1至20000字。');if(/\{\{[^}]+\}\}/.test(subject+body))throw Error('邮件仍有未替换的模板变量。');mailContent(body);return {subject,body};}
 export function regionInfo(company){
  if(company?.region?.trim())return {value:company.region.trim(),inferred:false};
  const address=(company?.addresses||[]).join(' ');
@@ -34,4 +35,5 @@ export function batchRecipients(selected,contacts,limit=10){
 export function selectRows(selected,rows,checked=true){const result=new Set(selected);for(const row of rows)if(checked)result.add(row.id);else result.delete(row.id);return result;}
 export function selectionState(selected,rows){const count=rows.filter(row=>selected.has(row.id)).length;return {checked:rows.length>0&&count===rows.length,indeterminate:count>0&&count<rows.length,disabled:rows.length===0};}
 export function emailContactScope(chosen,contacts){const emails=new Set(chosen.filter(c=>c.channel==='邮箱').map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>c.channel==='邮箱'&&emails.has(c.value.trim().toLowerCase())).map(c=>c.id);}
+
 
