@@ -16,3 +16,7 @@ test('unknown contacts remain unnamed and invalid email is rejected',()=>{
  assert.throws(()=>validateCompany({company_name:' ',status:'待核实'}));
  assert.deepEqual(validateCompany({company_name:'客户',status:'待核实',addresses:'地址1\n地址2'}).addresses,['地址1','地址2']);
 });
+
+
+import {initialContacts} from '../src/crm-model.js';
+test('new company contacts support multiple people and channels, without inventing names',()=>{const rows=initialContacts([{name:'张先生',email:'a@example.com',phone:'123',status:'有效'},{wechat:'wx123'},{email:'',phone:''}]);assert.equal(rows.length,3);assert.equal(rows[0].status,'有效');assert.equal(rows[2].status,'待核实');assert.equal(rows[2].name,'');assert.throws(()=>initialContacts([{email:'invalid'}]));assert.throws(()=>initialContacts([{name:'只有姓名'}]));assert.throws(()=>initialContacts([{email:'a@example.com'},{email:'A@example.com'}]));});
