@@ -8,6 +8,7 @@ await cp('mail.html','dist/mail.html');
 await cp('cost.html','dist/cost.html');
 await cp('rates.html','dist/rates.html');
 await cp('rail-rates.html','dist/rail-rates.html');
+await cp('hub.html','dist/hub.html');
 await cp('src','dist/src',{recursive:true});
 const html = await readFile('dist/index.html','utf8');
 for(const asset of ['src/app.js','src/suppliers.js','src/style.css']) await readFile(`dist/${asset}`);
