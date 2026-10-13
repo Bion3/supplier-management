@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {railUnit} from '../src/rail-unit.js';import {defaults,calculate} from '../src/cost-model.js';
+test('铁路单位成本不依赖单票货量、国内费或利润',()=>{const s=defaults();const a=railUnit(s);s.volume=999;s.weight=99999;s.pickup=999;s.domesticRate=999;s.profit=99;assert.deepEqual(railUnit(s),a);assert.ok(Math.abs(a.unit-197.14285714285714)<1e-8);assert.deepEqual(a.pending,['THC']);});
+test('综合测算使用保存单价而不重新折算采购明细',()=>{const s=defaults();s.railUnitCost=railUnit(s);s.own[1].alternatives[0].amount=1;const r=calculate(s);assert.equal(r.unit,s.railUnitCost.unit);assert.equal(r.lines.find(x=>x.name==='铁路运费').value,s.railUnitCost.unit*5);});
+test('外配另计杂费与最低收费不混入单位成本',()=>{const s=defaults();s.mode='external';s.external[0]={rate:200,ratio:500,minimum:1200,fees:50};const q=railUnit(s);assert.equal(q.unit,200);assert.equal(q.fees,50);s.railUnitCost=q;assert.equal(calculate(s).lines.find(x=>x.name==='铁路运费').value,1200);});

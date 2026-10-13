@@ -1,5 +1,6 @@
 import {domesticCost,blankRate} from './domestic-model.js';
 import {calculate} from './cost-model.js';
+import {railUnit} from './rail-unit.js';
 const norm=s=>String(s||'').trim().toLowerCase().replace(/[\s’']/g,'').replace(/市$/,'').replace(/^hamburg$/,'汉堡').replace(/^xian$/,'西安');
 export const placeMatches=(a,b)=>!!norm(a)&&!!norm(b)&&String(a).split(/[,，/]/).some(x=>String(b).split(/[,，/]/).some(y=>norm(x)===norm(y)));
 export function currentRates(rows,date=new Date().toISOString().slice(0,10)){
@@ -13,6 +14,7 @@ export function matchCosts(input,rates,plans){
  const valid=currentRates(rates,input.date),replaced=new Set(plans.map(p=>p.supersedes_id).filter(Boolean));const result=[];
  for(const plan of plans.filter(p=>!replaced.has(p.id)&&p.status==='confirmed'&&placeMatches(p.destination,input.destination)&&(!p.valid_from||p.valid_from<=input.date)&&(!p.valid_until||p.valid_until>=input.date))){
   const config=structuredClone(plan.inputs),volume=input.volume,weight=input.weight,fx=config.fx;
+  config.railUnitCost=config.railUnitCost||railUnit(config);
   const lines=valid.filter(r=>r.kind==='linehaul'&&placeMatches(r.destination,plan.origin));
   const combos=[];
   for(const l of lines){const pickups=valid.filter(p=>p.kind==='pickup'&&placeMatches(p.origin,input.origin)&&placeMatches(p.destination,l.origin));if(placeMatches(l.origin,input.origin))combos.push({l,p:null});for(const p of pickups)combos.push({l,p});}

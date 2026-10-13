@@ -12,7 +12,9 @@ export function calculate(s){
  const matches=(s.volume>=1&&s.volume<=5&&s.weight<=2500)||(s.volume>=6&&s.volume<=10&&s.weight>=2500&&s.weight<=5000);
  if(s.pickupQuote)applyDomestic('国内提货',s.pickupQuote);else add('提货费',pickup??(matches?80:null),pickup!==null?'手动确认金额':'原始双条件阶梯');
  const domestic=amount(s.domesticRate,'国内干线单价');if(s.linehaulQuote)applyDomestic('国内干线',s.linehaulQuote);else {add('国内干线',domestic===null?null:domesticQty*domestic,`${domesticQty}计费方 × CNY单价 ÷ 汇率`);if(domestic!==null)lines.at(-1).value/=s.fx;}
- if(s.mode==='own'){
+ if(s.railUnitCost){
+  const q=s.railUnitCost;positive(q.ratio,'铁路重抛比');railQty=Math.max(s.volume,s.weight/q.ratio);unit=amount(q.unit,'铁路采购单价');add('铁路运费',unit===null?null:Math.max(railQty*unit,q.minimum??0),`${railQty}计费方 × 已保存采购单价 USD ${unit??'待定'}`);if(s.mode==='external')add('外配杂费',q.fees??null,'铁路采购价另计杂费');pending.push(...q.pending);
+ }else if(s.mode==='own'){
   railQty=Math.max(s.volume,s.weight/s.railRatio);let pool=0;
   for(const item of s.own){const a=item.alternatives[item.selected];const n=amount(a.amount,item.name);if(n===null)pending.push(item.name);else pool+=n/(a.currency==='CNY'?s.fx:1);}
   unit=pool/s.capacity;add('自营铁路折算',railQty*unit,`已知整柜USD ${pool} ÷ ${s.capacity} × ${railQty}`);
