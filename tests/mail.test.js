@@ -16,9 +16,13 @@ function fixture({password='fixture',verified=true,blocked=false,claim=true,erro
   else data=[row];
   return Response.json(data);
  };
- const service=makeService({fetcher,password,createTransport:()=>({sendMail:async data=>{sends++;assert.equal(data.from.address,sender);if(error)throw error;return {accepted:[row.recipient],messageId:'mock-id'};},close(){}})});
+ const service=makeService({fetcher,password,workerSecret:'fixture',createTransport:()=>({sendMail:async data=>{sends++;assert.equal(data.from.address,sender);if(error)throw error;return {accepted:[row.recipient],messageId:'mock-id'};},close(){}})});
  return {service,row,sends:()=>sends,patches};
 }
 test('missing password and unverified or blocked contacts cannot cause SMTP side effects',async()=>{for(const args of [{password:''},{verified:false},{blocked:true},{claim:false}]){const f=fixture(args);await assert.rejects(f.service.send(f.row.id,'fixture-token'));assert.equal(f.sends(),0);}});
 test('accepted SMTP mail is recorded once; transport uncertainty is never reported as sent',async()=>{const f=fixture();assert.equal((await f.service.send(f.row.id,'fixture-token')).status,'sent');assert.equal(f.sends(),1);assert.equal(f.patches[0].status,'sent');const uncertain=fixture({error:Object.assign(Error('timeout'),{code:'ETIMEDOUT'})});await assert.rejects(uncertain.service.send(uncertain.row.id,'fixture-token'));assert.equal(uncertain.patches[0].status,'unknown');});
 test('logging failure after SMTP acceptance does not retry transport',async()=>{const f=fixture({logFail:true});await assert.rejects(f.service.send(f.row.id,'fixture-token'),/勿重复发送/);assert.equal(f.sends(),1);});
+
+
+test('schedule queues a future draft and cancel restores draft without SMTP',async()=>{const f=fixture();let queued=0;const date=new Date(Date.now()+3600000).toISOString();assert.equal((await f.service.schedule(f.row.id,date,'fixture',async(topic,payload)=>{assert.equal(topic,'freight-mail');assert.equal(payload.id,f.row.id);queued++;})).status,'scheduled');assert.equal(queued,1);assert.equal(f.sends(),0);assert.equal((await f.service.cancel(f.row.id,'fixture')).status,'draft');assert.equal(f.patches.at(-1).scheduled_at,null);});
+test('queue failure restores draft and blocked contacts cannot schedule',async()=>{const f=fixture();await assert.rejects(f.service.schedule(f.row.id,new Date(Date.now()+3600000).toISOString(),'fixture',async()=>{throw Error('queue');}),/队列/);assert.equal(f.patches.at(-1).status,'draft');assert.equal(f.sends(),0);const blocked=fixture({blocked:true});await assert.rejects(blocked.service.schedule(blocked.row.id,new Date(Date.now()+3600000).toISOString(),'fixture',async()=>assert.fail()));});
