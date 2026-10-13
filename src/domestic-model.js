@@ -28,5 +28,5 @@ export function validateRate(q){
  if(!['pickup','linehaul'].includes(q.kind))throw Error('无效运输段');
  if(q.validFrom&&q.validUntil&&q.validFrom>q.validUntil)throw Error('有效期起止顺序错误');
  if(q.rule==='tier'){if(!Array.isArray(q.tiers)||!q.tiers.length)throw Error('请添加阶梯');for(const t of q.tiers){for(const k of ['minVolume','maxVolume','minWeight','maxWeight','amount'])if(n(t[k],k)===null)throw Error('阶梯字段缺失');if(t.minVolume>t.maxVolume||t.minWeight>t.maxWeight||!['fixed','cbm','billable'].includes(t.unit))throw Error('阶梯范围或单位错误');}}
- const r=domesticCost(q,1,300,7);if(q.status==='confirmed'){if(!q.supplier_id)throw Error('确认采购价前请关联供应商');const blocked=r.pending.filter(x=>!['货物不在阶梯范围','运费缺价','采购价尚未生效','采购价已过期'].includes(x));if(blocked.length)throw Error(blocked.join('、'));if(q.rule!=='tier'&&r.pending.includes('运费缺价'))throw Error('运费缺价');}return q;
+ const r=domesticCost(q,1,300,7);if(q.status==='confirmed'){if(!q.supplier_id&&!q.sharedPickup)throw Error('确认采购价前请关联供应商');const blocked=r.pending.filter(x=>!['货物不在阶梯范围','运费缺价','采购价尚未生效','采购价已过期'].includes(x));if(blocked.length)throw Error(blocked.join('、'));if(q.rule!=='tier'&&r.pending.includes('运费缺价'))throw Error('运费缺价');}return q;
 }

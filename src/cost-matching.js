@@ -17,9 +17,11 @@ export function matchCosts(input,rates,plans){
   config.railUnitCost=config.railUnitCost||railUnit(config);
   const lines=valid.filter(r=>r.kind==='linehaul'&&placeMatches(r.destination,plan.origin));
   const combos=[];
-  for(const l of lines){const pickups=valid.filter(p=>p.kind==='pickup'&&placeMatches(p.origin,input.origin)&&placeMatches(p.destination,l.origin));if(placeMatches(l.origin,input.origin))combos.push({l,p:null});for(const p of pickups)combos.push({l,p});}
+  const hasSpecific=valid.some(p=>p.kind==='pickup'&&!p.quote.sharedPickup&&placeMatches(p.origin,input.origin)&&(placeMatches(p.destination,plan.origin)||lines.some(l=>placeMatches(p.destination,l.origin))));
+  const shared=hasSpecific?[]:valid.filter(p=>p.kind==='pickup'&&p.quote.sharedPickup&&(!p.quote.areas?.length||p.quote.areas.some(a=>placeMatches(a,input.origin))));
+  for(const l of lines){const pickups=valid.filter(p=>p.kind==='pickup'&&!p.quote.sharedPickup&&placeMatches(p.origin,input.origin)&&placeMatches(p.destination,l.origin));if(placeMatches(l.origin,input.origin)){if(pickups.length)for(const p of pickups)combos.push({l,p});else if(shared.length)for(const p of shared)combos.push({l,p});else combos.push({l,p:null});}else for(const p of pickups)combos.push({l,p});}
   const pickupsToStation=valid.filter(p=>p.kind==='pickup'&&placeMatches(p.origin,input.origin)&&placeMatches(p.destination,plan.origin));for(const p of pickupsToStation)combos.push({p,l:null,directPickup:true});
-  if(!combos.length)combos.push({p:null,l:null});
+  if(!combos.length){if(shared.length)for(const p of shared)combos.push({p,l:null});else combos.push({p:null,l:null});}
   const scored=combos.map(c=>{try{let score=0,price=0;for(const q of [c.p,c.l])if(q){const r=domesticCost(snapshot(q),volume,weight,fx,input.date);score+=r.complete?1:0;price+=r.usd;}return {...c,score,price};}catch{return {...c,score:-1,price:Infinity};}}).sort((a,b)=>b.score-a.score||a.price-b.price);
   const chosen=scored[0];
   config.volume=volume;config.weight=weight;config.pieces=input.pieces;config.origin=input.origin;config.destination=input.destination;config.route=input.origin+' → '+input.destination;config.railPlanId=plan.id;config.pickupQuote=chosen.p?snapshot(chosen.p):missing('未匹配提货采购价');config.linehaulQuote=chosen.l?snapshot(chosen.l):chosen.directPickup?{...blankRate(),status:'confirmed',rule:'fixed',fixed:0,deliveryIncluded:true,source:'提货直达装箱仓，无独立干线'}:missing('未匹配国内干线采购价');
