@@ -2,7 +2,7 @@ const pages=[
  {group:'首页',items:[['/hub.html','系统首页']]},
  {group:'基础资料',items:[['/','供应商档案']]},
  {group:'成本中心',items:[['/cost.html','成本测算'],['/pricing.html','采购价格中心']]},
- {group:'客户开发',items:[['/crm.html','客户资源'],['/mail.html','邮件工作台']]},
+ {group:'客户开发',items:[['/crm.html','客户资源'],['/inbox.html','收件箱'],['/mail.html','邮件发送']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/'?'/':location.pathname;
@@ -17,3 +17,4 @@ if(header){
  toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));nav.classList.toggle('open',!open);});
 }
 if(pricePages[path]){const context=document.createElement('nav');context.className='price-breadcrumb';context.setAttribute('aria-label','当前位置');context.innerHTML=`<a href="/pricing.html">采购价格中心</a><span> / ${pricePages[path][0]} / ${pricePages[path][1]}</span>`;document.querySelector('main')?.prepend(context);}
+
