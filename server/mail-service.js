@@ -7,7 +7,13 @@ export const sender='benjamin@eurasiago.com';
 export function smtpOptions(password){return {host:'smtp.feishu.cn',port:465,secure:true,auth:{user:sender,pass:password},tls:{minVersion:'TLSv1.2'},connectionTimeout:15000,greetingTimeout:15000,socketTimeout:30000,disableFileAccess:true,disableUrlAccess:true,logger:false,debug:false};}
 export function makeService({fetcher=fetch,createTransport,password=process.env.SMTP_PASSWORD,workerSecret=process.env.MAIL_WORKER_SECRET}={}){
  async function request(path,token,options={}){const res=await fetcher(base+path,{...options,headers:{apikey:key,Authorization:'Bearer '+token,'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(15000)});const data=await res.json().catch(()=>null);if(!res.ok)throw Error('账号权限或数据库请求失败。');return data;}
- async function authorize(token){if(!token)throw Error('请先登录。');const user=await request('/auth/v1/user',token);const access=await request('/rest/v1/freight_mail_access?user_id=eq.'+encodeURIComponent(user.id)+'&select=user_id',token);if(access.length!==1)throw Error('账号未获邮件系统权限。');return user;}
+ // Authorization is reused only within this service instance (one HTTP request).
+ const authorized=new Map();
+ async function authorize(token){
+  if(!token)throw Error('请先登录。');
+  if(!authorized.has(token)){const promise=(async()=>{const user=await request('/auth/v1/user',token);const access=await request('/rest/v1/freight_mail_access?user_id=eq.'+encodeURIComponent(user.id)+'&select=user_id',token);if(access.length!==1)throw Error('账号未获邮件系统权限。');return user;})();authorized.set(token,promise);promise.catch(()=>{if(authorized.get(token)===promise)authorized.delete(token);});}
+  return authorized.get(token);
+ }
  async function patch(id,data,token){return request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id),token,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(data)});}
  async function check(d,token){validateMail(d.subject,d.body);if(!validEmail(d.recipient))throw Error('收件邮箱格式无效。');
   if(d.purpose==='测试'){if(d.recipient.toLowerCase()!==sender)throw Error('测试邮件只允许发给发信邮箱自身。');}
@@ -41,5 +47,3 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
  }
  return {authorize,send,schedule,cancel,rules,configured:!!password};
 }
-
-

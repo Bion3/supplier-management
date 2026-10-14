@@ -19,6 +19,7 @@ export function draftSendPlan(rows,contacts){
  }
  return {eligible,skipped};
 }
+export function mailStateMatches(status,state){return !state||state==='queue'&&['scheduled','sending'].includes(status)||state==='issues'&&['failed','unknown'].includes(status)||status===state;}
 export function installDraftBulk(ctx){
  const $=id=>document.getElementById(id),chosen=new Set();let page=1,pageRows=[],visible=[],busy=false,previewIds=[];
  const pager=addPagerAfter($('history').closest('.table-wrap'),'mail-history',value=>{page=value;render();});
@@ -31,7 +32,12 @@ export function installDraftBulk(ctx){
   for(const value of [...new Set(contacts.flatMap(c=>c.mail_groups||[]))].sort())$('draft-group').append(new Option(value,value));
   $('draft-group').value=group;if($('draft-group').selectedIndex<0)$('draft-group').value='';
   const q=$('draft-search').value.trim().toLowerCase(),state=$('draft-status').value;
-  visible=messages.filter(m=>(!state||m.status===state)&&(!$('draft-group').value||(byId.get(m.contact_id)?.mail_groups||[]).includes($('draft-group').value))&&[m.recipient,m.subject].join(' ').toLowerCase().includes(q));
+  const scoped=messages.filter(m=>(!$('draft-group').value||(byId.get(m.contact_id)?.mail_groups||[]).includes($('draft-group').value))&&[m.recipient,m.subject].join(' ').toLowerCase().includes(q));
+  visible=scoped.filter(m=>mailStateMatches(m.status,state));
+  const labels={'':'全部',draft:'待发送草稿',queue:'待发送队列',sent:'发送记录',issues:'异常记录'};
+  for(const button of document.querySelectorAll('[data-mail-state]')){const value=button.dataset.mailState;button.textContent=labels[value]+'（'+scoped.filter(m=>mailStateMatches(m.status,value)).length+'）';button.setAttribute('aria-pressed',String(value===state));button.disabled=busy;}
+  const queued=scoped.filter(m=>mailStateMatches(m.status,'queue')).length;
+  $('draft-queue-note').textContent=queued?'待发送队列已保存在系统，退出页面后继续执行；未提交的草稿仍需批量提交。':scoped.some(m=>m.status==='draft')?'草稿尚未提交。选择草稿并批量提交后，可在“待发送队列”查看安排。':'已发送及异常记录会持续保留，可通过上方入口查看。';
   const messageMap=new Map(messages.map(m=>[m.id,m]));for(const id of chosen)if(messageMap.get(id)?.status!=='draft')chosen.delete(id);
   const paging=pager.update(visible.length,page);page=paging.page;pageRows=visible.slice(paging.start,paging.end);$('history').replaceChildren();
   for(const m of pageRows){
@@ -64,11 +70,12 @@ export function installDraftBulk(ctx){
   if(busy||!previewIds.length)return;const epoch=ctx.getEpoch(),mode=$('draft-send-mode').value;let date;
   try{date=mode==='scheduled'?scheduleISO($('draft-send-date').value):null;}catch(e){$('draft-send-error').textContent=e.message;return;}
   const current=ctx.getMessages().filter(m=>previewIds.includes(m.id)),plan=draftSendPlan(current,ctx.getContacts());if(!plan.eligible.length){$('draft-send-error').textContent='草稿或邮箱状态已变化，请重新选择。';return;}
-  busy=true;for(const id of ['draft-send-confirm','draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=true;render();let submitted=0;const errors=[];
+  busy=true;for(const id of ['draft-send-confirm','draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=true;render();$('draft-send-summary').textContent=`正在提交 0 / ${plan.eligible.length} 封，请保持窗口打开…`;let submitted=0;const errors=[];
   try{
    const size=Math.min(20,ctx.getRules().batch_limit||10);
    for(let i=0;i<plan.eligible.length;i+=size){
     if(epoch!==ctx.getEpoch())throw Error('账号或页面数据已变化，请刷新发送记录。');
+    $('draft-send-summary').textContent=`正在提交第 ${i+1}–${Math.min(i+size,plan.eligible.length)} 封 / 共 ${plan.eligible.length} 封；已确认提交 ${submitted} 封…`;
     const batch=plan.eligible.slice(i,i+size),result=await appRequest('/api/mail-batch',{method:'POST',body:JSON.stringify({ids:batch.map(m=>m.id),mode,...(date?{scheduled_at:date}:{})})});
     if(epoch!==ctx.getEpoch())throw Error('账号或页面数据已变化，请刷新发送记录。');
     const byId=new Map(batch.map(m=>[m.id,m]));
@@ -81,6 +88,7 @@ export function installDraftBulk(ctx){
   }catch(e){if(epoch===ctx.getEpoch()){$('draft-send-error').textContent=e.message+' 已确认提交 '+submitted+' 封；请刷新后核对其余草稿再提交。';try{await ctx.reloadMessages();}catch{} }}
   finally{busy=false;if(epoch===ctx.getEpoch()){render();for(const id of ['draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=false;$('draft-send-confirm').disabled=true;}}
  });
+ for(const button of document.querySelectorAll('[data-mail-state]'))button.addEventListener('click',()=>{$('draft-status').value=button.dataset.mailState;page=1;render();});
  for(const id of ['draft-group','draft-status','draft-search'])$(id).addEventListener(id==='draft-search'?'input':'change',()=>{page=1;render();});
  $('draft-select-page').onchange=e=>{for(const m of pageRows.filter(m=>m.status==='draft'))e.target.checked?chosen.add(m.id):chosen.delete(m.id);render();};
  $('draft-select-filtered').onclick=()=>{for(const m of visible.filter(m=>m.status==='draft'))chosen.add(m.id);render();};$('draft-clear').onclick=()=>{chosen.clear();render();};
