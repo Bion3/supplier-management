@@ -1,3 +1,4 @@
+import {installMailVerification} from './mail-verification.js';
 import {installCrmBulk} from './crm-bulk.js';
 import {createPager} from './pagination.js';
 import {login,logout,currentUser,cloudRequest} from './cloud.js';
@@ -81,6 +82,11 @@ function fillOwners(){const value=$('owner-filter').value;$('owner-filter').repl
 function syncCompanySelection(){const chosen=pageCompanies.filter(c=>selectedCompanies.has(c.id)).length;$('company-select-page').checked=pageCompanies.length>0&&chosen===pageCompanies.length;$('company-select-page').indeterminate=chosen>0&&chosen<pageCompanies.length;$('company-selection').textContent='已选 '+selectedCompanies.size+' 家（跨页、分组保留）';for(const id of ['bulk-company','bulk-followup','export-selected'])$(id).disabled=!selectedCompanies.size;}
 $('company-select-page').onchange=e=>{for(const c of pageCompanies)e.target.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);render();};$('select-filtered').onclick=()=>{for(const c of filteredCompanies)selectedCompanies.add(c.id);render();};$('clear-selection').onclick=()=>{selectedCompanies.clear();render();};$('clear-filters').onclick=()=>{for(const id of ['search','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).value='';page=1;render();};
 installCrmBulk({getCompanies:()=>companies,getContacts:()=>contacts,selected:selectedCompanies,applyCompanies:rows=>{const map=new Map(rows.map(r=>[r.id,r]));companies=companies.map(c=>map.get(c.id)||c);fillOwners();render();},applyFollowups:rows=>{followups.unshift(...rows);render();},render});
+installMailVerification({buttonId:'bulk-email-verification',getContacts:()=>contacts,getEpoch:()=>generation,getScopes:()=>{
+ const scopeRows=ids=>contacts.filter(c=>ids.has(c.company_id)),scopes=[{value:'selected',label:'已选客户的邮箱',rows:scopeRows(selectedCompanies)}];
+ if($('group-filter').value){const group=$('group-filter').value,ids=new Set(filterCompanies(companies,contacts,followups,{group}).map(c=>c.id));scopes.push({value:'group',label:'当前分组：'+(group==='__ungrouped'?'未分组':group),rows:scopeRows(ids)});}
+ scopes.push({value:'filtered',label:'全部筛选客户的邮箱',rows:scopeRows(new Set(filteredCompanies.map(c=>c.id)))});return scopes;
+},applyRows:rows=>{const map=new Map(rows.map(c=>[c.id,c]));contacts=contacts.map(c=>map.get(c.id)||c);},render});
 $('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});render();authUI();if(currentUser())load();
 
 

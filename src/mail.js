@@ -1,3 +1,4 @@
+import {installMailVerification} from './mail-verification.js';
 import {createPager,addPagerAfter} from './pagination.js';
 import {mailContent,personaliseBody} from './mail-content.js';
 import {createMailEditor} from './mail-editor.js';
@@ -72,7 +73,7 @@ for(const id of ['preview','compose-preview'])$(id).addEventListener('click',()=
 $('clear-selection').addEventListener('click',()=>{selected.clear();render();});
 for(const [id,whole] of [['select-page',false],['select-filtered',true]])$(id).addEventListener('click',()=>{const rows=filtered(),take=whole?rows:rows.slice((page-1)*pager.size,page*pager.size);selected=selectRows(selected,take);render();});
 $('select-all-page').addEventListener('change',()=>{selected=selectRows(selected,filtered().slice((page-1)*pager.size,page*pager.size),$('select-all-page').checked);render();});
-$('verify-selected').addEventListener('click',()=>guarded('verify-selected',async()=>{const rows=requireSelected(),status=$('bulk-verification').value,ids=rows.filter(c=>status!=='有效'||validEmail(c.value)).map(c=>c.id);if(!ids.length)throw Error('所选邮箱格式无效，不能标记有效。');await updateContactRows(ids,{status});render();$('bulk-result').textContent=`已将 ${ids.length} 条邮箱设置为“${status}”${ids.length<rows.length?'；跳过格式无效的邮箱':''}。`;}));
+
 $('apply-contact').addEventListener('click',()=>guarded('apply-contact',async()=>{const chosen=requireSelected(),value=$('bulk-contact').value==='yes',ids=emailContactScope(chosen,contacts);await updateContactRows(ids,{email_allowed:value});render();$('bulk-result').textContent=`已为 ${chosen.length} 条选择${value?'允许':'停止'}邮件联系，覆盖同一邮箱的 ${ids.length} 条联系方式。`;}));
 $('add-groups').addEventListener('click',()=>guarded('add-groups',()=>editGroups(false)));$('remove-groups').addEventListener('click',()=>guarded('remove-groups',()=>editGroups(true)));
 $('classify-selected').addEventListener('click',()=>guarded('classify-selected',async()=>{const rows=requireSelected(),ids=[...new Set(rows.map(c=>c.company_id))],data={},region=$('region-value').value.trim(),role=$('role-value').value;if(region)data.region=region;if(role)data.role=role;if(!Object.keys(data).length)throw Error('请填写地区或选择客户类型。');for(let i=0;i<ids.length;i+=100){const batch=ids.slice(i,i+100),saved=await cloudRequest('freight_companies?id=in.'+encodeURIComponent('('+batch.join(',')+')'),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(data)});const map=new Map(saved.map(c=>[c.id,c]));companies=companies.map(c=>map.get(c.id)||c);if(saved.length!==batch.length)throw Error('部分公司未保存，请刷新核对。');}renderFilterOptions();render();$('notice').textContent=`已更新 ${ids.length} 家公司的地区/类型。`;}));
@@ -88,6 +89,12 @@ $('send-rules-form').addEventListener('submit',async e=>{e.preventDefault();awai
 function openComposer(){if(!selected.size){$('notice').textContent='请先批量选择客户邮箱。';return;}$('compose-panel').hidden=false;$('recipient-panel').hidden=true;$('preview').hidden=false;$('prepare-send').hidden=true;$('composer-summary').textContent=$('selection-summary').textContent;$('subject').focus();window.scrollTo({top:0,behavior:'smooth'});}
 $('prepare-send').addEventListener('click',openComposer);
 $('back-recipients').addEventListener('click',()=>{$('compose-panel').hidden=true;$('recipient-panel').hidden=false;$('preview').hidden=true;$('prepare-send').hidden=false;});
+installMailVerification({buttonId:'verify-selected',getContacts:()=>contacts,getEpoch:()=>epoch,getScopes:()=>{
+ const scopes=[{value:'selected',label:'已选邮箱',rows:contacts.filter(c=>selected.has(c.id))}];
+ if($('group').value)scopes.push({value:'group',label:'当前分组：'+($('group').value==='__ungrouped'?'未分组':$('group').value),rows:filterRecipients(contacts,companies,{group:$('group').value})});
+ scopes.push({value:'filtered',label:'全部筛选结果',rows:filtered()});return scopes;
+},applyRows:rows=>{const map=new Map(rows.map(c=>[c.id,c]));contacts=contacts.map(c=>map.get(c.id)||c);},render});
 authUI();if(currentUser())load();
+
 
 
