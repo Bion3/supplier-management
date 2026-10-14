@@ -70,12 +70,12 @@ export function installDraftBulk(ctx){
   if(busy||!previewIds.length)return;const epoch=ctx.getEpoch(),mode=$('draft-send-mode').value;let date;
   try{date=mode==='scheduled'?scheduleISO($('draft-send-date').value):null;}catch(e){$('draft-send-error').textContent=e.message;return;}
   const current=ctx.getMessages().filter(m=>previewIds.includes(m.id)),plan=draftSendPlan(current,ctx.getContacts());if(!plan.eligible.length){$('draft-send-error').textContent='草稿或邮箱状态已变化，请重新选择。';return;}
-  busy=true;for(const id of ['draft-send-confirm','draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=true;render();$('draft-send-summary').textContent=`正在提交 0 / ${plan.eligible.length} 封，请保持窗口打开…`;let submitted=0;const errors=[];
+  busy=true;for(const id of ['draft-send-confirm','draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=true;render();$('draft-send-summary').textContent=`正在将整批 ${plan.eligible.length} 封保存到后台，请稍候…`;let submitted=0;const errors=[];
   try{
-   const size=Math.min(20,ctx.getRules().batch_limit||10);
+   const size=1000;
    for(let i=0;i<plan.eligible.length;i+=size){
     if(epoch!==ctx.getEpoch())throw Error('账号或页面数据已变化，请刷新发送记录。');
-    $('draft-send-summary').textContent=`正在提交第 ${i+1}–${Math.min(i+size,plan.eligible.length)} 封 / 共 ${plan.eligible.length} 封；已确认提交 ${submitted} 封…`;
+    $('draft-send-summary').textContent=`正在提交整批 ${plan.eligible.length} 封到后台…`;
     const batch=plan.eligible.slice(i,i+size),result=await appRequest('/api/mail-batch',{method:'POST',body:JSON.stringify({ids:batch.map(m=>m.id),mode,...(date?{scheduled_at:date}:{})})});
     if(epoch!==ctx.getEpoch())throw Error('账号或页面数据已变化，请刷新发送记录。');
     const byId=new Map(batch.map(m=>[m.id,m]));

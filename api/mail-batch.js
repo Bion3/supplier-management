@@ -5,7 +5,7 @@ import {makeBatchScheduler} from '../server/mail-batch-service.js';
 export const maxDuration=300;
 export async function POST(request){
  try{
-  if(Number(request.headers.get('content-length')||0)>10000)return Response.json({error:'请求过大'},{status:413});
+  if(Number(request.headers.get('content-length')||0)>65536)return Response.json({error:'请求过大'},{status:413});
   const body=await request.json(),token=(request.headers.get('authorization')||'').replace(/^Bearer /i,'');
   const schedule=makeBatchScheduler({service:makeService({createTransport:nodemailer.createTransport}),enqueue});
   return Response.json(await schedule(body,token),{headers:{'Cache-Control':'no-store'}});

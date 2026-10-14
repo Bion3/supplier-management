@@ -31,6 +31,8 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
   try{await enqueue('freight-mail',{id},queueOptions(id,scheduled_at));}catch{await request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id)+'&status=eq.scheduled&scheduled_at=eq.'+encodeURIComponent(scheduled_at),token,{method:'PATCH',body:JSON.stringify({status:'draft',scheduled_at:null})}).catch(()=>{});throw Error('定时队列未能建立，请刷新草稿状态后重试。');}
   return {status:'scheduled',scheduled_at};
  }
+ async function prepareBatch(ids,date,token){await authorize(token);if(!password||!workerSecret)throw Error('定时发信配置尚未完成');return request('/rest/v1/rpc/freight_mail_prepare_batch',token,{method:'POST',body:JSON.stringify({p_ids:ids,p_scheduled_at:date})});}
+ async function restoreBatch(ids,date,token){await authorize(token);return request('/rest/v1/rpc/freight_mail_restore_batch',token,{method:'POST',body:JSON.stringify({p_ids:ids,p_scheduled_at:date})});}
  async function cancel(id,token){await authorize(token);const rows=await request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id)+'&status=eq.scheduled',token,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:'draft',scheduled_at:null})});if(rows.length!==1)throw Error('邮件已开始处理或定时任务已取消。');return {status:'draft'};}
  async function send(id,token){
   await authorize(token);if(!password)throw Error('尚未配置飞书邮箱专用密码 SMTP_PASSWORD。');
@@ -45,5 +47,5 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
   try{await patch(id,{status:'sent',sent_at:new Date().toISOString(),message_id:info.messageId,error:null},token);}catch{throw Error('服务器已接受邮件，但发送记录更新失败。请检查飞书邮件，勿重复发送。');}
   return {status:'sent',message_id:info.messageId};
  }
- return {authorize,send,schedule,cancel,rules,configured:!!password};
+ return {authorize,send,schedule,prepareBatch,restoreBatch,cancel,rules,configured:!!password};
 }
