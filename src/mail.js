@@ -1,20 +1,21 @@
+import {installDraftBulk} from './mail-drafts.js';
 import {installMailVerification} from './mail-verification.js';
-import {createPager,addPagerAfter} from './pagination.js';
+import {createPager} from './pagination.js';
 import {mailContent,personaliseBody} from './mail-content.js';
 import {createMailEditor} from './mail-editor.js';
 import {defaultRules,chinaInput,scheduleISO,validateRules} from './mail-rules.js';
 import {login,logout,currentUser,cloudRequest,appRequest} from './cloud.js';
 import {eligibleContacts,personalise,validateMail,validEmail,filterRecipients,regionInfo,groupNames,batchRecipients,selectRows,selectionState,emailContactScope} from './mail-model.js';
 const $=id=>document.getElementById(id);
-let companies=[],contacts=[],templates=[],messages=[],selected=new Set(),page=1,previewRows=[],savedDrafts=[],configured=false,epoch=0,previewBusy=false,historyPage=1;
+let draftBulk=null;
+let companies=[],contacts=[],templates=[],messages=[],selected=new Set(),page=1,previewRows=[],savedDrafts=[],configured=false,epoch=0,previewBusy=false;
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;render();},30);
-const historyPager=addPagerAfter($('history').closest('.table-wrap'),'mail-history',(value)=>{historyPage=value;render();});
 const editor=createMailEditor($('body'),$('editor-toolbar'),message=>{$('editor-error').textContent=message;});
 let rules={...defaultRules};
 const names=()=>new Map(companies.map(c=>[c.id,c]));
-async function all(table){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=id.asc&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
+async function all(table,order='id.asc'){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=${order}&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
 function authUI(){const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
-async function load(){const e=++epoch;try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),cloudRequest('freight_mail_messages?select=*&order=created_at.desc,id.desc&limit=200'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected.clear();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){$('notice').textContent=err.message;authUI();}}}
+async function load(){const e=++epoch;try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),all('freight_mail_messages','created_at.desc,id.desc'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected.clear();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){$('notice').textContent=err.message;authUI();}}}
 function cell(text){const td=document.createElement('td');td.textContent=text;return td;}
 function button(text,fn){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){$('notice').textContent=e.message;}finally{b.disabled=false;}});return b;}
 function renderTemplates(){const purpose=$('purpose').value;$('template').replaceChildren();for(const t of templates.filter(t=>t.purpose===purpose)){const o=document.createElement('option');o.value=t.id;o.textContent=t.name;$('template').append(o);}useTemplate();}
@@ -44,8 +45,7 @@ function render(){
   const email=cell(c.value);for(const group of c.mail_groups||[]){const badge=document.createElement('span');badge.className='mail-group-badge';badge.textContent=group;email.append(badge);}
   tr.append(choose,cell((co?.company_name||'')+' / '+(c.name||'姓名待补充')),location,email,verify,opt);$('recipients').append(tr);
  }
- $('history').replaceChildren();const status={scheduled:'已定时',draft:'草稿',sending:'发送处理中',sent:'服务器已接受',failed:'失败',unknown:'结果不确定，请核查'};
- const historyPaging=historyPager.update(messages.length,historyPage);historyPage=historyPaging.page;for(const m of messages.slice(historyPaging.start,historyPaging.end)){const tr=document.createElement('tr'),reply=cell(''),select=document.createElement('select');for(const label of ['待回复','已回复','无需求','拒绝联系']){const o=document.createElement('option');o.textContent=label;select.append(o);}select.value=m.reply_status;select.addEventListener('change',async()=>{const previous=m.reply_status;select.disabled=true;try{if(select.value==='拒绝联系'){const contact=contacts.find(c=>c.id===m.contact_id);if(contact)await setAllowed(contact,false);}await cloudRequest('freight_mail_messages?id=eq.'+encodeURIComponent(m.id),{method:'PATCH',body:JSON.stringify({reply_status:select.value})});m.reply_status=select.value;}catch(e){select.value=previous;$('notice').textContent=e.message;}finally{select.disabled=false;}});reply.append(select);const action=cell('');action.append(button('查看',()=>openSaved(m)));if(m.status==='scheduled')action.append(button('取消定时',async()=>{await appRequest('/api/mail',{method:'POST',body:JSON.stringify({id:m.id,action:'cancel'})});m.status='draft';m.scheduled_at=null;render();}));if(m.status==='draft'&&configured)action.append(button('发送此草稿',()=>openSaved(m)));tr.append(cell(new Date(m.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})),cell(m.recipient+' / '+m.subject),cell(status[m.status]+(m.scheduled_at?' · '+chinaInput(m.scheduled_at).replace('T',' '):'')+(m.error?'：'+m.error:'')),reply,action);$('history').append(tr);}
+ draftBulk?.render();
 }
 async function setAllowed(contact,value){const email=contact.value.trim().toLowerCase();for(const c of contacts.filter(c=>c.channel==='邮箱'&&c.value.trim().toLowerCase()===email)){await cloudRequest('freight_contacts?id=eq.'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({email_allowed:value})});c.email_allowed=value;selected.delete(c.id);}render();}
 function showPreview(rows,drafts=[]){if(previewBusy)throw Error("正在保存或发送，请稍候。");previewRows=rows;savedDrafts=drafts;$('preview-send-mode').value=rules.send_mode;$('preview-send-date').value=rules.default_scheduled_at?chinaInput(rules.default_scheduled_at):'';updatePreviewMode();$('previews').replaceChildren();for(const r of rows){const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');details.open=true;summary.textContent=r.recipient+' · '+r.subject;const content=mailContent(r.body);if(content.html){pre.style.whiteSpace='normal';pre.innerHTML=content.html;}else pre.textContent=content.text;details.append(summary,pre);$('previews').append(details);}$('preview-error').textContent='';$('preview-count').textContent=`本次 ${rows.length} 封 · ${selected.size>rows.length?'剩余选择保留至下一批':'逐封预览后发送'}`;$('send-batch').disabled=!configured||rows.some(r=>r.status&&r.status!=='draft');$('save-drafts').disabled=drafts.length>0;if(!$('preview-dialog').open)$('preview-dialog').showModal();}
@@ -89,6 +89,11 @@ $('send-rules-form').addEventListener('submit',async e=>{e.preventDefault();awai
 function openComposer(){if(!selected.size){$('notice').textContent='请先批量选择客户邮箱。';return;}$('compose-panel').hidden=false;$('recipient-panel').hidden=true;$('preview').hidden=false;$('prepare-send').hidden=true;$('composer-summary').textContent=$('selection-summary').textContent;$('subject').focus();window.scrollTo({top:0,behavior:'smooth'});}
 $('prepare-send').addEventListener('click',openComposer);
 $('back-recipients').addEventListener('click',()=>{$('compose-panel').hidden=true;$('recipient-panel').hidden=false;$('preview').hidden=true;$('prepare-send').hidden=false;});
+draftBulk=installDraftBulk({getMessages:()=>messages,getContacts:()=>contacts,getRules:()=>rules,getEpoch:()=>epoch,isConfigured:()=>configured,openSaved,
+ async setReply(m,value){if(value==='拒绝联系'){const contact=contacts.find(c=>c.id===m.contact_id);if(contact)await setAllowed(contact,false);}await cloudRequest('freight_mail_messages?id=eq.'+encodeURIComponent(m.id),{method:'PATCH',body:JSON.stringify({reply_status:value})});m.reply_status=value;},
+ async cancel(m){await appRequest('/api/mail',{method:'POST',body:JSON.stringify({id:m.id,action:'cancel'})});m.status='draft';m.scheduled_at=null;render();},
+ async reloadMessages(){const e=epoch,rows=await all('freight_mail_messages','created_at.desc,id.desc');if(e===epoch){messages=rows;render();}}
+});
 installMailVerification({buttonId:'verify-selected',getContacts:()=>contacts,getEpoch:()=>epoch,getScopes:()=>{
  const scopes=[{value:'selected',label:'已选邮箱',rows:contacts.filter(c=>selected.has(c.id))}];
  if($('group').value)scopes.push({value:'group',label:'当前分组：'+($('group').value==='__ungrouped'?'未分组':$('group').value),rows:filterRecipients(contacts,companies,{group:$('group').value})});
