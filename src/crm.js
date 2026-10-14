@@ -1,7 +1,7 @@
 import {installCrmBulk} from './crm-bulk.js';
 import {createPager} from './pagination.js';
 import {login,logout,currentUser,cloudRequest} from './cloud.js';
-import {filterCompanies,latestFollowups,validateCompany,validateContact,chinaDate,initialContacts} from './crm-model.js';
+import {companyGroupOptions,filterCompanies,latestFollowups,validateCompany,validateContact,chinaDate,initialContacts} from './crm-model.js';
 const $=id=>document.getElementById(id);
 let companies=[],contacts=[],shipments=[],followups=[],page=1,selected=null,editingCompany=null,editingContact=null,generation=0,detailGeneration=0,selectedCompanies=new Set(),filteredCompanies=[],pageCompanies=[];
 let size=30;
@@ -20,10 +20,11 @@ function td(text){const el=document.createElement('td');el.textContent=text??'�
 function paragraph(text){const el=document.createElement('p');el.textContent=text;return el;}
 function btn(text,action){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',action);return b;}
 function render(){
+ fillGroups();
  const latest=latestFollowups(followups),today=chinaDate();
  $('total').textContent=companies.length;$('pending').textContent=companies.filter(c=>c.status==='待核实').length;
  $('due-count').textContent=companies.filter(c=>latest.get(c.id)?.next_date&&latest.get(c.id).next_date<=today).length;
- const visible=filterCompanies(companies,contacts,followups,{query:$('search').value,status:$('status').value,due:$('due').value,region:$('region-filter').value.trim(),role:$('role-filter').value,industry:$('industry-filter').value.trim(),owner:$('owner-filter').value,contact:$('contact-filter').value});
+ const visible=filterCompanies(companies,contacts,followups,{group:$('group-filter').value,query:$('search').value,status:$('status').value,due:$('due').value,region:$('region-filter').value.trim(),role:$('role-filter').value,industry:$('industry-filter').value.trim(),owner:$('owner-filter').value,contact:$('contact-filter').value});
  const pages=Math.max(1,Math.ceil(visible.length/size));page=Math.max(1,Math.min(page,pages));
  $('count').textContent=`共 ${visible.length} 家`;$('rows').replaceChildren();
  const byCompany=new Map();for(const c of contacts){const list=byCompany.get(c.company_id)||[];list.push(c);byCompany.set(c.company_id,list);}
@@ -69,10 +70,17 @@ formHandler('followup-form','followup-error',async data=>{const result=String(da
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
 $('logout').addEventListener('click',async()=>{++generation;++detailGeneration;try{await logout();}catch{}companies=[];contacts=[];shipments=[];followups=[];selected=null;selectedCompanies.clear();for(const id of ['detail','company-editor','contact-editor'])$(id).close();render();authUI();});
 $('refresh').addEventListener('click',load);$('add-company').addEventListener('click',()=>openCompany());$('edit-company').addEventListener('click',()=>openCompany(companies.find(c=>c.id===selected)));$('add-contact').addEventListener('click',()=>openContact());
-for(const id of ['search','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).addEventListener(['search','region-filter','industry-filter'].includes(id)?'input':'change',()=>{page=1;render();});
+for(const id of ['search','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).addEventListener(['search','region-filter','industry-filter'].includes(id)?'input':'change',()=>{page=1;render();});
+function fillGroups(){
+ const select=$('group-filter'),previous=select.value,options=companyGroupOptions(companies,contacts);
+ select.replaceChildren(new Option('全部客户分组',''),new Option('未分组','__ungrouped'));
+ for(const [isBatch,label] of [[true,'采集批次'],[false,'联系分组']]){const rows=options.filter(x=>x.isBatch===isBatch);if(!rows.length)continue;const group=document.createElement('optgroup');group.label=label;for(const row of rows)group.append(new Option(`${row.name}（${row.count}家）`,row.name));select.append(group);}
+ select.value=previous;if(select.selectedIndex<0)select.value='';
+}
 function fillOwners(){const value=$('owner-filter').value;$('owner-filter').replaceChildren(new Option('全部',''));for(const owner of [...new Set(companies.map(c=>c.owner).filter(Boolean))].sort())$('owner-filter').append(new Option(owner,owner));$('owner-filter').value=value;}
-function syncCompanySelection(){const chosen=pageCompanies.filter(c=>selectedCompanies.has(c.id)).length;$('company-select-page').checked=pageCompanies.length>0&&chosen===pageCompanies.length;$('company-select-page').indeterminate=chosen>0&&chosen<pageCompanies.length;$('company-selection').textContent='已选 '+selectedCompanies.size+' 家（跨页保留）';for(const id of ['bulk-company','bulk-followup','export-selected'])$(id).disabled=!selectedCompanies.size;}
-$('company-select-page').onchange=e=>{for(const c of pageCompanies)e.target.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);render();};$('select-filtered').onclick=()=>{for(const c of filteredCompanies)selectedCompanies.add(c.id);render();};$('clear-selection').onclick=()=>{selectedCompanies.clear();render();};$('clear-filters').onclick=()=>{for(const id of ['search','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).value='';page=1;render();};
+function syncCompanySelection(){const chosen=pageCompanies.filter(c=>selectedCompanies.has(c.id)).length;$('company-select-page').checked=pageCompanies.length>0&&chosen===pageCompanies.length;$('company-select-page').indeterminate=chosen>0&&chosen<pageCompanies.length;$('company-selection').textContent='已选 '+selectedCompanies.size+' 家（跨页、分组保留）';for(const id of ['bulk-company','bulk-followup','export-selected'])$(id).disabled=!selectedCompanies.size;}
+$('company-select-page').onchange=e=>{for(const c of pageCompanies)e.target.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);render();};$('select-filtered').onclick=()=>{for(const c of filteredCompanies)selectedCompanies.add(c.id);render();};$('clear-selection').onclick=()=>{selectedCompanies.clear();render();};$('clear-filters').onclick=()=>{for(const id of ['search','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).value='';page=1;render();};
 installCrmBulk({getCompanies:()=>companies,getContacts:()=>contacts,selected:selectedCompanies,applyCompanies:rows=>{const map=new Map(rows.map(r=>[r.id,r]));companies=companies.map(c=>map.get(c.id)||c);fillOwners();render();},applyFollowups:rows=>{followups.unshift(...rows);render();},render});
 $('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});render();authUI();if(currentUser())load();
+
 

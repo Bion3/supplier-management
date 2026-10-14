@@ -5,14 +5,28 @@ export function latestFollowups(rows){
  for(const r of rows)if(!result.has(r.company_id)||r.created_at>result.get(r.company_id).created_at)result.set(r.company_id,r);
  return result;
 }
-export function filterCompanies(companies,contacts,followups,{query='',status='',due='',region='',role='',industry='',owner='',contact='',today=chinaDate()}={}){
+const batchName=/^[A-Z][A-Z0-9]*-\d{8}$/;
+export function companyGroups(company,contacts=[]){
+ const groups=new Set((company.source_refs||[]).filter(value=>typeof value==='string'&&batchName.test(value)));
+ for(const match of String(company.notes||'').matchAll(/^采集批次[：:]\s*([^\r\n]+)$/gm)){const name=match[1].trim();if(name&&name.length<=100)groups.add(name);}
+ for(const contact of contacts)for(const value of contact.mail_groups||[]){if(typeof value==='string'&&value.trim())groups.add(value.trim());}
+ return [...groups];
+}
+export function companyGroupOptions(companies,contacts){
+ const byCompany=new Map(),counts=new Map();
+ for(const contact of contacts){if(!byCompany.has(contact.company_id))byCompany.set(contact.company_id,[]);byCompany.get(contact.company_id).push(contact);}
+ for(const company of companies)for(const name of companyGroups(company,byCompany.get(company.id)||[]))counts.set(name,(counts.get(name)||0)+1);
+ return [...counts].map(([name,count])=>({name,count,isBatch:batchName.test(name)})).sort((a,b)=>Number(b.isBatch)-Number(a.isBatch)||a.name.localeCompare(b.name,'zh-CN'));
+}
+export function filterCompanies(companies,contacts,followups,{query='',status='',due='',region='',role='',industry='',owner='',contact='',group='',today=chinaDate()}={}){
  const q=query.trim().toLowerCase(),latest=latestFollowups(followups),text=new Map(),byCompany=new Map();
  for(const c of contacts){text.set(c.company_id,(text.get(c.company_id)||'')+' '+c.name+' '+c.value);if(!byCompany.has(c.company_id))byCompany.set(c.company_id,[]);byCompany.get(c.company_id).push(c);}
  return companies.filter(c=>{
   const next=latest.get(c.id)?.next_date;
   const companyContacts=byCompany.get(c.id)||[],dueMatch=!due||due==='due'&&next&&next<=today||due==='overdue'&&next&&next<today||due==='none'&&!next||due==='future'&&next&&next>today;
   const contactMatch=!contact||contact==='none'&&!companyContacts.length||contact==='email'&&companyContacts.some(x=>x.channel==='邮箱')||contact==='verified-email'&&companyContacts.some(x=>x.channel==='邮箱'&&x.status==='有效'&&x.email_allowed!==false);
-  return (!status||c.status===status)&&dueMatch&&(!region||(c.region||'').toLowerCase().includes(region.toLowerCase()))&&(!role||c.role===role)&&(!industry||(c.industry||'').toLowerCase().includes(industry.toLowerCase()))&&(!owner||c.owner===owner)&&contactMatch&&[c.company_name,c.owner,c.role,c.region,c.industry,c.notes,JSON.stringify(c.source_refs),c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
+  const groups=group?companyGroups(c,companyContacts):[],groupMatch=!group||(group==='__ungrouped'?!groups.length:groups.includes(group));
+  return groupMatch&&(!status||c.status===status)&&dueMatch&&(!region||(c.region||'').toLowerCase().includes(region.toLowerCase()))&&(!role||c.role===role)&&(!industry||(c.industry||'').toLowerCase().includes(industry.toLowerCase()))&&(!owner||c.owner===owner)&&contactMatch&&[c.company_name,c.owner,c.role,c.region,c.industry,c.notes,JSON.stringify(c.source_refs),c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
  });
 }
 export function validateCompany(data){
@@ -35,3 +49,4 @@ export function initialContacts(rows){
  for(const row of rows){let count=0;for(const [field,channel] of [['email','邮箱'],['phone','电话'],['wechat','微信']]){const value=String(row[field]||'').trim();if(!value)continue;const contact=validateContact({name:row.name,channel,value,context:row.context,status:row.status||'待核实'}),key=channel+':'+value.toLowerCase();if(seen.has(key))throw Error('联系方式重复：'+value);seen.add(key);contacts.push(contact);count++;}if(!count&&(String(row.name||'').trim()||String(row.context||'').trim()))throw Error('请为联系人填写至少一种联系方式，或移除该联系人。');}
  return contacts;
 }
+
