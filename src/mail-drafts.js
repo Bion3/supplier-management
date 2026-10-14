@@ -85,5 +85,5 @@ export function installDraftBulk(ctx){
  $('draft-select-page').onchange=e=>{for(const m of pageRows.filter(m=>m.status==='draft'))e.target.checked?chosen.add(m.id):chosen.delete(m.id);render();};
  $('draft-select-filtered').onclick=()=>{for(const m of visible.filter(m=>m.status==='draft'))chosen.add(m.id);render();};$('draft-clear').onclick=()=>{chosen.clear();render();};
  $('logout').addEventListener('click',()=>{chosen.clear();previewIds=[];dialog.close();$('draft-send-previews').replaceChildren();for(const id of ['draft-send-summary','draft-send-skipped','draft-send-error'])$(id).textContent='';$('draft-send-date').value='';});
- return {render,clear(){chosen.clear();render();}};
+ return {render,getSelectedContactIds(){return ctx.getMessages().filter(m=>chosen.has(m.id)).map(m=>m.contact_id);},getVisibleContactIds(){return visible.map(m=>m.contact_id);},clear(){chosen.clear();render();}};
 }

@@ -7,7 +7,8 @@ import {defaultRules,chinaInput,scheduleISO,validateRules} from './mail-rules.js
 import {login,logout,currentUser,cloudRequest,appRequest} from './cloud.js';
 import {eligibleContacts,personalise,validateMail,validEmail,filterRecipients,regionInfo,groupNames,batchRecipients,selectRows,selectionState,emailContactScope} from './mail-model.js';
 const $=id=>document.getElementById(id);
-let draftBulk=null;
+let draftBulk=null,mailView="drafts";
+try{const saved=sessionStorage.getItem("mail-active-panel");if(["recipients","compose","drafts"].includes(saved))mailView=saved;}catch{}
 let companies=[],contacts=[],templates=[],messages=[],selected=new Set(),page=1,previewRows=[],savedDrafts=[],configured=false,epoch=0,previewBusy=false;
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;render();},30);
 const editor=createMailEditor($('body'),$('editor-toolbar'),message=>{$('editor-error').textContent=message;});
@@ -29,6 +30,17 @@ function renderFilterOptions(){
   for(const name of [...new Set(values)].sort((a,b)=>a.localeCompare(b,'zh-CN'))){const o=document.createElement('option');o.value=name;o.textContent=name;select.append(o);}select.value=previous;if(select.selectedIndex<0)select.value='';
  }
 }
+function applyMailView(){
+ $('recipient-panel').hidden=mailView!=='recipients';$('compose-panel').hidden=mailView!=='compose';$('draft-panel').hidden=mailView!=='drafts';$('recipient-actions').hidden=mailView==='drafts';
+ $('preview').hidden=mailView!=='compose';$('prepare-send').hidden=mailView!=='recipients';
+ for(const button of document.querySelectorAll('[data-mail-view]')){button.setAttribute('aria-pressed',String(button.dataset.mailView===mailView));button.disabled=button.dataset.mailView==='compose'&&!selected.size&&mailView!=='compose';}
+}
+function setMailView(view){
+ if(!['recipients','compose','drafts'].includes(view))return;
+ if(view==='compose'&&!selected.size&&mailView!=='compose'){$('notice').textContent='请先选择客户邮箱。';return;}
+ mailView=view;try{sessionStorage.setItem('mail-active-panel',view);}catch{}applyMailView();
+}
+for(const button of document.querySelectorAll('[data-mail-view]'))button.addEventListener('click',()=>setMailView(button.dataset.mailView));
 function render(){
  const company=names(),rows=filtered();
  const pages=Math.max(1,Math.ceil(rows.length/pager.size));page=Math.min(Math.max(1,page),pages);$('recipient-count').textContent=`筛选 ${rows.length} 条 / 已选 ${selected.size}`;$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page===1;$('next').disabled=page===pages;
@@ -45,7 +57,7 @@ function render(){
   const email=cell(c.value);for(const group of c.mail_groups||[]){const badge=document.createElement('span');badge.className='mail-group-badge';badge.textContent=group;email.append(badge);}
   tr.append(choose,cell((co?.company_name||'')+' / '+(c.name||'姓名待补充')),location,email,verify,opt);$('recipients').append(tr);
  }
- draftBulk?.render();
+ draftBulk?.render();applyMailView();
 }
 async function setAllowed(contact,value){const email=contact.value.trim().toLowerCase();for(const c of contacts.filter(c=>c.channel==='邮箱'&&c.value.trim().toLowerCase()===email)){await cloudRequest('freight_contacts?id=eq.'+encodeURIComponent(c.id),{method:'PATCH',body:JSON.stringify({email_allowed:value})});c.email_allowed=value;selected.delete(c.id);}render();}
 function showPreview(rows,drafts=[]){if(previewBusy)throw Error("正在保存或发送，请稍候。");previewRows=rows;savedDrafts=drafts;$('preview-send-mode').value=rules.send_mode;$('preview-send-date').value=rules.default_scheduled_at?chinaInput(rules.default_scheduled_at):'';updatePreviewMode();$('previews').replaceChildren();for(const r of rows){const details=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');details.open=true;summary.textContent=r.recipient+' · '+r.subject;const content=mailContent(r.body);if(content.html){pre.style.whiteSpace='normal';pre.innerHTML=content.html;}else pre.textContent=content.text;details.append(summary,pre);$('previews').append(details);}$('preview-error').textContent='';$('preview-count').textContent=`本次 ${rows.length} 封 · ${selected.size>rows.length?'剩余选择保留至下一批':'逐封预览后发送'}`;$('send-batch').disabled=!configured||rows.some(r=>r.status&&r.status!=='draft');$('save-drafts').disabled=drafts.length>0;if(!$('preview-dialog').open)$('preview-dialog').showModal();}
@@ -66,7 +78,7 @@ function preparePreview(){const map=names(),batch=batchRecipients(selected,conta
 async function guarded(id,fn,error='notice'){const b=$(id),previewOperation=['send-batch','save-drafts'].includes(id);if(previewOperation&&previewBusy)return;if(previewOperation){previewBusy=true;$('send-batch').disabled=true;$('save-drafts').disabled=true;$('close-preview').disabled=true;$('preview-send-mode').disabled=true;$('preview-send-date').disabled=true;}b.disabled=true;try{await fn();}catch(e){$(error).textContent=e.message;}finally{if(previewOperation){previewBusy=false;$('close-preview').disabled=false;$('preview-send-mode').disabled=false;$('preview-send-date').disabled=false;$('save-drafts').disabled=savedDrafts.length===previewRows.length;$('send-batch').disabled=id==='send-batch'||!configured||savedDrafts.some(m=>m.status!=='draft');}else b.disabled=false;}}
 $('login-form').addEventListener('submit',async e=>{e.preventDefault();await guarded('login-button',async()=>{await login($('login-email').value,$('login-password').value);$('login-password').value='';authUI();await load();},'login-error');});
 $('login-form').querySelector('button').id='login-button';
-$('logout').addEventListener('click',async()=>{++epoch;try{await logout();}catch{}companies=[];contacts=[];messages=[];selected.clear();previewRows=[];savedDrafts=[];$('preview-dialog').close();$('mail-settings').close();editor.clear();$('subject').value='';$('compose-panel').hidden=true;$('recipient-panel').hidden=false;$('preview').hidden=true;$('prepare-send').hidden=false;authUI();render();});
+$('logout').addEventListener('click',async()=>{++epoch;try{await logout();}catch{}companies=[];contacts=[];messages=[];selected.clear();previewRows=[];savedDrafts=[];$('preview-dialog').close();$('mail-settings').close();editor.clear();$('subject').value='';setMailView('recipients');authUI();render();});
 $('refresh').addEventListener('click',load);$('purpose').addEventListener('change',renderTemplates);$('template').addEventListener('change',useTemplate);
 for(const id of ['search','status','region','role','verification','allowed','group','view-mode'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
 for(const id of ['preview','compose-preview'])$(id).addEventListener('click',()=>{try{preparePreview();}catch(e){$('notice').textContent=e.message;}});
@@ -86,20 +98,21 @@ function fillRuleSettings(){$('batch-limit').value=rules.batch_limit;$('daily-li
 function updatePreviewMode(){const scheduled=$('preview-send-mode').value==='scheduled';$('preview-date-label').hidden=!scheduled;$('send-batch').textContent=scheduled?'确认定时发送':'确认立即发送';}
 $('rule-send-mode').addEventListener('change',()=>{$('rule-date-label').hidden=$('rule-send-mode').value!=='scheduled';});$('preview-send-mode').addEventListener('change',updatePreviewMode);
 $('send-rules-form').addEventListener('submit',async e=>{e.preventDefault();await guarded('save-rules',async()=>{const data=validateRules(Object.fromEntries(new FormData(e.currentTarget)));const saved=await cloudRequest('freight_mail_rules?id=eq.1',{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(data)});if(saved.length!==1)throw Error('规则保存失败。');rules=saved[0];$('rules-error').textContent='规则已保存。';},'rules-error');});
-function openComposer(){if(!selected.size){$('notice').textContent='请先批量选择客户邮箱。';return;}$('compose-panel').hidden=false;$('recipient-panel').hidden=true;$('preview').hidden=false;$('prepare-send').hidden=true;$('composer-summary').textContent=$('selection-summary').textContent;$('subject').focus();window.scrollTo({top:0,behavior:'smooth'});}
+function openComposer(){if(!selected.size){$('notice').textContent='请先批量选择客户邮箱。';return;}setMailView('compose');$('composer-summary').textContent=$('selection-summary').textContent;$('subject').focus();}
 $('prepare-send').addEventListener('click',openComposer);
-$('back-recipients').addEventListener('click',()=>{$('compose-panel').hidden=true;$('recipient-panel').hidden=false;$('preview').hidden=true;$('prepare-send').hidden=false;});
+$('back-recipients').addEventListener('click',()=>setMailView('recipients'));
 draftBulk=installDraftBulk({getMessages:()=>messages,getContacts:()=>contacts,getRules:()=>rules,getEpoch:()=>epoch,isConfigured:()=>configured,openSaved,
  async setReply(m,value){if(value==='拒绝联系'){const contact=contacts.find(c=>c.id===m.contact_id);if(contact)await setAllowed(contact,false);}await cloudRequest('freight_mail_messages?id=eq.'+encodeURIComponent(m.id),{method:'PATCH',body:JSON.stringify({reply_status:value})});m.reply_status=value;},
  async cancel(m){await appRequest('/api/mail',{method:'POST',body:JSON.stringify({id:m.id,action:'cancel'})});m.status='draft';m.scheduled_at=null;render();},
  async reloadMessages(){const e=epoch,rows=await all('freight_mail_messages','created_at.desc,id.desc');if(e===epoch){messages=rows;render();}}
 });
 installMailVerification({buttonId:'verify-selected',getContacts:()=>contacts,getEpoch:()=>epoch,getScopes:()=>{
- const scopes=[{value:'selected',label:'已选邮箱',rows:contacts.filter(c=>selected.has(c.id))}];
- if($('group').value)scopes.push({value:'group',label:'当前分组：'+($('group').value==='__ungrouped'?'未分组':$('group').value),rows:filterRecipients(contacts,companies,{group:$('group').value})});
- scopes.push({value:'filtered',label:'全部筛选结果',rows:filtered()});return scopes;
+ const draftView=mailView==='drafts',ids=draftView?new Set(draftBulk.getSelectedContactIds()):selected,group=draftView?$('draft-group').value:$('group').value;
+ const scopes=[{value:'selected',label:draftView?'已选草稿的邮箱':'已选邮箱',rows:contacts.filter(c=>ids.has(c.id))}];
+ if(group)scopes.push({value:'group',label:'当前分组：'+(group==='__ungrouped'?'未分组':group),rows:filterRecipients(contacts,companies,{group})});
+ const visibleIds=draftView?new Set(draftBulk.getVisibleContactIds()):null;scopes.push({value:'filtered',label:'全部筛选结果',rows:draftView?contacts.filter(c=>visibleIds.has(c.id)):filtered()});return scopes;
 },applyRows:rows=>{const map=new Map(rows.map(c=>[c.id,c]));contacts=contacts.map(c=>map.get(c.id)||c);},render});
-authUI();if(currentUser())load();
+if(mailView==='compose')mailView='recipients';applyMailView();authUI();if(currentUser())load();
 
 
 
