@@ -1,7 +1,9 @@
+import {addPagerAfter} from './pagination.js';
 import {login,logout,currentUser,listSuppliers,saveSupplier} from './cloud.js';
 import {validateSupplier, filterSuppliers} from './suppliers.js';
 const $ = id => document.getElementById(id);
-let suppliers = [], editingId = null;
+let suppliers = [], editingId = null,page=1;
+const pager=addPagerAfter($('empty'),'supplier',(value)=>{page=value;render();});
 async function loadCloud() {
  $('add').disabled=true;
  try { suppliers=await listSuppliers(); render(); $('notice').textContent='云端数据已同步。'; $('add').disabled=false; }
@@ -19,7 +21,8 @@ function render() {
   const visible = filterSuppliers(suppliers, $('search').value, $('filter').value);
   $('count').textContent = `显示 ${visible.length} 条`;
   $('rows').replaceChildren();
-  for (const s of visible) {
+  const paging=pager.update(visible.length,page);page=paging.page;
+  for (const s of visible.slice(paging.start,paging.end)) {
     const tr = document.createElement('tr');
     const name = cell(s.name), category = document.createElement('small'); category.textContent = s.category; name.append(category);
     const contact = cell(s.contact), detail = document.createElement('small'); detail.textContent = [s.phone, s.email].filter(Boolean).join(' · ') || '未填写联系方式'; contact.append(detail);
@@ -38,7 +41,7 @@ function openEditor(s) {
 }
 $('add').addEventListener('click', () => openEditor());
 for(const id of ['close','cancel']) $(id).addEventListener('click', () => $('editor').close());
-$('search').addEventListener('input', render); $('filter').addEventListener('change', render);
+for(const id of ['search','filter'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});
 $('supplier-form').addEventListener('submit', async event => {
  event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');button.disabled=true;
  try {

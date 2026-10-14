@@ -5,12 +5,14 @@ export function latestFollowups(rows){
  for(const r of rows)if(!result.has(r.company_id)||r.created_at>result.get(r.company_id).created_at)result.set(r.company_id,r);
  return result;
 }
-export function filterCompanies(companies,contacts,followups,{query='',status='',due='',today=chinaDate()}={}){
- const q=query.trim().toLowerCase(),latest=latestFollowups(followups),text=new Map();
- for(const c of contacts)text.set(c.company_id,(text.get(c.company_id)||'')+' '+c.name+' '+c.value);
+export function filterCompanies(companies,contacts,followups,{query='',status='',due='',region='',role='',industry='',owner='',contact='',today=chinaDate()}={}){
+ const q=query.trim().toLowerCase(),latest=latestFollowups(followups),text=new Map(),byCompany=new Map();
+ for(const c of contacts){text.set(c.company_id,(text.get(c.company_id)||'')+' '+c.name+' '+c.value);if(!byCompany.has(c.company_id))byCompany.set(c.company_id,[]);byCompany.get(c.company_id).push(c);}
  return companies.filter(c=>{
   const next=latest.get(c.id)?.next_date;
-  return (!status||c.status===status)&&(!due||(next&&next<=today))&&[c.company_name,c.owner,c.role,c.region,c.industry,c.notes,JSON.stringify(c.source_refs),c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
+  const companyContacts=byCompany.get(c.id)||[],dueMatch=!due||due==='due'&&next&&next<=today||due==='overdue'&&next&&next<today||due==='none'&&!next||due==='future'&&next&&next>today;
+  const contactMatch=!contact||contact==='none'&&!companyContacts.length||contact==='email'&&companyContacts.some(x=>x.channel==='邮箱')||contact==='verified-email'&&companyContacts.some(x=>x.channel==='邮箱'&&x.status==='有效'&&x.email_allowed!==false);
+  return (!status||c.status===status)&&dueMatch&&(!region||(c.region||'').toLowerCase().includes(region.toLowerCase()))&&(!role||c.role===role)&&(!industry||(c.industry||'').toLowerCase().includes(industry.toLowerCase()))&&(!owner||c.owner===owner)&&contactMatch&&[c.company_name,c.owner,c.role,c.region,c.industry,c.notes,JSON.stringify(c.source_refs),c.current_routes,JSON.stringify(c.historical_routes),text.get(c.id)||''].join(' ').toLowerCase().includes(q);
  });
 }
 export function validateCompany(data){
