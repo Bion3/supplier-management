@@ -11,7 +11,7 @@ create or replace function public.freight_inbox_worker(p_secret text,p_action te
 declare c freight_private.mail_connection; r jsonb; co text; ct text; matched uuid; refs text;
 begin
  select * into c from freight_private.mail_connection where id=1 for update;
- if c.id is null or c.secret_hash<>encode(extensions.digest(p_secret,'sha256'),'hex') then raise exception 'Forbidden';end if;
+ if c.id is null or c.secret_hash is distinct from encode(extensions.digest(p_secret,'sha256'),'hex') then raise exception 'Forbidden';end if;
  if p_action='claim' then
   if c.lease_until>now() then return jsonb_build_object('busy',true);end if;
   update freight_private.mail_connection set lease=p_lease,lease_until=now()+interval '150 seconds' where id=1;

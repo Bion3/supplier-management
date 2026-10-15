@@ -19,7 +19,7 @@ export function draftSendPlan(rows,contacts){
  }
  return {eligible,skipped};
 }
-export function mailStateMatches(status,state){return !state||state==='queue'&&['scheduled','sending'].includes(status)||state==='issues'&&['failed','unknown'].includes(status)||status===state;}
+export function mailStateMatches(status,state,deliveryStatus){return !state||state==='queue'&&['scheduled','sending'].includes(status)||state==='issues'&&(['failed','unknown'].includes(status)||deliveryStatus?.startsWith('bounce_'))||status===state;}
 export function installDraftBulk(ctx){
  const $=id=>document.getElementById(id),chosen=new Set();let page=1,pageRows=[],visible=[],busy=false,previewIds=[];
  const pager=addPagerAfter($('history').closest('.table-wrap'),'mail-history',value=>{page=value;render();});
@@ -33,9 +33,9 @@ export function installDraftBulk(ctx){
   $('draft-group').value=group;if($('draft-group').selectedIndex<0)$('draft-group').value='';
   const q=$('draft-search').value.trim().toLowerCase(),state=$('draft-status').value;
   const scoped=messages.filter(m=>(!$('draft-group').value||(byId.get(m.contact_id)?.mail_groups||[]).includes($('draft-group').value))&&[m.recipient,m.subject].join(' ').toLowerCase().includes(q));
-  visible=scoped.filter(m=>mailStateMatches(m.status,state));
+  visible=scoped.filter(m=>mailStateMatches(m.status,state,m.delivery_status));
   const labels={'':'全部',draft:'待发送草稿',queue:'待发送队列',sent:'发送记录',issues:'异常记录'};
-  for(const button of document.querySelectorAll('[data-mail-state]')){const value=button.dataset.mailState;button.textContent=labels[value]+'（'+scoped.filter(m=>mailStateMatches(m.status,value)).length+'）';button.setAttribute('aria-pressed',String(value===state));button.disabled=busy;}
+  for(const button of document.querySelectorAll('[data-mail-state]')){const value=button.dataset.mailState;button.textContent=labels[value]+'（'+scoped.filter(m=>mailStateMatches(m.status,value,m.delivery_status)).length+'）';button.setAttribute('aria-pressed',String(value===state));button.disabled=busy;}
   const queued=scoped.filter(m=>mailStateMatches(m.status,'queue')).length;
   $('draft-queue-note').textContent=queued?'待发送队列已保存在系统，退出页面后继续执行；未提交的草稿仍需批量提交。':scoped.some(m=>m.status==='draft')?'草稿尚未提交。选择草稿并批量提交后，可在“待发送队列”查看安排。':'已发送及异常记录会持续保留，可通过上方入口查看。';
   const messageMap=new Map(messages.map(m=>[m.id,m]));for(const id of chosen)if(messageMap.get(id)?.status!=='draft')chosen.delete(id);
@@ -44,7 +44,7 @@ export function installDraftBulk(ctx){
    const tr=document.createElement('tr'),selectCell=td(''),check=document.createElement('input');check.type='checkbox';check.checked=chosen.has(m.id);check.disabled=busy||m.status!=='draft';check.setAttribute('aria-label','选择草稿 '+m.recipient);check.addEventListener('change',()=>{check.checked?chosen.add(m.id):chosen.delete(m.id);render();});selectCell.append(check);
    const reply=td(''),select=document.createElement('select');for(const text of ['待回复','已回复','无需求','拒绝联系'])select.append(new Option(text,text));select.value=m.reply_status||'待回复';select.disabled=busy;select.addEventListener('change',async()=>{const old=m.reply_status;select.disabled=true;try{await ctx.setReply(m,select.value);}catch(e){select.value=old;$('notice').textContent=e.message;}finally{select.disabled=false;}});reply.append(select);
    const action=td('');action.append(button('查看',()=>ctx.openSaved(m)));if(m.status==='scheduled')action.append(button('取消安排',()=>ctx.cancel(m)));if(m.status==='draft'&&ctx.isConfigured())action.append(button('发送此草稿',()=>ctx.openSaved(m)));
-   tr.append(selectCell,td(new Date(m.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})),td(m.recipient+' / '+m.subject),td((statusLabels[m.status]||m.status)+(m.scheduled_at?' · '+chinaInput(m.scheduled_at).replace('T',' '):'')+(m.error?'：'+m.error:'')),reply,action);$('history').append(tr);
+   tr.append(selectCell,td(new Date(m.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})),td(m.recipient+' / '+m.subject),td((m.delivery_status?.startsWith('bounce_')?'已退信 · 地址已暂停':statusLabels[m.status]||m.status)+(m.scheduled_at?' · '+chinaInput(m.scheduled_at).replace('T',' '):'')+(m.error?'：'+m.error:'')),reply,action);$('history').append(tr);
   }
   const selectable=pageRows.filter(m=>m.status==='draft'),count=selectable.filter(m=>chosen.has(m.id)).length;
   $('draft-select-page').checked=selectable.length>0&&count===selectable.length;$('draft-select-page').indeterminate=count>0&&count<selectable.length;$('draft-select-page').disabled=busy||!selectable.length;
