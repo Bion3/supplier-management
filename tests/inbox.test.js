@@ -6,3 +6,25 @@ test('expired snapshot is refreshed, saved durably before reading mail, and cont
 function authSnapshot(){const key=randomBytes(32),token={tokenType:'Bearer',accessToken:'fixture-old',refreshToken:'fixture-refresh',expiresAt:Date.now()+3600000,refreshExpiresAt:Date.now()+86400000};return JSON.stringify({mailbox:'benjamin@eurasiago.com',config:{apps:[{appId:'cli_aa47511c33f9dbc9',users:[{userOpenId:'u'}]}]},files:{'master.key':key.toString('base64'),'cli_aa47511c33f9dbc9_u.enc':encrypt(JSON.stringify(token),key),'appsecret_cli_aa47511c33f9dbc9.enc':encrypt('fixture-secret',key)}});}
 test('provider token expiration refreshes once even when local expiry says still valid',async()=>{let refreshes=0,finished=false;const fetcher=async(url,opts)=>{if(url.includes('freight_inbox_worker')){const p=JSON.parse(opts.body);if(p.p_action==='claim')return Response.json({cycle:0});if(p.p_action==='finish')finished=!p.p_data.error;return Response.json({});}if(url.includes('/oauth/v3/token')){refreshes++;return Response.json({access_token:'fixture-new',expires_in:7200});}if(opts.headers.Authorization==='Bearer fixture-old')return Response.json({code:99991677},{status:401});return Response.json({code:0,data:url.endsWith('profile')?{primary_email_address:'benjamin@eurasiago.com'}:{items:[],has_more:false}});};await makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher}).sync();assert.equal(refreshes,1);assert.equal(finished,true);});
 test('non-auth errors preserve safe diagnostics and schedule another attempt',async()=>{let error,queued=0;const fetcher=async(url,opts)=>{if(url.includes('freight_inbox_worker')){const p=JSON.parse(opts.body);if(p.p_action==='claim')return Response.json({cycle:0});if(p.p_action==='finish')error=p.p_data.error;return Response.json({});}return Response.json({code:99991672,msg:'untrusted diagnostic fixture-secret'},{status:403});};await assert.rejects(makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,enqueue:async()=>queued++}).sync(),/HTTP 403，代码 99991672/);assert.ok(!error.includes('fixture-secret'));assert.equal(queued,1);});
+test('20 details are paced and HTTP400 rate limiting retries the same email without losing the page',async()=>{
+ let time=Date.now(),attempts=0,saved=[],finished,queued=0;const calls=[],waits=[];
+ const ids=Array.from({length:20},(_,i)=>'email-'+i);
+ const fetcher=async(url,opts)=>{
+  if(url.includes('freight_inbox_worker')){const p=JSON.parse(opts.body);if(p.p_action==='claim')return Response.json({cycle:0});if(p.p_action==='upsert')saved=p.p_data.messages;if(p.p_action==='finish')finished=p.p_data;return Response.json({});}
+  calls.push({url,time});
+  if(url.endsWith('profile'))return Response.json({code:0,data:{primary_email_address:'benjamin@eurasiago.com'}});
+  if(url.includes('messages?'))return Response.json({code:0,data:{items:ids,has_more:true,page_token:'next-page'}});
+  const id=url.split('/messages/')[1].split('?')[0];
+  if(id==='email-0'&&attempts++===0)return Response.json({code:99991400},{status:400,headers:{'Retry-After':'2'}});
+  return Response.json({code:0,data:{message:{message_id:id,internal_date:String(time),body_plain_text:''}}});
+ };
+ const result=await makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,clock:()=>time,pause:async ms=>{waits.push(ms);time+=ms;},enqueue:async()=>queued++}).sync();
+ assert.equal(result.synced,20);assert.equal(saved.length,20);assert.equal(finished.page_token,'next-page');assert.equal(queued,1);assert.ok(waits.includes(2000));assert.equal(calls.filter(c=>c.url.includes('/email-0?')).length,2);
+ for(let i=1;i<calls.length;i++)assert.ok(calls[i].time-calls[i-1].time>=350,'requests must not burst');
+});
+test('persistent throttling stops after bounded retries, retains the cursor, and schedules background recovery',async()=>{
+ let time=Date.now(),attempts=0,finished,queued=0;
+ const fetcher=async(url,opts)=>{if(url.includes('freight_inbox_worker')){const p=JSON.parse(opts.body);if(p.p_action==='claim')return Response.json({cycle:2,page_token:'keep-this-page'});if(p.p_action==='finish')finished=p.p_data;return Response.json({});}attempts++;return Response.json({code:99991400},{status:400});};
+ await assert.rejects(makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,clock:()=>time,pause:async ms=>{time+=ms;},enqueue:async()=>queued++}).sync(),/限流/);
+ assert.equal(attempts,4);assert.equal(queued,1);assert.ok(finished.error.includes('99991400'));assert.ok(!('page_token' in finished));
+});
