@@ -17,3 +17,12 @@
 - 预览地址随 PR 分支最新提交自动更新；合并前不影响生产主分支。
 
 参考：https://docs.overturemaps.org/getting-data/ 和 https://wiki.openstreetmap.org/wiki/Overpass_API
+
+## 后台批量官网补全（V5）
+
+- 已新增 `lead_enrich_jobs` 持久任务表、`lead_enqueue_batch` 授权排队 RPC、`lead_enrich_worker` 后台受限 RPC、Vercel Queue 的 `freight-lead-enrich` 订阅，以及前端跨页多选和任务进度列表。
+- Vercel **开发预览分支**的 `LEAD_WORKER_SECRET` 已安全设置，Supabase 仅保存 SHA-256 摘要，未写入 GitHub。生产环境目前不自动启用本新队列。
+- 点击“批量官网补全”最多选择 500 家，其中有 HTTPS 官网且未导入 CRM 的 OSM / 独立来源候选可以入队；后台每次最多处理 3 家，再投递下一段队列，浏览器关闭也不会取消已经排队的任务。
+- 任务状态：`queued` / `running` / `completed` / `failed`。失败项可以重新选择并提交；已完成项不会重复处理。进度列表读取 Supabase 而不是浏览器缓存。
+- 每家公司最多抓取同域名 3 个公开 HTTPS HTML 页面，不跟随外部跳转；邮箱仍属于**待核实**，导入 CRM 后 `email_allowed=false`。系统不会自动发送邮件。
+- 测试范围：代码已通过 Vercel 预览构建；由于测试库未有专用受控企业样本，本轮没有触发对真实网站的批量抓取或完整队列吞吐测试。需要先用少量明确获准核实的官网做端到端验证，再增加处理规模。队列处理仍受 Vercel 平台配额、网站 robots 约束及目标网站访问政策影响。
