@@ -2,7 +2,7 @@
 create table if not exists public.lead_discovery_tasks (
  id uuid primary key default gen_random_uuid(),
  country text not null, city text not null,
- source text not null default 'google_places' check(source in ('google_places')),
+ source text not null default 'openstreetmap' check(source in ('openstreetmap','google_places','overture')),
  keywords jsonb not null default '[]'::jsonb,
  target_count integer not null default 100 check(target_count between 1 and 1000),
  status text not null default 'pending' check(status in ('pending','running','completed','failed','cancelled')),
@@ -33,3 +33,8 @@ do $$ declare t text; allowed text; begin
  execute format('create policy lead_discovery_access on public.%I for all to authenticated using (%s) with check (%s)',t,allowed,allowed);
  end loop;
 end $$;
+
+-- Existing installations: run this separately if upgrading from Google-only schema.
+-- alter table public.lead_discovery_tasks drop constraint if exists lead_discovery_tasks_source_check;
+-- alter table public.lead_discovery_tasks add constraint lead_discovery_tasks_source_check check(source in ('openstreetmap','google_places','overture'));
+-- alter table public.lead_discovery_tasks alter column source set default 'openstreetmap';
