@@ -92,7 +92,12 @@ async function loadEnrichJobs(){
    cell(tr,names.get(job.lead_id)||job.lead_id);
    cell(tr,(labels[job.status]||job.status)+' · 第'+job.attempts+'次');
    cell(tr,job.added_count);cell(tr,job.checked_pages);
-   cell(tr,job.error||job.finished_at?job.error||new Date(job.finished_at).toLocaleString():'—');
+   const statusCell=cell(tr,job.error||job.finished_at?job.error||new Date(job.finished_at).toLocaleString():'—');
+   if(job.status==='failed'){
+    const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='重试';
+    retry.onclick=async()=>{retry.disabled=true;try{const x=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:[job.lead_id]})});$('enrich-summary').textContent=x.message||x.error||'任务已重新提交';await loadEnrichJobs();}catch(e){alert('重新派发失败：'+e.message);}finally{retry.disabled=false;}};
+    statusCell.append(document.createElement('br'),retry);
+   }
    tbody.append(tr);
   }
  }catch(e){$('enrich-summary').textContent='任务状态读取失败：'+e.message;}
