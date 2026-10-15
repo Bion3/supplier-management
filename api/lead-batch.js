@@ -1,4 +1,5 @@
 import {send} from '@vercel/queue';
+import {createHash} from 'node:crypto';
 const BASE='https://hcorkkudgicarsmexnqf.supabase.co';
 const KEY='sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -16,7 +17,7 @@ export async function POST(request){
   if(!Array.isArray(jobs)||!jobs.length)return respond({queued:0,message:'未发现可入队企业：可能无 HTTPS 官网、已经执行中或已入库。'});
   let published=0;
   try{
-   for(let i=0;i<jobs.length;i+=100){await send('freight-lead-enrich',{ids:jobs.slice(i,i+100)},{retentionSeconds:7*86400,idempotencyKey:'lead-batch-'+jobs.slice(i,i+100).join('-').slice(0,300)});published+=Math.min(100,jobs.length-i);}
+   for(let i=0;i<jobs.length;i+=100){await send('freight-lead-enrich',{ids:jobs.slice(i,i+100)},{retentionSeconds:7*86400,idempotencyKey:'lead-batch-'+createHash('sha256').update(jobs.slice(i,i+100).join(',')).digest('hex')+'-'+Math.floor(Date.now()/60000)});published+=Math.min(100,jobs.length-i);}
   }catch(e){console.error('lead_enqueue_publish_failed');return respond({queued:jobs.length,published,error:'任务已写入数据库，但部分后台派发失败；请刷新任务状态并使用重新派发。'},207);}
   return respond({queued:jobs.length,published,message:'已加入后台补全队列，关闭页面不会丢失任务。'});
  }catch(e){return respond({error:'创建后台任务失败'},500);}
