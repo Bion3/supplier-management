@@ -1,1 +1,65 @@
-{"$schema":"https://openapi.vercel.sh/vercel.json","framework":null,"buildCommand":"npm run build","installCommand":"npm ci","outputDirectory":"dist","headers":[{"source":"/(.*)","headers":[{"key":"X-Content-Type-Options","value":"nosniff"},{"key":"Referrer-Policy","value":"strict-origin-when-cross-origin"},{"key":"Content-Security-Policy","value":"default-src 'self'; connect-src 'self' https://hcorkkudgicarsmexnqf.supabase.co; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"}]}],"functions":{"api/mail-queue.js":{"experimentalTriggers":[{"type":"queue/v2beta","topic":"freight-mail"}]},"api/inbox-queue.js":{"experimentalTriggers":[{"type":"queue/v2beta","topic":"freight-inbox"}]},"api/mail-batch.js":{"maxDuration":300},"api/mail-batch-queue.js":{"maxDuration":300,"experimentalTriggers":[{"type":"queue/v2beta","topic":"freight-mail-batches"}]}}}
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "npm run build",
+  "installCommand": "npm ci",
+  "outputDirectory": "dist",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; connect-src 'self' https://hcorkkudgicarsmexnqf.supabase.co; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        }
+      ]
+    }
+  ],
+  "functions": {
+    "api/mail-queue.js": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "freight-mail"
+        }
+      ]
+    },
+    "api/inbox-queue.js": {
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "freight-inbox"
+        }
+      ]
+    },
+    "api/mail-batch.js": {
+      "maxDuration": 300
+    },
+    "api/mail-batch-queue.js": {
+      "maxDuration": 300,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "freight-mail-batches"
+        }
+      ]
+    },
+    "api/lead-enrich-queue.js": {
+      "maxDuration": 300,
+      "experimentalTriggers": [
+        {
+          "type": "queue/v2beta",
+          "topic": "freight-lead-enrich"
+        }
+      ]
+    }
+  }
+}
