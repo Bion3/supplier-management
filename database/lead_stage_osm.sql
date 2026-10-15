@@ -1,7 +1,7 @@
 -- Stage small batches of OSM POIs for manual review. Existing records are not overwritten.
 create or replace function public.lead_stage_osm(p_task_id uuid,p_rows jsonb)
 returns integer language plpgsql security invoker set search_path = '' as $$
-declare item jsonb; inserted_count integer:=0; place text; website text; item_name text;
+declare item jsonb; inserted_count integer:=0; place text; website text; item_name text; affected integer;
 begin
  if auth.uid() is null then raise exception '请先登录'; end if;
  if not exists(select 1 from public.lead_discovery_tasks where id=p_task_id and source='openstreetmap') then raise exception '仅允许保存 OSM 任务结果'; end if;
@@ -21,8 +21,8 @@ begin
    'unverified'
   from public.lead_discovery_tasks t where t.id=p_task_id
   on conflict (provider,provider_place_id) where provider_place_id is not null do nothing;
-  get diagnostics place = row_count;
-  inserted_count:=inserted_count+place::integer;
+  get diagnostics affected = row_count;
+  inserted_count:=inserted_count+affected;
  end loop;
  return inserted_count;
 end $$;
