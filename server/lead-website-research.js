@@ -47,7 +47,7 @@ function getContactLinks(html,base){
 function extract(html,url){
  const found=[];
  function add(type,value){value=decode(value).trim().replace(/^[\s:]+|[\s.,;]+$/g,'');if(value.length<5||value.length>120)return;if(!found.some(c=>c.type===type&&c.value.toLowerCase()===value.toLowerCase()))found.push({type,value,source_url:url.href,source_type:'official_website',verification:'unverified'});}
- for(const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?<>\s]+)(?:\?[^"']*)?["']/gi))add('email',decodeURIComponent(match[1]));
+ for(const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?<>\s]+)(?:\?[^"']*)?["']/gi)){try{add('email',decodeURIComponent(match[1]));}catch{add('email',match[1]);}}
  for(const match of decode(html).matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi))add('email',match[0]);
  for(const match of html.matchAll(/href\s*=\s*["']tel:([^"'<>]+)["']/gi))add('phone',decodeURIComponent(match[1]));
  return found.filter(c=>c.type!=='email'||!c.value.match(/\.(png|jpg|svg|webp)$/i)).slice(0,25);
