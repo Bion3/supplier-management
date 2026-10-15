@@ -23,10 +23,8 @@ language plpgsql security definer set search_path='' as $$
 declare result uuid[]; total int;
 begin
  if auth.uid() is null then raise exception '请登录 CRM'; end if;
- if not exists(select 1 from public.freight_companies limit 1) then
-   -- RLS check alone cannot distinguish an empty authorized CRM, use existing allowlist policy via explicit membership.
-   if auth.uid() <> all(array['1520a854-1746-4add-af50-6605967bb72f'::uuid,'2c1dc7d7-ecc4-4992-9bca-301877e9cd66'::uuid]) then raise exception '无权使用 CRM'; end if;
- end if;
+ -- The current CRM uses an explicit auth user allowlist. Do not infer permission from a nonempty table under SECURITY DEFINER.
+ if auth.uid() <> all(array['1520a854-1746-4add-af50-6605967bb72f'::uuid,'2c1dc7d7-ecc4-4992-9bca-301877e9cd66'::uuid]) then raise exception '无权使用 CRM'; end if;
  total:=coalesce(cardinality(p_ids),0);
  if total=0 or total>500 then raise exception '一次请选择1至500家企业'; end if;
  if exists(select 1 from unnest(p_ids) x where x is null) then raise exception '企业编号无效'; end if;
