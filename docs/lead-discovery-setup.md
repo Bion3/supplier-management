@@ -10,10 +10,10 @@
 - 使用 OpenStreetMap 数据和衍生数据时保留 © OpenStreetMap contributors / ODbL 署名，并评估 ODbL 对数据集再分发的义务。
 - Google Places 数据不自动长期保存；独立官网数据须在允许的条件下取得并标注来源。
 - 地图 POI 不是完整工商名录；部分物流企业缺失地址、网站、电话或邮箱，结果与搜索关键词不一定完全对应。
-- 当前不会自动挖掘官网联系方式、交叉验证、批量入库或发送营销邮件。
+- OSM 搜索结果现在可以手动选择并批量保存为候选企业（每次最多 80 条、同一 OSM ID 自动去重）；每个候选可人工补充公开邮箱/电话及来源 URL，再审核导入 CRM。导入会核对同名公司和已经关联的同官网域名线索，遇到可能重复项会暂停并提示人工处理，不会覆盖原始 CRM 记录。\n- 新导入的邮箱联系人默认 email_allowed=false 且 status=待核实，因此不会被邮件发送模块直接使用。\n- **尚未实现** 自动访问官网提取联系方式、跨网站交叉验证、自动合并重复 CRM 企业或批量营销邮件。
 
 ## 数据库与预览
-- 已有 Supabase 项目执行了 `database/lead_discovery.sql` 及后续来源扩展 SQL。新的环境仍需先执行建表迁移。登录需要现有 CRM 授权账号。
+- 已有 Supabase 项目执行了 `database/lead_discovery.sql`、来源扩展，以及 `database/lead_stage_osm.sql` 和 `database/lead_import_reviewed.sql`。新环境需按顺序执行这些 SQL 并确认账户权限。
 - 预览地址随 PR 分支最新提交自动更新；合并前不影响生产主分支。
 
 参考：https://docs.overturemaps.org/getting-data/ 和 https://wiki.openstreetmap.org/wiki/Overpass_API
