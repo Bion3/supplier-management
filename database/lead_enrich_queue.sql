@@ -15,6 +15,7 @@ create index if not exists lead_enrich_jobs_status on public.lead_enrich_jobs(st
 alter table public.lead_enrich_jobs enable row level security;
 revoke all on public.lead_enrich_jobs from public,anon,authenticated;
 grant select on public.lead_enrich_jobs to authenticated;
+drop policy if exists lead_enrich_jobs_read on public.lead_enrich_jobs;
 create policy lead_enrich_jobs_read on public.lead_enrich_jobs for select to authenticated
  using (owner_id = auth.uid() and exists(select 1 from public.lead_discovery_leads where id=lead_id));
 -- Caller can queue reviewed-eligible records; no direct client writes to status.
