@@ -1,7 +1,7 @@
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {assessLead} from './lead-quality.js';
 import {parseOvertureText} from './overture-import.js';
-let liveRows=[],liveTaskId=null,liveSource='',candidateId=null,leadPage=1,leadRows=[],leadFilter='';
+let liveRows=[],liveTaskId=null,liveSource='',candidateId=null,leadPage=1,leadRows=[],leadFilter='',failedOsmTask=null;
 const selectedLeadIds=new Set();
 const LEADS_PAGE_SIZE=40;
 function syncSelection(){
@@ -12,7 +12,7 @@ function selectCurrentPage(){for(const checkbox of document.querySelectorAll('.l
 
 function externalLink(url,label){const valid=cleanWebsite(url);if(!valid)return el('span','');const a=document.createElement('a');a.href=valid;a.target='_blank';a.rel='noopener noreferrer';a.textContent=label;return a;}
 async function searchTask(taskId,source,button){
- button.disabled=true;$('live-notice').textContent='正在检索企业地点…';liveRows=[];liveTaskId=null;liveSource='';$('stage-selected').disabled=true;
+ button.disabled=true;failedOsmTask=null;$('switch-overture').hidden=true;$('live-notice').textContent='正在检索企业地点…';liveRows=[];liveTaskId=null;liveSource='';$('stage-selected').disabled=true;
  $('live-results').replaceChildren();
  try{
   if(source==='overture')throw Error('Overture 批量数据导入尚未配置，请先使用免费 OpenStreetMap。');
@@ -25,7 +25,7 @@ async function searchTask(taskId,source,button){
   }
   $('stage-selected').disabled=source!=='openstreetmap'||!liveRows.length;updateStageCount();
   $('live-notice').textContent='找到 '+(data.results||[]).length+' 家候选企业；仅实时展示，尚未保存到 CRM。'+(data.notice||'')+(data.errors?.length?' 部分关键词失败：'+data.errors.join('；'):'');
- }catch(e){$('live-notice').textContent='搜索失败：'+e.message;}
+ }catch(e){$('live-notice').textContent='搜索失败：'+e.message+'。若多次出现 HTTP 500，请停止重试公共接口。';if(source==='openstreetmap'){failedOsmTask=taskId;$('switch-overture').hidden=false;}}
  finally{button.disabled=false;}
 }
 
@@ -163,5 +163,24 @@ $('overture-import-form').addEventListener('submit',async e=>{
   }
   $('overture-summary').textContent='导入完成：新增 '+inserted+' 条，跳过重复/无效 '+skipped+' 条。请在候选列表人工审核。';await loadLeads();
  }catch(err){$('overture-summary').textContent='部分导入完成 '+completed+'/'+data.rows.length+'：新增 '+inserted+'、跳过 '+skipped+'。错误：'+err.message+'。重新执行不会重复导入相同 ID。';}
+ finally{button.disabled=false;}
+});
+
+$('switch-overture').addEventListener('click',async()=>{
+ if(!failedOsmTask)return;
+ const button=$('switch-overture');button.disabled=true;
+ try{
+  const [old]=await cloudRequest('lead_discovery_tasks?id=eq.'+encodeURIComponent(failedOsmTask)+'&select=country,city,keywords,target_count&limit=1');
+  if(!old)throw Error('原搜索任务不存在');
+  const existing=await cloudRequest('lead_discovery_tasks?source=eq.overture&country=eq.'+encodeURIComponent(old.country)+'&city=eq.'+encodeURIComponent(old.city)+'&select=id&limit=1');
+  let id=existing[0]?.id;
+  if(!id){
+   const created=await cloudRequest('lead_discovery_tasks',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({...old,source:'overture',status:'pending'})});
+   id=created?.[0]?.id;if(!id)throw Error('无法创建 Overture 任务');
+  }
+  await loadTasks();$('overture-task').value=id;
+  document.getElementById('overture-import-form').scrollIntoView({behavior:'smooth',block:'start'});
+  $('overture-summary').textContent='已选择 '+old.country+' / '+old.city+'。下一步请上传该城市范围的 Overture GeoJSON/NDJSON 文件并预览。';
+ }catch(e){$('live-notice').textContent='切换 Overture 任务失败：'+e.message;}
  finally{button.disabled=false;}
 });
