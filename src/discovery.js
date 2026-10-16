@@ -1,5 +1,6 @@
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {assessLead} from './lead-quality.js';
+import {parseOvertureText} from './overture-import.js';
 let liveRows=[],liveTaskId=null,liveSource='',candidateId=null,leadPage=1,leadRows=[],leadFilter='';
 const selectedLeadIds=new Set();
 const LEADS_PAGE_SIZE=40;
@@ -32,7 +33,7 @@ const $=id=>document.getElementById(id);
 const el=(tag,text)=>{const node=document.createElement(tag);node.textContent=String(text??'');return node;};
 function cell(tr,content){const td=document.createElement('td');if(content instanceof Node)td.append(content);else td.textContent=String(content??'');tr.append(td);return td;}
 function cleanWebsite(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}}
-async function loadTasks(){const body=$('tasks');body.replaceChildren();try{const tasks=await cloudRequest('lead_discovery_tasks?select=*&order=created_at.desc&limit=100');$('tasks-empty').textContent=tasks.length?'':'暂无搜索任务。';for(const t of tasks){const tr=document.createElement('tr');cell(tr,[t.country,t.city].filter(Boolean).join(' / '));cell(tr,(t.keywords||[]).join('、'));cell(tr,t.target_count);cell(tr,t.status);cell(tr,new Date(t.created_at).toLocaleString());const b=document.createElement('button');b.textContent='实时搜索';b.className='secondary';b.addEventListener('click',()=>searchTask(t.id,t.source,b));cell(tr,b);body.append(tr);}}catch(e){$('tasks-empty').textContent='无法读取任务：'+e.message+'（可能尚未执行数据库迁移）';}}
+async function loadTasks(){const body=$('tasks');body.replaceChildren();try{const tasks=await cloudRequest('lead_discovery_tasks?select=*&order=created_at.desc&limit=100');$('tasks-empty').textContent=tasks.length?'':'暂无搜索任务。';const overtureSelect=$('overture-task'),oldValue=overtureSelect.value;overtureSelect.replaceChildren(new Option('请选择 Overture 城市任务',''));for(const task of tasks.filter(x=>x.source==='overture'))overtureSelect.append(new Option(task.country+' / '+task.city+' · '+task.id.slice(0,8),task.id));overtureSelect.value=oldValue;if(overtureSelect.selectedIndex<0)overtureSelect.value='';for(const t of tasks){const tr=document.createElement('tr');cell(tr,[t.country,t.city].filter(Boolean).join(' / '));cell(tr,(t.keywords||[]).join('、'));cell(tr,t.target_count);cell(tr,t.status);cell(tr,new Date(t.created_at).toLocaleString());const b=document.createElement('button');b.textContent='实时搜索';b.className='secondary';if(t.source==='overture'){b.textContent='选择导入任务';b.addEventListener('click',()=>{$('overture-task').value=t.id;$('overture-task').scrollIntoView({behavior:'smooth',block:'center'});});}else b.addEventListener('click',()=>searchTask(t.id,t.source,b));cell(tr,b);body.append(tr);}}catch(e){$('tasks-empty').textContent='无法读取任务：'+e.message+'（可能尚未执行数据库迁移）';}}
 async function loadLeads(){const body=$('leads');body.replaceChildren();const status=$('lead-status').value;try{const query='lead_discovery_leads?select=*&order=created_at.desc&limit=500'+(status?'&review_status=eq.'+encodeURIComponent(status):'');const fetched=await cloudRequest(query);const qualityFilter=$('lead-quality-filter').value;const leads=fetched.map(lead=>({...lead,_quality:assessLead(lead)})).filter(lead=>!qualityFilter||lead._quality.level===qualityFilter);leadRows=leads;const totalPages=Math.max(1,Math.ceil(leads.length/LEADS_PAGE_SIZE));leadPage=Math.min(leadPage,totalPages);$('leads-page').textContent=leadPage+' / '+totalPages+'（当前最多显示500条候选）';$('leads-prev').disabled=leadPage===1;$('leads-next').disabled=leadPage>=totalPages;$('leads-empty').textContent=leads.length?'':'暂无企业候选。';for(const lead of leads.slice((leadPage-1)*LEADS_PAGE_SIZE,leadPage*LEADS_PAGE_SIZE)){const tr=document.createElement('tr');const choose=document.createElement('input');choose.type='checkbox';choose.className='lead-choose';choose.dataset.id=lead.id;choose.disabled=!lead.website||!lead.website.startsWith('https://')||!!lead.crm_company_id||lead.provider==='google_places';choose.checked=selectedLeadIds.has(lead.id);choose.addEventListener('change',()=>{choose.checked?selectedLeadIds.add(lead.id):selectedLeadIds.delete(lead.id);syncSelection();});cell(tr,choose);const company=document.createElement('div');company.append(el('strong',lead.company_name));const u=cleanWebsite(lead.website);if(u){const a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener noreferrer';a.textContent=u;company.append(document.createElement('br'),a);}cell(tr,company);cell(tr,[lead.country,lead.city].filter(Boolean).join(' / '));const contact=document.createElement('div');for(const c of (lead.contacts||[])){contact.append(el('div',[c.type,c.value].filter(Boolean).join('：')));if(c.source_url){const source=cleanWebsite(c.source_url);if(source){const a=document.createElement('a');a.href=source;a.target='_blank';a.rel='noopener noreferrer';a.className='source';a.textContent='来源链接';contact.append(a);}}}cell(tr,contact);
  const quality=lead._quality;const qBox=document.createElement('div');
  qBox.append(el('strong',quality.score+' / 100'));
@@ -133,3 +134,34 @@ async function loadEnrichJobs(){
  }catch(e){$('enrich-summary').textContent='任务状态读取失败：'+e.message;}
 }
 $('refresh-enrich').addEventListener('click',()=>{loadEnrichJobs();loadLeads();});
+
+let overturePreview=null;
+function resetOverturePreview(){overturePreview=null;$('overture-import').disabled=true;}
+for(const id of ['overture-file','overture-release','overture-task'])$(id).addEventListener('change',resetOverturePreview);
+$('overture-preview').addEventListener('click',async()=>{
+ resetOverturePreview();const file=$('overture-file').files?.[0];
+ if(!file){$('overture-summary').textContent='请选择提取文件';return;}
+ if(file.size>12*1024*1024){$('overture-summary').textContent='超过12MB，请先按城市拆分';return;}
+ if(!$('overture-task').value){$('overture-summary').textContent='先选择来源为 Overture 的搜索任务';return;}
+ const release=$('overture-release').value.trim();if(!/^20\d{2}-\d{2}-\d{2}(\.\d+)?$/.test(release)){$('overture-summary').textContent='版本格式应为 YYYY-MM-DD.1';return;}
+ try{const parsed=parseOvertureText(await file.text(),file.name);
+  if(!parsed.rows.length)throw Error('文件中没有有效 Overture 企业地点');
+  overturePreview={...parsed,taskId:$('overture-task').value,release,filename:file.name};
+  $('overture-summary').textContent='原始 '+parsed.original+' 条 · 有效去重后 '+parsed.rows.length+' 条 · 文件内重复 '+parsed.duplicate+' 条 · 无效 '+parsed.invalid+' 条。确认城市与来源许可后可以导入。';
+  $('overture-import').disabled=false;
+ }catch(e){$('overture-summary').textContent='校验失败：'+e.message;}
+});
+$('overture-import-form').addEventListener('submit',async e=>{
+ e.preventDefault();const data=overturePreview;if(!data)return;
+ if(data.taskId!==$('overture-task').value||data.release!==$('overture-release').value.trim()){resetOverturePreview();$('overture-summary').textContent='任务或版本已改变，请重新预览';return;}
+ const button=$('overture-import');button.disabled=true;let inserted=0,skipped=0,completed=0;
+ try{
+  for(let i=0;i<data.rows.length;i+=50){
+   const result=await cloudRequest('rpc/lead_stage_overture',{method:'POST',body:JSON.stringify({p_task_id:data.taskId,p_release:data.release,p_rows:data.rows.slice(i,i+50)})});
+   inserted+=Number(result.inserted||0);skipped+=Number(result.skipped||0);completed+=Math.min(50,data.rows.length-i);
+   $('overture-summary').textContent='正在导入 '+completed+' / '+data.rows.length+' · 新增 '+inserted+' · 跳过 '+skipped;
+  }
+  $('overture-summary').textContent='导入完成：新增 '+inserted+' 条，跳过重复/无效 '+skipped+' 条。请在候选列表人工审核。';await loadLeads();
+ }catch(err){$('overture-summary').textContent='部分导入完成 '+completed+'/'+data.rows.length+'：新增 '+inserted+'、跳过 '+skipped+'。错误：'+err.message+'。重新执行不会重复导入相同 ID。';}
+ finally{button.disabled=false;}
+});
