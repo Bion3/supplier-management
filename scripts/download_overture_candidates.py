@@ -15,9 +15,9 @@ UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 HIGH_CATEGORIES = ('freight_forwarding','freight_and_cargo','import_export','customs_broker','wholesale','wholesaler','distributor','supplier_or_distributor','trucking','motor_freight','supply_chain')
 MEDIUM_CATEGORIES = ('storage_facility','warehouse','courier_and_delivery','shipping_center','transportation_service','logistics')
 EXCLUDED_CATEGORIES = re.compile(r'place_of_worship|religious|car_wash|auto(motive)?_repair|taxi_service|warehouse_club_store|retail_store|travel_agency|restaurant|cafe|hotel|beauty|tire_shop|fuel_station|school|hospital|pharmacy|self_storage',re.I)
-EXCLUDED_NAMES = re.compile(r'paket\\s*shop|paketstation|packstation|parcel\\s*shop|access\\s*point|pickup\\s*point|self\\s*storage|selfstorage|onlineshop|wein-?depot|kurier.?taxi',re.I)
-STRONG_NAME = re.compile(r'\\b(spedition|spediteur|freight|forwarding|logistik|logistics?|shipping|cargo|container|international(e|er|es)?|import[ -]?export|großhandel|grosshandel|wholesale|customs|zoll)\\b',re.I)
-MODERATE_NAME = re.compile(r'\\b(transport(e|es)?|transporte|trading|distribution|fulfillment|lager|handelsagentur|fuhrbetrieb)\\b',re.I)
+EXCLUDED_NAMES = re.compile(r'paket\s*shop|paketstation|packstation|parcel\s*shop|access\s*point|pickup\s*point|self\s*storage|selfstorage|onlineshop|wein-?depot|kurier.?taxi',re.I)
+STRONG_NAME = re.compile(r'\b(spedition|spediteur|freight|forwarding|logistik|logistics?|shipping|cargo|container|international(e|er|es)?|import[ -]?export|großhandel|grosshandel|wholesale|customs|zoll)\b',re.I)
+MODERATE_NAME = re.compile(r'\b(transport(e|es)?|transporte|trading|distribution|fulfillment|lager|handelsagentur|fuhrbetrieb)\b',re.I)
 THIRD_PARTY = ('gelbeseiten.de','dasoertliche.de','11880.com','google.com','google.de','facebook.com','instagram.com','linkedin.com','yelp.com','foursquare.com','myhermes.de','dhl.de','ups.com','bing.com','linktr.ee')
 
 def clean(value, limit=500):
@@ -93,14 +93,14 @@ def validate_bbox(text):
     return text
 
 def normalized_name(value):
-    return re.sub(r'[^\\w]+','',re.sub(r'\\b(gmbh|ug|ag|kg|e\\.?k\\.?|mbh|ltd|co|haftungsbeschränkt)\\b','',value.casefold()))
+    return re.sub(r'[^\w]+','',re.sub(r'\b(gmbh|ug|ag|kg|e\.?k\.?|mbh|ltd|co|haftungsbeschränkt)\b','',value.casefold()))
 
 def convert(source, output, limit):
     from collections import Counter
     candidates={};rejected=Counter();total=0
     with open(source,'r',encoding='utf-8') as file:
         for line in file:
-            line=line.strip().lstrip('\\x1e')
+            line=line.strip().lstrip('\x1e')
             if not line:continue
             total+=1
             row,reason=assess_feature(json.loads(line))
@@ -112,13 +112,13 @@ def convert(source, output, limit):
     deduped=[];seen=set()
     for row in ranked:
         hostname=host_of(row['website'])
-        addr=re.sub(r'\\W','',row['address'].casefold())
+        addr=re.sub(r'\W','',row['address'].casefold())
         key=('website',hostname) if hostname else ('name_address',normalized_name(row['name']),addr) if addr else ('id',row['id'])
         if key in seen:rejected['same_company_duplicate']+=1;continue
         seen.add(key);deduped.append(row)
     chosen=deduped[:limit]
     with open(output,'w',encoding='utf-8') as out:
-        for row in chosen:out.write(json.dumps(row,ensure_ascii=False)+'\\n')
+        for row in chosen:out.write(json.dumps(row,ensure_ascii=False)+'\n')
     return {'scanned':total,'matched':len(chosen),'qualified_pool':len(deduped),
         'high_priority':sum(v['lead_tier']=='high' for v in chosen),
         'review_priority':sum(v['lead_tier']=='review' for v in chosen),
