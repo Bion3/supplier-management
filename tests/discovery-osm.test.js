@@ -40,6 +40,6 @@ test('Hamburg search uses selective business tags instead of scanning every name
  };
  try{
   const result=await POST(new Request('https://example.test/api/discovery-osm',{method:'POST',headers:{...auth,'Content-Type':'application/json'},body:JSON.stringify({task_id:task})}));
-  assert.equal(result.status,200);assert.match(query,/\\["office"/);assert.doesNotMatch(query,/\\["name"~/);assert.match(query,/out center 60/);
+  assert.equal(result.status,200);assert.ok(query.includes('nwr["office"'));assert.ok(!query.includes('nwr["name"~'));assert.match(query,/out center 60/);
  }finally{globalThis.fetch=original;}
 });
