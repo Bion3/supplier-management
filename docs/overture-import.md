@@ -49,3 +49,23 @@ Overture 地点数据每条来源可能含不同上游许可，应用端保存�
 **真实进度限制：** 这一阶段已提交自动下载/筛选程序，但未确认 GitHub Actions 的真实数据下载任务成功，也没有把批量文件自动转存到 CRM。Vercel 运行时仍不直接查询 Overture S3 数据。建议先检查 Actions 日志及样本质量，避免引入错误企业数据。
 
 为了降低隐私和再发布风险，自动导出的文件不含 email/phone；来源由独立官网补全模块进行核实。自动生成数据仍需遵守 Overture 和其上游来源的许可义务。
+
+## 自动写入 Supabase 候选池（新）
+
+数据库迁移已经应用：
+- `database/lead_overture_auto_ingest.sql`：独立后台批次与分片记录、重复提交保护、每片最多 50 条、每批最多 5,000 条；仅接受专用密钥哈希校验成功的请求。
+- `database/lead_overture_token_setup.sql`：只允许现有授权 CRM 用户通过页面生成一次性专用令牌，数据库仅保存 SHA-256 哈希。重新生成令牌会立即使旧 GitHub 密钥失效。
+
+首次启用步骤：
+1. CRM 中创建来源为 `Overture Maps（文件导入）` 的 Hamburg 任务（使用其任务 UUID）。
+2. 在“Overture 后台导入批次”展开“首次启用自动入库”，点击“生成 / 轮换专用密钥”，仅复制一次并保管。
+3. GitHub 仓库 Settings → Secrets and variables → Actions → New repository secret：名称 `OVERTURE_INGEST_SECRET`，值为刚生成的令牌。**不要放入代码、Issue、PR、聊天或公开的构建日志。**
+4. GitHub Actions 的 `Prepare and import Overture city leads` 手动触发，输入 `city=hamburg`、正确的 bbox、该城市 Overture 任务 UUID、从官方发行记录核实的发布版本，并开启 `auto_import`。
+5. 后台先生成仅含企业公开业务信息的 NDJSON（仍提供可下载 artifact），后经 Supabase REST 的受限 RPC 每 50 条写入候选池；任务结束后可在 CRM 的“Overture 后台导入批次”查看新增/跳过/进度。最后一片成功时标记完成。
+6. 数据**只进入待审核候选池**，不进入发信队列，也不赋予邮件发送许可。
+
+GitHub Actions 的新 workflow 如果尚未存在于默认分支的 Actions 列表，需要通过 PR 合并才能从界面直接触发。密钥由使用者亲自保存到 GitHub Actions Secrets；本次开发没有办法直接设置 GitHub Secrets，因此自动执行暂不视为已启用。
+
+重试说明：如果同一 GitHub 运行的相同 batch key、chunk number 被再次提交，Supabase 返回已处理结果而不重复计数；新运行会获得新的 batch key，企业 ID 仍会按 Overture provider + ID 去重。若遭遇网络或运行中断，可先检查对应 GitHub run 的 chunk 记录，然后重试。已经完成的批次不接受新片。
+
+安全限制：后台令牌不等于 Supabase 管理员密钥，仅能调用该单一导入 RPC；预览/生产使用的是同一 Supabase 数据库，请确认目标任务及官方发布版本。自动筛选仅按 Overture 的名称/行业文本初筛，不能保证都是有效货代客户；仍需人工二次审核。
