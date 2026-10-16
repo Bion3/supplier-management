@@ -24,6 +24,12 @@ class ExportTests(unittest.TestCase):
  def test_word_boundary_does_not_match_worship(self):
   row={"id":ID,"names":{"primary":"Christian Worship Center"},"taxonomy":{"primary":"religious_organization"}}
   self.assertIsNone(select_feature(row))
+ def test_parcel_shops_are_not_b2b_leads(self):
+  for name in ("Hermes PaketShop","UPS Access Point","Finest Shop"):
+   self.assertIsNone(select_feature({"id":ID,"names":{"primary":name},"taxonomy":{"primary":"shipping_center"}}))
+ def test_real_transport_business_with_shipping_center_tag_survives(self):
+  row={"id":ID,"names":{"primary":"Hamburg Cargo Transport"},"taxonomy":{"primary":"shipping_center"}}
+  self.assertEqual(select_feature(row)["name"],"Hamburg Cargo Transport")
  def test_validates_small_bbox(self):
   self.assertEqual(validate_bbox("9.75,53.40,10.33,53.72"),"9.75,53.40,10.33,53.72")
   with self.assertRaises(ValueError):validate_bbox("-180,-90,180,90")
