@@ -30,6 +30,27 @@ class ExportTests(unittest.TestCase):
  def test_real_transport_business_with_shipping_center_tag_survives(self):
   row={"id":ID,"names":{"primary":"Hamburg Cargo Transport"},"taxonomy":{"primary":"shipping_center"}}
   self.assertEqual(select_feature(row)["name"],"Hamburg Cargo Transport")
+ def test_directory_is_not_official_website(self):
+  row={"id":ID,"names":{"primary":"Hamburg Spedition"},"taxonomy":{"primary":"freight_forwarding_agency"},"websites":["https://www.gelbeseiten.de/gsbiz/test"]}
+  result=select_feature(row)
+  self.assertEqual(result["website"],"")
+  self.assertEqual(result["lead_tier"],"high" if result["quality_score"]>=65 else "review")
+ def test_weak_freight_label_does_not_create_false_lead(self):
+  self.assertIsNone(select_feature({"id":ID,"names":{"primary":"Hamburg Kiosk"},"taxonomy":{"primary":"freight_and_cargo_service"}}))
+ def test_score_and_screening_are_explanatory(self):
+  row={"id":ID,"names":{"primary":"Hamburg Spedition"},"taxonomy":{"primary":"freight_forwarding_agency"},"websites":["https://hamburgsped.example"]}
+  result=select_feature(row)
+  self.assertGreaterEqual(result["quality_score"],65)
+  self.assertTrue(result["needs_review"])
+ def test_full_scan_selects_best_not_first(self):
+  first={"id":ID,"names":{"primary":"Hans Schwingel"},"taxonomy":{"primary":"wholesaler"}}
+  best={"id":"22222222-2222-4222-8222-222222222222","names":{"primary":"Hamburg Spedition"},"taxonomy":{"primary":"freight_forwarding_agency"},"websites":["https://spedition.example"]}
+  with tempfile.TemporaryDirectory() as d:
+   p=Path(d)/"in.geojsonseq";o=Path(d)/"out.ndjson"
+   p.write_text("\n".join([json.dumps(first),json.dumps(best)]))
+   result=convert(p,o,1)
+   self.assertEqual(result["scanned"],2)
+   self.assertEqual(json.loads(o.read_text().splitlines()[0])["name"],"Hamburg Spedition")
  def test_validates_small_bbox(self):
   self.assertEqual(validate_bbox("9.75,53.40,10.33,53.72"),"9.75,53.40,10.33,53.72")
   with self.assertRaises(ValueError):validate_bbox("-180,-90,180,90")
