@@ -14,6 +14,16 @@ class ExportTests(unittest.TestCase):
   self.assertEqual(row["website"],"https://freight.example")
  def test_rejects_irrelevant_place(self):
   self.assertIsNone(select_feature({"id":ID,"names":{"primary":"Cafe Sunshine"},"taxonomy":{"primary":"coffee_shop"}}))
+ def test_false_positive_categories_not_exported(self):
+  for cat in ("christian_place_of_worship","automotive_repair","car_wash","taxi_service"):
+   row={"id":ID,"names":{"primary":"Shipping Test Place"},"taxonomy":{"primary":cat}}
+   self.assertIsNone(select_feature(row),cat)
+ def test_freight_category_selected_without_keyword_in_name(self):
+  row={"id":ID,"names":{"primary":"Acme GmbH"},"taxonomy":{"primary":"freight_forwarding_agency"}}
+  self.assertEqual(select_feature(row)["name"],"Acme GmbH")
+ def test_word_boundary_does_not_match_worship(self):
+  row={"id":ID,"names":{"primary":"Christian Worship Center"},"taxonomy":{"primary":"religious_organization"}}
+  self.assertIsNone(select_feature(row))
  def test_validates_small_bbox(self):
   self.assertEqual(validate_bbox("9.75,53.40,10.33,53.72"),"9.75,53.40,10.33,53.72")
   with self.assertRaises(ValueError):validate_bbox("-180,-90,180,90")
