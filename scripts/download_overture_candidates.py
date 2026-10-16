@@ -14,7 +14,9 @@ from pathlib import Path
 UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
 LOGISTICS = re.compile(r"freight|forwarding|logistics?|logistik|spedition|shipping|cargo|transport|warehouse|fulfillment|distribut|wholesale|großhandel|grosshandel|import|export|zoll|customs|kurier|spediteur", re.I)
 RELEVANT_CATEGORIES = re.compile(r"freight|forwarding|logistics?|transportation_service|trucking|cargo|courier|shipping|warehouse|storage_facility|fulfillment|wholesale|distribut|import_export|customs_broker|supply_chain", re.I)
-EXCLUDED_CATEGORIES = re.compile(r"place_of_worship|car_wash|automotive_repair|auto_repair|taxi_service|travel_agency|parking|restaurant|cafe|hotel|beauty|religious|tire_shop|fuel_station|school|hospital", re.I)
+EXCLUDED_CATEGORIES = re.compile(r"place_of_worship|car_wash|automotive_repair|auto_repair|taxi_service|travel_agency|parking|restaurant|cafe|hotel|beauty|religious|tire_shop|fuel_station|school|hospital|warehouse_club_store", re.I)
+PARCEL_RETAIL_CATEGORIES = {"shipping_center"}
+PARCEL_RETAIL_NAMES = re.compile(r"paketshop|paket shop|parcel shop|access point|pickup point|paketstation",re.I)
 NAME_RELEVANCE = re.compile(r"\\b(freight|forwarding|logistics?|logistik|spedition|spediteur|cargo|shipping|transport|transporte|warehouse|fulfillment|distribution|wholesale|grosshandel|großhandel|import[ -]?export|customs|zoll)\\b", re.I)
 
 def clean(value, limit=500):
@@ -38,6 +40,8 @@ def select_feature(obj):
     ]
     primary = clean(fields[2] or fields[1], 120)
     if not UUID.fullmatch(oid) or not name or EXCLUDED_CATEGORIES.search(primary):
+        return None
+    if primary in PARCEL_RETAIL_CATEGORIES and (PARCEL_RETAIL_NAMES.search(name) or not NAME_RELEVANCE.search(name)):
         return None
     # Only category-verified sector matches or strong whole-word trade terminology in the company name.
     if not (RELEVANT_CATEGORIES.search(primary) or NAME_RELEVANCE.search(name)):
