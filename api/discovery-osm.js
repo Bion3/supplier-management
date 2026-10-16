@@ -32,10 +32,19 @@ export async function POST(request){
   // Avoid excessive public Overpass requests for an entire country or megaregion.
   const maxHalf=0.045;south=Math.max(south,lat-maxHalf);north=Math.min(north,lat+maxHalf);west=Math.max(west,lon-maxHalf);east=Math.min(east,lon+maxHalf);
   const keywords=Array.isArray(task.keywords)?task.keywords.slice(0,4).map(clean):[];
-  const terms=[...new Set(keywords.flatMap(k=>categories[k.toLowerCase()]||k.toLowerCase().split(/\s+/).filter(w=>w.length>=4)).filter(x=>x.length>=3&&x.length<=30))].slice(0,12);
-  if(!terms.length)return out({error:'未填写有效行业关键词'},400);
-  const pattern=terms.map(qescape).join('|'),bounds=[south,west,north,east].join(',');
-  const query='[out:json][timeout:12];(nwr["name"~"'+pattern+'",i]('+bounds+');nwr["office"~"^(logistics|transport|freight)$",i]('+bounds+'););out center 80;';
+  // Use selective OSM POI tags first. An unbounded name regex over all map objects is extremely expensive
+  // and causes public Overpass instances to time out (HTTP 500/504) in cities like Hamburg.
+  const requested=keywords.join(' ').toLowerCase();
+  const selectors=[];
+  if(/freight|forward|logistic|transport|cargo|import|export|wholesale|distribut/i.test(requested)){
+   selectors.push('nwr["office"~"^(logistics|transport|freight_forwarder|company)$"]('+'BOUNDS_PLACEHOLDER'+');');
+   selectors.push('nwr["industrial"~"^(warehouse|logistics)$"]('+'BOUNDS_PLACEHOLDER'+');');
+  }
+  if(/wholesale|distribut|import|export/i.test(requested))selectors.push('nwr["shop"="wholesale"]('+'BOUNDS_PLACEHOLDER'+');');
+  if(!selectors.length)selectors.push('nwr["office"="logistics"]('+'BOUNDS_PLACEHOLDER'+');');
+  // Cap returned POIs and avoid scanning all named entities. This is an exploratory sample, not a 500-company export.
+  const bounds=[south,west,north,east].join(',');
+  const query='[out:json][timeout:10];('+selectors.join('').replaceAll('BOUNDS_PLACEHOLDER',bounds)+');out center 60;';
   // Public Overpass is not a bulk search API. One fallback only for transient server errors.
   // Respect HTTP 429/Retry-After: never switch nodes to circumvent quotas.
   const nodes=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
