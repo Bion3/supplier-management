@@ -133,6 +133,18 @@ async function loadEnrichJobs(){
   }
  }catch(e){$('enrich-summary').textContent='任务状态读取失败：'+e.message;}
 }
+$('dispatch-queued-enrich').addEventListener('click',async()=>{
+ const button=$('dispatch-queued-enrich');button.disabled=true;
+ try{
+  const jobs=await cloudRequest('lead_enrich_jobs?select=lead_id&status=eq.queued&order=created_at.asc&limit=500');
+  const ids=[...new Set(jobs.map(j=>j.lead_id))];
+  if(!ids.length){$('enrich-summary').textContent='目前没有等待派发的官网核实任务。';return;}
+  const result=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids})});
+  $('enrich-summary').textContent=(result.message||result.error||'已请求派发')+' · 已排队 '+(result.queued||0)+' · 已派发 '+(result.published||0)+'。';
+  await loadEnrichJobs();
+ }catch(e){$('enrich-summary').textContent='派发失败：'+e.message;}
+ finally{button.disabled=false;}
+});
 $('refresh-enrich').addEventListener('click',()=>{loadEnrichJobs();loadLeads();});
 
 let overturePreview=null;
