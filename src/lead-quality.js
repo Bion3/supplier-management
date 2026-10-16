@@ -1,6 +1,8 @@
 // Evidence-based lead prioritization, not email deliverability or consent verification.
 // "Multiple sources" requires distinct origins: two pages of one website count as ONE source.
 const originOf = value => {try{const u=new URL(String(value||''));return ['http:','https:'].includes(u.protocol)?u.hostname.toLowerCase().replace(/^www\./,''):'';}catch{return '';}};
+const thirdPartyHosts=['gelbeseiten.de','dasoertliche.de','11880.com','facebook.com','instagram.com','linkedin.com','myhermes.de','dhl.de','ups.com','google.com','google.de','foursquare.com'];
+const isThirdParty = host => thirdPartyHosts.some(x=>host===x||host.endsWith('.'+x));
 const normalizeType = type => ['email','邮箱'].includes(type)?'email':['phone','电话'].includes(type)?'phone':'other';
 const classify = (contact,websiteHost) => {
  const type=normalizeType(contact.type),value=String(contact.value||'').trim(),source=originOf(contact.source_url);
@@ -11,7 +13,7 @@ const classify = (contact,websiteHost) => {
  return {type,value,source,valid,domainMatch,official};
 };
 export function assessLead(lead){
- const websiteHost=originOf(lead.website),contacts=Array.isArray(lead.contacts)?lead.contacts:[];
+ const rawWebsiteHost=originOf(lead.website),websiteHost=isThirdParty(rawWebsiteHost)?'':rawWebsiteHost,contacts=Array.isArray(lead.contacts)?lead.contacts:[];
  const evidence=Array.isArray(lead.source_evidence)?lead.source_evidence:[];
  const evidenceHosts=new Set(evidence.map(e=>originOf(e.url)).filter(Boolean));
  const contactHosts=new Set(contacts.map(c=>originOf(c.source_url)).filter(Boolean));
@@ -22,7 +24,7 @@ export function assessLead(lead){
  const independentSources=sources.size;
  let score=0;
  const reasons=[];
- if(websiteHost){score+=15;reasons.push('有企业官网');}
+ if(websiteHost){score+=15;reasons.push('存在疑似企业官网（尚需核实归属）');}
  if(hasOfficialContact){score+=25;reasons.push('官网直接公布联系方式');}
  if(hasMatchingEmail){score+=20;reasons.push('邮箱域名与企业官网一致');}
  if(phones.length){score+=10;reasons.push('有格式合理的电话');}
@@ -33,7 +35,7 @@ export function assessLead(lead){
  if(allEmailGeneric){score=Math.max(0,score-10);reasons.push('仅找到公共邮箱域名，需核对企业归属');}
  const level=score>=70?'high':score>=40?'medium':'low';
  const missing=[];
- if(!websiteHost)missing.push('缺少企业官网');
+ if(!websiteHost)missing.push(rawWebsiteHost?'提供的是黄页/平台链接，不是已核实的企业官网':'缺少企业官网');
  if(!hasOfficialContact)missing.push('尚未确认官网直接公布');
  if(!hasMatchingEmail)missing.push('邮箱域名尚未与企业官网一致');
  if(independentSources<2)missing.push('缺少独立第二来源');
