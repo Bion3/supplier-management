@@ -5,16 +5,25 @@ const pages=[
  {group:'客户开发',items:[['/crm.html','客户资源'],['/discovery.html','企业挖掘'],['/inbox.html','收件箱'],['/mail.html','邮件发送']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
-const path=location.pathname==='/'?'/':location.pathname;
+const path=location.pathname==='/index.html'?'/':location.pathname;
 const pricePages={'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费']};
 const activePath=pricePages[path]?'/pricing.html':path;
 const header=document.querySelector('body>header');
 if(header){
  const active=pricePages[path]?.[1]||pages.flatMap(x=>x.items).find(([href])=>href===path)?.[1]||document.title;
- header.className='app-header';
- header.innerHTML=`<a class="app-brand" href="/hub.html"><span class="app-mark">E</span><span><b>国际物流管理系统</b><small>${active}</small></span></a><button class="nav-toggle" type="button" aria-expanded="false" aria-label="展开系统目录">目录</button><nav class="system-nav" aria-label="系统目录">${pages.map(section=>`<div class="nav-group"><span>${section.group}</span>${section.items.map(([href,label])=>`<a href="${href}" ${href===activePath?'aria-current="page"':''}>${label}</a>`).join('')}</div>`).join('')}</nav>`;
+ let saved={};try{saved=JSON.parse(localStorage.getItem('eurasiago-nav-groups')||'{}')||{};if(typeof saved!=='object'||Array.isArray(saved))saved={};}catch{}
+ const link=(href,label)=>`<a href="${href}" ${href===path?'aria-current="page"':''}>${label}</a>`;
+ const items=section=>section.items.map(([href,label])=>{
+  if(href!=='/pricing.html')return link(href,label);
+  return `<details class="nav-subgroup" data-nav-group="采购价格中心" ${activePath===href||saved['采购价格中心']?'open':''}><summary>${label}</summary><div class="nav-children">${link(href,'价格库总览')}${Object.entries(pricePages).map(([url,info])=>link(url,info[1])).join('')}</div></details>`;
+ }).join('');
+ header.className='app-header';document.body.classList.add('has-sidebar');
+ header.innerHTML=`<a class="app-brand" href="/hub.html"><span class="app-mark">E</span><span><b>国际物流管理系统</b><small>${active}</small></span></a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="system-directory" aria-label="展开系统目录">目录</button><nav id="system-directory" class="system-nav" aria-label="系统目录">${pages.map(section=>section.group==='首页'?`<div class="nav-home">${items(section)}</div>`:`<details class="nav-group" data-nav-group="${section.group}" ${section.items.some(([href])=>href===activePath)||saved[section.group]?'open':''}><summary>${section.group}</summary><div class="nav-children">${items(section)}</div></details>`).join('')}</nav>`;
  const toggle=header.querySelector('.nav-toggle'),nav=header.querySelector('.system-nav');
- toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')==='true';toggle.setAttribute('aria-expanded',String(!open));nav.classList.toggle('open',!open);});
+ function close(){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','展开系统目录');nav.classList.remove('open');}
+ toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'收起系统目录':'展开系统目录');nav.classList.toggle('open',open);});
+ header.addEventListener('keydown',event=>{if(event.key==='Escape'){close();toggle.focus();}});
+ nav.addEventListener('click',event=>{if(event.target.closest('a'))close();});
+ for(const group of nav.querySelectorAll('details'))group.addEventListener('toggle',()=>{saved[group.dataset.navGroup]=group.open;try{localStorage.setItem('eurasiago-nav-groups',JSON.stringify(saved));}catch{}});
 }
 if(pricePages[path]){const context=document.createElement('nav');context.className='price-breadcrumb';context.setAttribute('aria-label','当前位置');context.innerHTML=`<a href="/pricing.html">采购价格中心</a><span> / ${pricePages[path][0]} / ${pricePages[path][1]}</span>`;document.querySelector('main')?.prepend(context);}
-
