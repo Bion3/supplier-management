@@ -184,3 +184,47 @@ $('switch-overture').addEventListener('click',async()=>{
  }catch(e){$('live-notice').textContent='切换 Overture 任务失败：'+e.message;}
  finally{button.disabled=false;}
 });
+
+async function loadOvertureBatches(){
+ const body=$('overture-batches');body.replaceChildren();
+ try{
+  const batches=await cloudRequest('lead_overture_batches?select=batch_key,task_id,release,source_bbox,expected_count,processed,inserted,skipped,status,updated_at&order=updated_at.desc&limit=100');
+  const tasks=await cloudRequest('lead_discovery_tasks?select=id,country,city&source=eq.overture&limit=100');
+  const names=new Map(tasks.map(t=>[t.id,[t.country,t.city].filter(Boolean).join(' / ')]));
+  const statuses={running:'处理中',completed:'已完成',failed:'失败'};
+  $('overture-batches-summary').textContent='共 '+batches.length+' 个后台导入批次。记录保存在 Supabase，刷新或退出页面不会丢失。';
+  for(const b of batches){
+   const tr=document.createElement('tr');
+   cell(tr,(names.get(b.task_id)||b.task_id)+' / '+b.release);
+   cell(tr,statuses[b.status]||b.status);
+   cell(tr,b.processed+' / '+b.expected_count);
+   cell(tr,b.inserted);cell(tr,b.skipped);
+   cell(tr,new Date(b.updated_at).toLocaleString());
+   body.append(tr);
+  }
+ }catch(e){$('overture-batches-summary').textContent='读取批次失败：'+e.message;}
+}
+$('refresh-overture-batches').addEventListener('click',loadOvertureBatches);
+$('issue-overture-token').addEventListener('click',async()=>{
+ const button=$('issue-overture-token');
+ if(!confirm('生成新专用密钥会使之前的 GitHub OVERTURE_INGEST_SECRET 失效。确定继续吗？'))return;
+ button.disabled=true;
+ try{
+  const secret=await cloudRequest('rpc/lead_overture_issue_ingest_token',{method:'POST',body:'{}'});
+  if(typeof secret!=='string'||secret.length!==64)throw Error('密钥生成返回异常');
+  $('overture-token-text').textContent=secret;
+  $('overture-token-display').hidden=false;
+  $('overture-token-notice').textContent='请立即复制到 GitHub 仓库 Settings → Secrets and variables → Actions。仅显示一次。';
+ }catch(e){$('overture-token-notice').textContent='生成失败：'+e.message;}
+ finally{button.disabled=false;}
+});
+$('copy-overture-token').addEventListener('click',async()=>{
+ const value=$('overture-token-text').textContent;
+ try{await navigator.clipboard.writeText(value);$('overture-token-notice').textContent='已复制，请粘贴到 GitHub Actions Secret。';}
+ catch{$('overture-token-notice').textContent='浏览器禁止自动复制，请手动选择显示的密钥。';}
+});
+$('close-overture-token').addEventListener('click',()=>{
+ $('overture-token-text').textContent='';$('overture-token-display').hidden=true;
+ $('overture-token-notice').textContent='密钥已从当前页面清除。';
+});
+loadOvertureBatches();
