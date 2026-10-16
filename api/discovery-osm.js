@@ -30,15 +30,30 @@ export async function POST(request){
   if([south,north,west,east].some(x=>!Number.isFinite(x)))return out({error:'地区边界不可用'},502);
   const lat=(north+south)/2,lon=(west+east)/2;
   // Avoid excessive public Overpass requests for an entire country or megaregion.
-  const maxHalf=0.12;south=Math.max(south,lat-maxHalf);north=Math.min(north,lat+maxHalf);west=Math.max(west,lon-maxHalf);east=Math.min(east,lon+maxHalf);
+  const maxHalf=0.045;south=Math.max(south,lat-maxHalf);north=Math.min(north,lat+maxHalf);west=Math.max(west,lon-maxHalf);east=Math.min(east,lon+maxHalf);
   const keywords=Array.isArray(task.keywords)?task.keywords.slice(0,4).map(clean):[];
   const terms=[...new Set(keywords.flatMap(k=>categories[k.toLowerCase()]||k.toLowerCase().split(/\s+/).filter(w=>w.length>=4)).filter(x=>x.length>=3&&x.length<=30))].slice(0,12);
   if(!terms.length)return out({error:'未填写有效行业关键词'},400);
   const pattern=terms.map(qescape).join('|'),bounds=[south,west,north,east].join(',');
-  const query='[out:json][timeout:20];(nwr["name"~"'+pattern+'",i]('+bounds+');nwr["office"~"^(logistics|company|transport|freight)$",i]('+bounds+');nwr["industrial"~"^(warehouse|logistics)$",i]('+bounds+'););out center 80;';
-  const over=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'EurasiagoLeadDiscovery/1.0 (contact: benjamin@eurasiago.com)'},body:new URLSearchParams({data:query}),signal:timeout(26000)});
-  if(!over.ok)return out({error:'公共 OSM 查询繁忙或超出配额，请稍后重试'},503);
-  const data=await over.json(),seen=new Set(),results=[];
+  const query='[out:json][timeout:12];(nwr["name"~"'+pattern+'",i]('+bounds+');nwr["office"~"^(logistics|transport|freight)$",i]('+bounds+'););out center 80;';
+  // Public Overpass is not a bulk search API. One fallback only for transient server errors.
+  // Respect HTTP 429/Retry-After: never switch nodes to circumvent quotas.
+  const nodes=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
+  let data=null,lastStatus=null;
+  for(let i=0;i<nodes.length;i++){
+   let response;
+   try{
+    response=await fetch(nodes[i],{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'EurasiagoLeadDiscovery/1.0 (contact: benjamin@eurasiago.com)','Accept':'application/json'},body:new URLSearchParams({data:query}),signal:timeout(16000)});
+   }catch(error){if(i+1<nodes.length)continue;return out({error:'公共地图服务连接失败。请稍后再试，或使用 Overture 地区文件导入。',code:'overpass_network'},503);}
+   lastStatus=response.status;
+   if(response.status===429)return out({error:'公共地图查询已达到限额。请遵守服务配额，稍后再试；批量搜集请改用 Overture 文件导入。',code:'overpass_rate_limited'},429);
+   if(response.ok){
+    try{const parsed=await response.json();if(!Array.isArray(parsed.elements))throw Error('invalid result');data=parsed;break;}catch{if(i+1<nodes.length)continue;return out({error:'公共地图返回格式异常，请稍后重试。',code:'overpass_invalid_response'},503);}
+   }
+   if(![500,502,503,504].includes(response.status)||i===nodes.length-1)break;
+  }
+  if(!data)return out({error:'公共地图服务暂不可用（HTTP '+(lastStatus||'unknown')+'）。请稍后重试，或选择 Overture 文件导入。',code:'overpass_unavailable'},503);
+  const seen=new Set(),results=[];
   for(const p of data.elements||[]){
    const tags=p.tags||{},name=tags.name||tags['name:en'];if(!name)continue;
    const dedupe=(tags.website||tags['contact:website']||name).toLowerCase().replace(/\W/g,'');
