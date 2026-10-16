@@ -3,6 +3,7 @@ await rm('dist', {recursive:true,force:true});
 await mkdir('dist',{recursive:true});
 await cp('index.html','dist/index.html');
 await cp('crm.html','dist/crm.html');
+await cp('discovery.html','dist/discovery.html');
 await cp('knowledge.html','dist/knowledge.html');
 await cp('mail.html','dist/mail.html');
 await cp('inbox.html','dist/inbox.html');

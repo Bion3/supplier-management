@@ -1,1 +1,20 @@
-{"name":"supplier-management","version":"0.1.0","private":true,"type":"module","engines":{"node":">=22"},"scripts":{"dev":"node scripts/serve.mjs","build":"node scripts/build.mjs","preview":"node scripts/serve.mjs dist","test":"node --test","check":"node --check src/app.js && node --check src/suppliers.js && node --check src/cloud.js && node --check src/knowledge.js && node --check src/knowledge-model.js && node --check src/mail.js && node --check src/mail-model.js && node --check server/mail-service.js && node --check api/mail.js && node --check src/mail-rules.js && node --check server/mail-worker.js && node --check api/mail-queue.js"},"dependencies":{"@vercel/queue":"0.8.0","nodemailer":"10.1.0"}}
+{
+  "name": "supplier-management",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node --test tests/lead-enrich-worker.test.js tests/lead-quality.test.js tests/overture-import.test.js tests/discovery-osm.test.js && node scripts/build.mjs",
+    "preview": "node scripts/serve.mjs dist",
+    "test": "node --test",
+    "check": "node --check src/app.js && node --check src/suppliers.js && node --check src/cloud.js && node --check src/knowledge.js && node --check src/knowledge-model.js && node --check src/mail.js && node --check src/mail-model.js && node --check server/mail-service.js && node --check api/mail.js && node --check src/mail-rules.js && node --check server/mail-worker.js && node --check api/mail-queue.js && node --check src/discovery.js && node --check api/lead-batch.js && node --check server/lead-enrich-worker.js && node --check api/lead-enrich-queue.js && node --check server/lead-website-research.js && node --check src/lead-quality.js && node --check src/overture-import.js"
+  },
+  "dependencies": {
+    "@vercel/queue": "0.8.0",
+    "nodemailer": "10.1.0"
+  }
+}
