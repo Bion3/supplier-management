@@ -137,12 +137,12 @@ $('refresh-enrich').addEventListener('click',()=>{loadEnrichJobs();loadLeads();}
 
 let overturePreview=null;
 function resetOverturePreview(){overturePreview=null;$('overture-import').disabled=true;}
-for(const id of ['overture-file','overture-release','overture-task'])$(id).addEventListener('change',resetOverturePreview);
+for(const id of ['overture-file','overture-release','overture-task','overture-confirm-region'])$(id).addEventListener('change',resetOverturePreview);
 $('overture-preview').addEventListener('click',async()=>{
  resetOverturePreview();const file=$('overture-file').files?.[0];
  if(!file){$('overture-summary').textContent='请选择提取文件';return;}
  if(file.size>12*1024*1024){$('overture-summary').textContent='超过12MB，请先按城市拆分';return;}
- if(!$('overture-task').value){$('overture-summary').textContent='先选择来源为 Overture 的搜索任务';return;}
+ if(!$('overture-task').value){$('overture-summary').textContent='先选择来源为 Overture 的搜索任务';return;}if(!$('overture-confirm-region').checked){$('overture-summary').textContent='请先确认文件的国家/城市范围与来源许可';return;}
  const release=$('overture-release').value.trim();if(!/^20\d{2}-\d{2}-\d{2}(\.\d+)?$/.test(release)){$('overture-summary').textContent='版本格式应为 YYYY-MM-DD.1';return;}
  try{const parsed=parseOvertureText(await file.text(),file.name);
   if(!parsed.rows.length)throw Error('文件中没有有效 Overture 企业地点');
@@ -153,7 +153,7 @@ $('overture-preview').addEventListener('click',async()=>{
 });
 $('overture-import-form').addEventListener('submit',async e=>{
  e.preventDefault();const data=overturePreview;if(!data)return;
- if(data.taskId!==$('overture-task').value||data.release!==$('overture-release').value.trim()){resetOverturePreview();$('overture-summary').textContent='任务或版本已改变，请重新预览';return;}
+ if(!$('overture-confirm-region').checked||data.taskId!==$('overture-task').value||data.release!==$('overture-release').value.trim()){resetOverturePreview();$('overture-summary').textContent='任务或版本已改变，请重新预览';return;}
  const button=$('overture-import');button.disabled=true;let inserted=0,skipped=0,completed=0;
  try{
   for(let i=0;i<data.rows.length;i+=50){
