@@ -1,0 +1,57 @@
+name: Build Overture freight leads sample
+on:
+  workflow_dispatch:
+    inputs:
+      city:
+        description: Short city slug
+        required: true
+        default: hamburg
+        type: string
+      bbox:
+        description: 'west,south,east,north (max 0.6 degrees)'
+        required: true
+        default: '9.75,53.40,10.33,53.72'
+        type: string
+      max_records:
+        description: '1-5000 filtered companies'
+        required: true
+        default: '500'
+        type: string
+  push:
+    branches:
+      - feature/lead-discovery
+    paths:
+      - '.github/workflows/overture-city-export.yml'
+      - 'scripts/download_overture_candidates.py'
+      - 'tests/test_overture_download.py'
+permissions:
+  contents: read
+jobs:
+  prepare-city:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Overture official CLI
+        run: python -m pip install --disable-pip-version-check overturemaps
+      - name: Test extraction module
+        run: python -m unittest discover -s tests -p 'test_overture_download.py' -v
+      - name: Extract regional candidates
+        run: |
+          python scripts/download_overture_candidates.py \
+            --city "$CITY" --bbox "$BBOX" --max "$MAX_RECORDS" \
+            --output-dir overture-output
+        env:
+          CITY: ${{ github.event.inputs.city || 'hamburg' }}
+          BBOX: ${{ github.event.inputs.bbox || '9.75,53.40,10.33,53.72' }}
+          MAX_RECORDS: ${{ github.event.inputs.max_records || '500' }}
+      - name: Upload import-ready files
+        uses: actions/upload-artifact@v4
+        with:
+          name: overture-city-candidates
+          path: overture-output/
+          retention-days: 7
+          if-no-files-found: error
