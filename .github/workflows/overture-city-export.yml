@@ -1,29 +1,35 @@
-name: Build Overture freight leads sample
+name: Prepare and import Overture city leads
 on:
   workflow_dispatch:
     inputs:
       city:
-        description: Short city slug
+        description: City slug
         required: true
         default: hamburg
         type: string
       bbox:
-        description: 'west,south,east,north (max 0.6 degrees)'
+        description: Bounding box west,south,east,north (max 0.6 degrees)
         required: true
         default: '9.75,53.40,10.33,53.72'
         type: string
       max_records:
-        description: '1-5000 filtered companies'
+        description: Maximum matching companies 1-5000
         required: true
         default: '500'
         type: string
-  push:
-    branches:
-      - feature/lead-discovery
-    paths:
-      - '.github/workflows/overture-city-export.yml'
-      - 'scripts/download_overture_candidates.py'
-      - 'tests/test_overture_download.py'
+      task_id:
+        description: Existing Overture discovery task UUID, required for auto-import
+        required: false
+        type: string
+      release:
+        description: Verified Overture dataset release YYYY-MM-DD.1
+        required: false
+        type: string
+      auto_import:
+        description: Auto stage candidates in Supabase, requires task UUID, release and secret
+        required: true
+        default: false
+        type: boolean
 permissions:
   contents: read
 jobs:
@@ -35,23 +41,42 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install Overture official CLI
+      - name: Install official Overture CLI
         run: python -m pip install --disable-pip-version-check overturemaps
-      - name: Test extraction module
-        run: python -m unittest discover -s tests -p 'test_overture_download.py' -v
+      - name: Run extraction and publish tests
+        run: python -m unittest discover -s tests -p 'test_overture_*.py' -v
       - name: Extract regional candidates
         run: |
           python scripts/download_overture_candidates.py \
             --city "$CITY" --bbox "$BBOX" --max "$MAX_RECORDS" \
             --output-dir overture-output
         env:
-          CITY: ${{ github.event.inputs.city || 'hamburg' }}
-          BBOX: ${{ github.event.inputs.bbox || '9.75,53.40,10.33,53.72' }}
-          MAX_RECORDS: ${{ github.event.inputs.max_records || '500' }}
-      - name: Upload import-ready files
+          CITY: ${{ inputs.city }}
+          BBOX: ${{ inputs.bbox }}
+          MAX_RECORDS: ${{ inputs.max_records }}
+      - name: Upload artifact for manual review (seven days)
         uses: actions/upload-artifact@v4
         with:
           name: overture-city-candidates
           path: overture-output/
           retention-days: 7
           if-no-files-found: error
+      - name: Auto-import into Supabase candidate pool
+        if: ${{ inputs.auto_import }}
+        env:
+          OVERTURE_INGEST_SECRET: ${{ secrets.OVERTURE_INGEST_SECRET }}
+          TASK_ID: ${{ inputs.task_id }}
+          RELEASE: ${{ inputs.release }}
+          BBOX: ${{ inputs.bbox }}
+          CITY: ${{ inputs.city }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [[ -z "$OVERTURE_INGEST_SECRET" || -z "$TASK_ID" || -z "$RELEASE" ]]; then
+            echo "::error::Configure OVERTURE_INGEST_SECRET and provide Overture task_id + verified release."
+            exit 1
+          fi
+          python scripts/publish_overture_candidates.py \
+            --file "overture-output/$CITY-freight-candidates.ndjson" \
+            --task-id "$TASK_ID" --release "$RELEASE" --bbox "$BBOX" \
+            --batch-key "overture-${RUN_ID}-${RUN_ATTEMPT}"
