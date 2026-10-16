@@ -22,3 +22,11 @@ test('invalid email syntax is not considered valid',()=>{
  const q=assessLead({company_name:'A',website:'https://example.org',contacts:[{type:'email',value:'bad@@example.org',source_url:'https://example.org'}]});
  assert.equal(q.email_count,0);
 });
+
+test('yellow pages and courier-platform websites are not counted as company websites',()=>{
+ for(const website of ['https://www.gelbeseiten.de/gsbiz/test','https://paketshop.myhermes.de/store','https://www.dhl.de/packstation']){
+  const q=assessLead({company_name:'Example',country:'Germany',city:'Hamburg',website,contacts:[]});
+  assert.equal(q.score,5);
+  assert.match(q.missing.join(';'),/平台链接/);
+ }
+});
