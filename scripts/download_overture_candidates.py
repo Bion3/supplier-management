@@ -12,55 +12,74 @@ import tempfile
 from pathlib import Path
 
 UUID = re.compile(r"^[0-9a-fA-F-]{36}$")
-LOGISTICS = re.compile(r"freight|forwarding|logistics?|logistik|spedition|shipping|cargo|transport|warehouse|fulfillment|distribut|wholesale|großhandel|grosshandel|import|export|zoll|customs|kurier|spediteur", re.I)
-RELEVANT_CATEGORIES = re.compile(r"freight|forwarding|logistics?|transportation_service|trucking|cargo|courier|shipping|warehouse|storage_facility|fulfillment|wholesale|distribut|import_export|customs_broker|supply_chain", re.I)
-EXCLUDED_CATEGORIES = re.compile(r"place_of_worship|car_wash|automotive_repair|auto_repair|taxi_service|travel_agency|parking|restaurant|cafe|hotel|beauty|religious|tire_shop|fuel_station|school|hospital|warehouse_club_store", re.I)
-PARCEL_RETAIL_CATEGORIES = {"shipping_center"}
-PARCEL_RETAIL_NAMES = re.compile(r"paketshop|paket shop|parcel shop|access point|pickup point|paketstation",re.I)
-NAME_RELEVANCE = re.compile(r"\\b(freight|forwarding|logistics?|logistik|spedition|spediteur|cargo|shipping|transport|transporte|warehouse|fulfillment|distribution|wholesale|grosshandel|großhandel|import[ -]?export|customs|zoll)\\b", re.I)
+HIGH_CATEGORIES = ('freight_forwarding','freight_and_cargo','import_export','customs_broker','wholesale','wholesaler','distributor','supplier_or_distributor','trucking','motor_freight','supply_chain')
+MEDIUM_CATEGORIES = ('storage_facility','warehouse','courier_and_delivery','shipping_center','transportation_service','logistics')
+EXCLUDED_CATEGORIES = re.compile(r'place_of_worship|religious|car_wash|auto(motive)?_repair|taxi_service|warehouse_club_store|retail_store|travel_agency|restaurant|cafe|hotel|beauty|tire_shop|fuel_station|school|hospital|pharmacy|self_storage',re.I)
+EXCLUDED_NAMES = re.compile(r'paket\\s*shop|paketstation|packstation|parcel\\s*shop|access\\s*point|pickup\\s*point|self\\s*storage|selfstorage|onlineshop|wein-?depot|kurier.?taxi',re.I)
+STRONG_NAME = re.compile(r'\\b(spedition|spediteur|freight|forwarding|logistik|logistics?|shipping|cargo|container|international(e|er|es)?|import[ -]?export|großhandel|grosshandel|wholesale|customs|zoll)\\b',re.I)
+MODERATE_NAME = re.compile(r'\\b(transport(e|es)?|transporte|trading|distribution|fulfillment|lager|handelsagentur|fuhrbetrieb)\\b',re.I)
+THIRD_PARTY = ('gelbeseiten.de','dasoertliche.de','11880.com','google.com','google.de','facebook.com','instagram.com','linkedin.com','yelp.com','foursquare.com','myhermes.de','dhl.de','ups.com','bing.com','linktr.ee')
 
 def clean(value, limit=500):
     return value.strip()[:limit] if isinstance(value, str) else ""
 
+def host_of(site):
+    try:
+        from urllib.parse import urlparse
+        parsed=urlparse(site)
+        return (parsed.hostname or '').lower().removeprefix('www.') if parsed.scheme in ('http','https') else ''
+    except ValueError: return ''
+
+def is_platform(host):
+    return bool(host) and any(host==v or host.endswith('.'+v) for v in THIRD_PARTY)
+
+def assess_feature(obj):
+    if not isinstance(obj,dict): return None,'invalid'
+    x=obj.get('properties',obj)
+    if not isinstance(x,dict): return None,'invalid'
+    oid=clean(x.get('id') or obj.get('id'),50)
+    names=x.get('names') or {}
+    name=clean((names.get('primary') if isinstance(names,dict) else '') or x.get('name'),240)
+    taxonomy=x.get('taxonomy') or {}
+    category=clean((taxonomy.get('primary') if isinstance(taxonomy,dict) else '') or x.get('basic_category') or x.get('category'),120).lower()
+    if not UUID.fullmatch(oid) or not name: return None,'invalid'
+    if EXCLUDED_CATEGORIES.search(category) or EXCLUDED_NAMES.search(name): return None,'non_b2b_retail_or_infrastructure'
+    high=any(v in category for v in HIGH_CATEGORIES)
+    medium=any(v in category for v in MEDIUM_CATEGORIES)
+    strong=bool(STRONG_NAME.search(name))
+    moderate=bool(MODERATE_NAME.search(name))
+    if not (high or (medium and (strong or moderate)) or strong): return None,'weak_industry_match'
+    if category in ('freight_and_cargo_service','shipping_center','courier_and_delivery_service') and not (strong or moderate): return None,'generic_logistics_tag_only'
+    if category in ('storage_facility','warehouse') and not (strong or moderate): return None,'non_target_storage'
+    sites=x.get('websites') or ([x['website']] if x.get('website') else [])
+    if not isinstance(sites,list):sites=[]
+    raw=next((clean(v,500) for v in sites if isinstance(v,str) and host_of(v)),'')
+    host=host_of(raw);website=raw if not is_platform(host) else ''
+    addr=x.get('addresses') or ([{'freeform':x['address']}] if x.get('address') else [])
+    if not isinstance(addr,list):addr=[]
+    address=next((clean(v.get('freeform'),500) for v in addr if isinstance(v,dict) and v.get('freeform')),'')
+    sources=x.get('sources') or []
+    if not isinstance(sources,list):sources=[]
+    score=42 if ('freight_forwarding' in category or 'import_export' in category) else 32 if high else 18 if medium else 10
+    score+=22 if strong else 10 if moderate else 0
+    score+=18 if website else 0
+    score+=6 if address else 0
+    score+=4 if len(sources)>=2 else 0
+    score=min(100,score)
+    reasons=[]
+    if strong:reasons.append('企业名称与目标业务强匹配')
+    if website:reasons.append('存在疑似独立企业官网，尚未核实')
+    if host and is_platform(host):reasons.append('第三方目录链接，未认定为官网')
+    if not website:reasons.append('缺少独立官网，需人工核实')
+    return {'id':oid,'name':name,'category':category,'website':website,'address':address,
+        'emails':[],'phones':[],
+        'sources':[{'dataset':clean(v.get('dataset'),100),'license':clean(v.get('license'),80)}
+            for v in sources[:8] if isinstance(v,dict)],
+        'quality_score':score,'lead_tier':'high' if score>=65 else 'review' if score>=37 else 'low',
+        'screening_reasons':reasons,'needs_review':True},'accepted'
+
 def select_feature(obj):
-    if not isinstance(obj, dict):
-        return None
-    x = obj.get("properties", obj)
-    if not isinstance(x, dict):
-        return None
-    oid = clean(x.get("id") or obj.get("id"), 50)
-    names = x.get("names") or {}
-    name = clean((names.get("primary") if isinstance(names, dict) else "") or x.get("name"), 240)
-    taxonomy = x.get("taxonomy") or {}
-    fields = [
-        name,
-        x.get("basic_category") or "",
-        taxonomy.get("primary") if isinstance(taxonomy, dict) else "",
-        " ".join(taxonomy.get("hierarchy", [])) if isinstance(taxonomy, dict) and isinstance(taxonomy.get("hierarchy"), list) else "",
-    ]
-    primary = clean(fields[2] or fields[1], 120)
-    if not UUID.fullmatch(oid) or not name or EXCLUDED_CATEGORIES.search(primary):
-        return None
-    if primary in PARCEL_RETAIL_CATEGORIES and (PARCEL_RETAIL_NAMES.search(name) or not NAME_RELEVANCE.search(name)):
-        return None
-    # Only category-verified sector matches or strong whole-word trade terminology in the company name.
-    if not (RELEVANT_CATEGORIES.search(primary) or NAME_RELEVANCE.search(name)):
-        return None
-    sites = x.get("websites") or []
-    addresses = x.get("addresses") or []
-    return {
-        "id": oid,
-        "name": name,
-        "category": clean(fields[2] or fields[1], 120),
-        "website": clean(next((v for v in sites if isinstance(v, str) and v.startswith(("https://", "http://"))), ""), 500),
-        "address": clean(next((a.get("freeform", "") for a in addresses if isinstance(a, dict) and a.get("freeform")), ""), 500),
-        # Don't republish personal emails or phone numbers through a public repository artifact.
-        # Contact enrichment is handled later in the authorized CRM.
-        "emails": [],
-        "phones": [],
-        "sources": [{"dataset":clean(s.get("dataset"), 100), "license":clean(s.get("license"), 80)}
-                    for s in (x.get("sources") or [])[:6] if isinstance(s, dict)]
-    }
+    return assess_feature(obj)[0]
 
 def validate_bbox(text):
     parts = [float(v) for v in text.split(",")]
@@ -73,25 +92,37 @@ def validate_bbox(text):
         raise ValueError("area too large; divide the city into smaller zones")
     return text
 
+def normalized_name(value):
+    return re.sub(r'[^\\w]+','',re.sub(r'\\b(gmbh|ug|ag|kg|e\\.?k\\.?|mbh|ltd|co|haftungsbeschränkt)\\b','',value.casefold()))
+
 def convert(source, output, limit):
-    seen = set()
-    matched = total = 0
-    with open(source, "r", encoding="utf-8") as file, open(output, "w", encoding="utf-8") as out:
-        # Overture's geojsonseq can contain one GeoJSON Feature per line.
+    from collections import Counter
+    candidates={};rejected=Counter();total=0
+    with open(source,'r',encoding='utf-8') as file:
         for line in file:
-            line = line.strip().lstrip("\x1e")
-            if not line:
-                continue
-            obj = json.loads(line)
-            total += 1
-            item = select_feature(obj)
-            if item and item["id"] not in seen:
-                seen.add(item["id"])
-                out.write(json.dumps(item, ensure_ascii=False) + "\n")
-                matched += 1
-                if matched >= limit:
-                    break
-    return {"scanned": total, "matched": matched, "limit": limit}
+            line=line.strip().lstrip('\\x1e')
+            if not line:continue
+            total+=1
+            row,reason=assess_feature(json.loads(line))
+            if not row:rejected[reason]+=1;continue
+            if row['id'] not in candidates or row['quality_score']>candidates[row['id']]['quality_score']:
+                candidates[row['id']]=row
+    # Rank across the entire city extract: do not stop at the first 100 geographic records.
+    ranked=sorted(candidates.values(),key=lambda r:(-r['quality_score'],r['name'],r['id']))
+    deduped=[];seen=set()
+    for row in ranked:
+        hostname=host_of(row['website'])
+        addr=re.sub(r'\\W','',row['address'].casefold())
+        key=('website',hostname) if hostname else ('name_address',normalized_name(row['name']),addr) if addr else ('id',row['id'])
+        if key in seen:rejected['same_company_duplicate']+=1;continue
+        seen.add(key);deduped.append(row)
+    chosen=deduped[:limit]
+    with open(output,'w',encoding='utf-8') as out:
+        for row in chosen:out.write(json.dumps(row,ensure_ascii=False)+'\\n')
+    return {'scanned':total,'matched':len(chosen),'qualified_pool':len(deduped),
+        'high_priority':sum(v['lead_tier']=='high' for v in chosen),
+        'review_priority':sum(v['lead_tier']=='review' for v in chosen),
+        'rejected_reasons':dict(rejected),'limit':limit}
 
 def main():
     parser = argparse.ArgumentParser()
