@@ -39,3 +39,13 @@ Overture 地点数据每条来源可能含不同上游许可，应用端保存�
 目前只根据用户选定的国家/城市归档，**不对上传文件的空间范围做自动地理围栏验证**；必须在导入前按行政区域或 bbox 提取。对于来自多源的数据，企业名称、联系人和地址也可能不完整或者过时。
 
 数据库迁移：`database/lead_stage_overture.sql`。**2026-10-16 已在现有 Supabase 项目应用成功并验证 RPC 存在**。已使用已授权 CRM 角色在可回滚事务中验证：首次导入新增 1 条；重复同 ID 再导入新增 0、跳过 1；测试回滚后候选库保持 0 条。前端仍需通过真实 Overture 地区文件及登录账号完成完整端到端测试。
+
+## GitHub Actions 自动准备地区文件（开发版）
+
+仓库新增 `.github/workflows/overture-city-export.yml` 和 `scripts/download_overture_candidates.py`：在 GitHub 后台运行官方 `overturemaps` CLI，按限定 bbox 自动下载 Overture Places，筛选物流、货代、运输、仓储、进出口和批发相关企业，输出 `hamburg-freight-candidates.ndjson` 与 `hamburg-manifest.json`，最多 500 家（可配置）。结果作为 GitHub Actions artifact 保存 7 天，默认不直接写入 Supabase。
+
+运行方法：打开仓库的 Actions → `Build Overture freight leads sample` → `Run workflow`，选择具有工作流文件的分支，设置 `city=hamburg` 和 bbox `9.75,53.40,10.33,53.72`，完成后下载 artifact、解压 NDJSON。然后到 CRM 页面关联 Hamburg 的 Overture 任务、填写实际版本（STAC 最新 release，需人工核实）并导入。若工作流尚未出现在默认分支 Actions 列表，先通过 PR 审核合并；GitHub 不保证 workflow_dispatch 能在非默认分支上的新 workflow 生效。
+
+**真实进度限制：** 这一阶段已提交自动下载/筛选程序，但未确认 GitHub Actions 的真实数据下载任务成功，也没有把批量文件自动转存到 CRM。Vercel 运行时仍不直接查询 Overture S3 数据。建议先检查 Actions 日志及样本质量，避免引入错误企业数据。
+
+为了降低隐私和再发布风险，自动导出的文件不含 email/phone；来源由独立官网补全模块进行核实。自动生成数据仍需遵守 Overture 和其上游来源的许可义务。
