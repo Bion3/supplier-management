@@ -1,3 +1,4 @@
+import {contactColumns} from './list-filters.js';
 import {installMailVerification} from './mail-verification.js';
 import {installCrmBulk} from './crm-bulk.js';
 import {createPager} from './pagination.js';
@@ -30,11 +31,11 @@ function render(){
  $('count').textContent=`共 ${visible.length} 家`;$('rows').replaceChildren();
  const byCompany=new Map();for(const c of contacts){const list=byCompany.get(c.company_id)||[];list.push(c);byCompany.set(c.company_id,list);}
  filteredCompanies=visible;pageCompanies=visible.slice((page-1)*size,page*size);for(const c of pageCompanies){
-  const tr=document.createElement('tr'),name=td(c.company_name),sub=document.createElement('small');sub.textContent=c.role;name.append(sub);
-  const candidates=byCompany.get(c.id)||[],contact=td(candidates[0]?.value||'待补充');const count=document.createElement('small');count.textContent=`${candidates.length} 条 · 请核实有效性`;contact.append(count);
+  const tr=document.createElement('tr'),name=td(c.company_name);
+  const candidates=byCompany.get(c.id)||[],info=contactColumns(candidates);
   const route=td(c.current_routes||(c.historical_routes||[]).slice(0,2).join('\n')||'待补充');if(!c.current_routes){const note=document.createElement('small');note.textContent='历史线路';route.append(note);}
   const next=latest.get(c.id)?.next_date,action=td('');action.append(btn('查看 / 跟进',()=>openDetail(c.id)));
-  const choose=td(''),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedCompanies.has(c.id);checkbox.setAttribute('aria-label','选择 '+c.company_name);checkbox.onchange=()=>{checkbox.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);syncCompanySelection();};choose.append(checkbox);tr.append(choose,name,contact,route,td(c.status),td(next?next+(next<today?' · 逾期':''):'未安排'),action);$('rows').append(tr);
+  const choose=td(''),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selectedCompanies.has(c.id);checkbox.setAttribute('aria-label','选择 '+c.company_name);checkbox.onchange=()=>{checkbox.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);syncCompanySelection();};choose.append(checkbox);tr.append(choose,name,td(c.role||'—'),td(c.region||'—'),td(c.owner||'未分配'),td(info.names||'待补充'),td(info.phone||'—'),td(info.email||'—'),td(info.wechat||'—'),route,td(c.status),td(next?next+(next<today?' · 逾期':''):'未安排'),action);$('rows').append(tr);
  }
  $('empty').hidden=visible.length>0;$('empty').textContent=companies.length?'没有符合条件的公司。':'暂无公司档案。';
  pager.update(visible.length,page);$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page<=1;$('next').disabled=page>=pages;syncCompanySelection();

@@ -53,9 +53,9 @@ function render(){
   const co=company.get(c.company_id),tr=document.createElement('tr'),choose=cell(''),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected.has(c.id);checkbox.disabled=false;checkbox.setAttribute('aria-label','选择 '+c.value);checkbox.addEventListener('change',()=>{if(checkbox.checked)selected.add(c.id);else selected.delete(c.id);render();});choose.append(checkbox);if(selected.has(c.id))tr.className='recipient-selected';
   const verify=cell(c.status);if(c.status!=='有效'&&validEmail(c.value)&&c.email_allowed!==false)verify.append(button('标记有效',async()=>{await updateContactRows([c.id],{status:'有效'});render();}));
   const opt=cell(c.email_allowed!==false?'允许':'停止联系');opt.append(button(c.email_allowed!==false?'停止联系':'恢复联系',()=>setAllowed(c,c.email_allowed===false)));
-  const region=regionInfo(co),location=cell(region.value+' / '+(co?.role||'待核实'));if(region.inferred){const note=document.createElement('small');note.className='region-inferred';note.textContent='地区按地址推断';location.append(note);}
-  const email=cell(c.value);for(const group of c.mail_groups||[]){const badge=document.createElement('span');badge.className='mail-group-badge';badge.textContent=group;email.append(badge);}
-  tr.append(choose,cell((co?.company_name||'')+' / '+(c.name||'姓名待补充')),location,email,verify,opt);$('recipients').append(tr);
+  const region=regionInfo(co),location=cell(region.value);if(region.inferred){const note=document.createElement('small');note.className='region-inferred';note.textContent='地区按地址推断';location.append(note);}
+  const email=cell(c.value),groups=cell('');for(const group of c.mail_groups||[]){const badge=document.createElement('span');badge.className='mail-group-badge';badge.textContent=group;groups.append(badge);}
+  tr.append(choose,cell(co?.company_name||'—'),cell(c.name||'姓名待补充'),location,cell(co?.role||'待核实'),email,groups,verify,opt);$('recipients').append(tr);
  }
  draftBulk?.render();applyMailView();
 }

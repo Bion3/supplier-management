@@ -1,3 +1,4 @@
+import {createListFilters} from './list-filters.js';
 import {appRequest} from './cloud.js';
 import {addPagerAfter} from './pagination.js';
 import {validEmail,validateMail} from './mail-model.js';
@@ -23,6 +24,12 @@ export function mailStateMatches(status,state,deliveryStatus){return !state||sta
 export function installDraftBulk(ctx){
  const $=id=>document.getElementById(id),chosen=new Set();let page=1,pageRows=[],visible=[],busy=false,previewIds=[];
  const pager=addPagerAfter($('history').closest('.table-wrap'),'mail-history',value=>{page=value;render();});
+ const extraFilters=createListFilters('history',[
+ {id:'reply',label:'回复状态',type:'select',options:[['待回复','待回复'],['已回复','已回复'],['无需求','无需求'],['拒绝联系','拒绝联系']],get:r=>r.reply_status||'待回复'},
+ {id:'from',label:'创建日期从',type:'from',get:r=>chinaInput(r.created_at)},
+ {id:'until',label:'创建日期至',type:'until',get:r=>chinaInput(r.created_at)},
+ {id:'delivery',label:'投递情况',type:'select',options:[['bounce','退信'],['other','非退信']],get:r=>r.delivery_status?.startsWith('bounce_')?'bounce':'other'}
+ ],()=>{page=1;render();});
  const statusLabels={draft:'草稿',scheduled:'已安排后台发送',sending:'发送处理中',sent:'服务器已接受',failed:'失败',unknown:'结果不确定，请核查'};
  const td=text=>{const cell=document.createElement('td');cell.textContent=text??'';return cell;};
  const button=(text,fn)=>{const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){$('notice').textContent=e.message;}finally{b.disabled=false;}});return b;};
@@ -33,7 +40,7 @@ export function installDraftBulk(ctx){
   $('draft-group').value=group;if($('draft-group').selectedIndex<0)$('draft-group').value='';
   const q=$('draft-search').value.trim().toLowerCase(),state=$('draft-status').value;
   const scoped=messages.filter(m=>(!$('draft-group').value||(byId.get(m.contact_id)?.mail_groups||[]).includes($('draft-group').value))&&[m.recipient,m.subject].join(' ').toLowerCase().includes(q));
-  visible=scoped.filter(m=>mailStateMatches(m.status,state,m.delivery_status));
+  visible=extraFilters.apply(scoped.filter(m=>mailStateMatches(m.status,state,m.delivery_status)));
   const labels={'':'全部',draft:'待发送草稿',queue:'待发送队列',sent:'发送记录',issues:'异常记录'};
   for(const button of document.querySelectorAll('[data-mail-state]')){const value=button.dataset.mailState;button.textContent=labels[value]+'（'+scoped.filter(m=>mailStateMatches(m.status,value,m.delivery_status)).length+'）';button.setAttribute('aria-pressed',String(value===state));button.disabled=busy;}
   const queued=scoped.filter(m=>mailStateMatches(m.status,'queue')).length;
@@ -44,7 +51,7 @@ export function installDraftBulk(ctx){
    const tr=document.createElement('tr'),selectCell=td(''),check=document.createElement('input');check.type='checkbox';check.checked=chosen.has(m.id);check.disabled=busy||m.status!=='draft';check.setAttribute('aria-label','选择草稿 '+m.recipient);check.addEventListener('change',()=>{check.checked?chosen.add(m.id):chosen.delete(m.id);render();});selectCell.append(check);
    const reply=td(''),select=document.createElement('select');for(const text of ['待回复','已回复','无需求','拒绝联系'])select.append(new Option(text,text));select.value=m.reply_status||'待回复';select.disabled=busy;select.addEventListener('change',async()=>{const old=m.reply_status;select.disabled=true;try{await ctx.setReply(m,select.value);}catch(e){select.value=old;$('notice').textContent=e.message;}finally{select.disabled=false;}});reply.append(select);
    const action=td('');action.append(button('查看',()=>ctx.openSaved(m)));if(m.status==='scheduled')action.append(button('取消安排',()=>ctx.cancel(m)));if(m.status==='draft'&&ctx.isConfigured())action.append(button('发送此草稿',()=>ctx.openSaved(m)));
-   tr.append(selectCell,td(new Date(m.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})),td(m.recipient+' / '+m.subject),td((m.delivery_status?.startsWith('bounce_')?'已退信 · 地址已暂停':statusLabels[m.status]||m.status)+(m.scheduled_at?' · '+chinaInput(m.scheduled_at).replace('T',' '):'')+(m.error?'：'+m.error:'')),reply,action);$('history').append(tr);
+   tr.append(selectCell,td(new Date(m.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})),td(m.recipient),td(m.subject),td(m.delivery_status?.startsWith('bounce_')?'已退信 · 地址已暂停':statusLabels[m.status]||m.status),td(m.scheduled_at?chinaInput(m.scheduled_at).replace('T',' '):'—'),td(m.error||'—'),reply,action);$('history').append(tr);
   }
   const selectable=pageRows.filter(m=>m.status==='draft'),count=selectable.filter(m=>chosen.has(m.id)).length;
   $('draft-select-page').checked=selectable.length>0&&count===selectable.length;$('draft-select-page').indeterminate=count>0&&count<selectable.length;$('draft-select-page').disabled=busy||!selectable.length;

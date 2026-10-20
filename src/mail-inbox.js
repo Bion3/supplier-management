@@ -1,10 +1,18 @@
+import {createListFilters} from './list-filters.js';
+import {chinaInput} from './mail-rules.js';
 import {addPagerAfter} from './pagination.js';
 import {login,logout,appRequest,cloudRequest,currentUser} from './cloud.js';
 const $=id=>document.getElementById(id);
 let rows=[],page=1,generation=0,sessionEpoch=0;
 const pager=addPagerAfter($('inbox-rows').closest('.table-wrap'),'inbox',value=>{page=value;render();});
+const extraFilters=createListFilters('inbox-rows',[
+ {id:'from',label:'收信日期从',type:'from',get:r=>chinaInput(r.received_at)},
+ {id:'until',label:'收信日期至',type:'until',get:r=>chinaInput(r.received_at)},
+ {id:'linked',label:'客户关联',type:'select',options:[['yes','已关联'],['no','待归档']],get:r=>r.company_id||r.reply_message_id?'yes':'no'},
+ {id:'risk',label:'风险提示',type:'select',options:[['yes','有风险提示'],['no','无风险提示']],get:r=>r.risk?.is_risk?'yes':'no'}
+],()=>{page=1;render();});
 function authUI(){const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
-function clear(){rows=[];page=1;$('inbox-search').value='';$('inbox-filter').value='normal';$('inbox-status').textContent='';$('notice').textContent='';$('inbox-detail').close();for(const id of ['inbox-detail-title','inbox-detail-from','inbox-detail-body','inbox-detail-attachments','inbox-detail-risk'])$(id).textContent='';render();}
+function clear(){extraFilters.clear();rows=[];page=1;$('inbox-search').value='';$('inbox-filter').value='normal';$('inbox-status').textContent='';$('notice').textContent='';$('inbox-detail').close();for(const id of ['inbox-detail-title','inbox-detail-from','inbox-detail-body','inbox-detail-attachments','inbox-detail-risk'])$(id).textContent='';render();}
 async function load(){
  if(!currentUser())return;
  const g=++generation,epoch=sessionEpoch;$('notice').textContent='正在加载收件箱…';
@@ -23,11 +31,11 @@ function openMessage(m){
  $('inbox-detail-risk').textContent=m.bounce_recipient?'退信地址：'+m.bounce_recipient+' · '+m.bounce_reason:m.risk?.is_risk?'飞书提示此邮件存在风险，请核实发件人。':'';$('inbox-detail').showModal();
 }
 function render(){
- const kind=$('inbox-filter').value,q=$('inbox-search').value.trim().toLowerCase(),visible=rows.filter(m=>(kind==='all'||(kind==='normal'?!m.mail_kind||m.mail_kind==='normal':m.mail_kind?.startsWith('bounce_')))&&[m.from_email,m.from_name,m.subject,m.body_text].join(' ').toLowerCase().includes(q));
+ const kind=$('inbox-filter').value,q=$('inbox-search').value.trim().toLowerCase(),visible=extraFilters.apply(rows.filter(m=>(kind==='all'||(kind==='normal'?!m.mail_kind||m.mail_kind==='normal':m.mail_kind?.startsWith('bounce_')))&&[m.from_email,m.from_name,m.subject,m.body_text].join(' ').toLowerCase().includes(q)));
  const paging=pager.update(visible.length,page);page=paging.page;$('inbox-rows').replaceChildren();
  for(const m of visible.slice(paging.start,paging.end)){
   const tr=document.createElement('tr');
-  for(const value of [new Date(m.received_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}),[m.from_name,m.from_email].filter(Boolean).join(' '),m.subject||'无主题',m.mail_kind?.startsWith('bounce_')?({bounce_invalid:'无效地址 · 已停发',bounce_policy:'策略拦截 · 已停发',bounce_dns:'域名异常 · 已停发',bounce_temporary:'临时退信 · 已暂停',bounce_review:'退信待核实 · 已暂停'}[m.mail_kind]):m.reply_message_id?'已匹配原邮件':m.company_id?'已关联公司':'待归档']){const td=document.createElement('td');td.textContent=value;tr.append(td);}
+  for(const value of [new Date(m.received_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}),m.from_name||'—',m.from_email||'—',m.subject||'无主题',m.mail_kind?.startsWith('bounce_')?({bounce_invalid:'无效地址 · 已停发',bounce_policy:'策略拦截 · 已停发',bounce_dns:'域名异常 · 已停发',bounce_temporary:'临时退信 · 已暂停',bounce_review:'退信待核实 · 已暂停'}[m.mail_kind]):'普通邮件',m.reply_message_id?'已匹配原邮件':m.company_id?'已关联公司':'待归档']){const td=document.createElement('td');td.textContent=value;tr.append(td);}
   const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='查看';b.addEventListener('click',()=>openMessage(m));td.append(b);tr.append(td);$('inbox-rows').append(tr);
  }
  $('inbox-count').textContent=`已加载最近 ${rows.length} 封 · 筛选 ${visible.length} 封`;$('inbox-empty').hidden=visible.length>0;$('inbox-empty').textContent=rows.length?'没有符合搜索条件的来信。':'暂无来信，可点击“立即同步”。';

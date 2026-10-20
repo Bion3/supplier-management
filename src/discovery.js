@@ -1,3 +1,4 @@
+import {createListFilters} from './list-filters.js';
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {assessLead} from './lead-quality.js';
 import {parseOvertureText} from './overture-import.js';
@@ -20,7 +21,7 @@ async function searchTask(taskId,source,button){
   liveRows=data.results||[];liveTaskId=taskId;liveSource=source;
   for(const p of liveRows){
    const tr=document.createElement('tr');const select=document.createElement('input');select.type='checkbox';select.checked=source==='openstreetmap';select.disabled=source!=='openstreetmap';select.className='stage-check';select.dataset.id=p.place_id;const holder=document.createElement('span');holder.append(select);cell(tr,holder);cell(tr,p.name);cell(tr,p.address);
-   const box=document.createElement('div');if(p.email)box.append(el('div','公开邮箱：'+p.email));if(p.website)box.append(externalLink(p.website,'企业官网'),document.createElement('br'));box.append(el('span',p.phone));cell(tr,box);
+   const website=cleanWebsite(p.website);cell(tr,website?externalLink(website,website):'—');cell(tr,p.email||'—');cell(tr,p.phone||'—');
    cell(tr,externalLink(p.maps_url,source==='openstreetmap'?'在 OpenStreetMap 查看':'在 Google Maps 查看'));$('live-results').append(tr);
   }
   $('stage-selected').disabled=source!=='openstreetmap'||!liveRows.length;updateStageCount();
@@ -33,17 +34,37 @@ const $=id=>document.getElementById(id);
 const el=(tag,text)=>{const node=document.createElement(tag);node.textContent=String(text??'');return node;};
 function cell(tr,content){const td=document.createElement('td');if(content instanceof Node)td.append(content);else td.textContent=String(content??'');tr.append(td);return td;}
 function cleanWebsite(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}}
-async function loadTasks(){const body=$('tasks');body.replaceChildren();try{const tasks=await cloudRequest('lead_discovery_tasks?select=*&order=created_at.desc&limit=100');$('tasks-empty').textContent=tasks.length?'':'暂无搜索任务。';const overtureSelect=$('overture-task'),oldValue=overtureSelect.value;overtureSelect.replaceChildren(new Option('请选择 Overture 城市任务',''));for(const task of tasks.filter(x=>x.source==='overture'))overtureSelect.append(new Option(task.country+' / '+task.city+' · '+task.id.slice(0,8),task.id));overtureSelect.value=oldValue;if(overtureSelect.selectedIndex<0)overtureSelect.value='';for(const t of tasks){const tr=document.createElement('tr');cell(tr,[t.country,t.city].filter(Boolean).join(' / '));cell(tr,(t.keywords||[]).join('、'));cell(tr,t.target_count);cell(tr,t.status);cell(tr,new Date(t.created_at).toLocaleString());const b=document.createElement('button');b.textContent='实时搜索';b.className='secondary';let copy=null;if(t.source==='overture'){b.textContent='选择导入任务';copy=document.createElement('button');copy.type='button';copy.className='secondary';copy.textContent='复制任务ID';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(t.id);copy.textContent='已复制';}catch{prompt('请复制 Overture 任务 ID',t.id);}});b.addEventListener('click',()=>{$('overture-task').value=t.id;$('overture-task').scrollIntoView({behavior:'smooth',block:'center'});});}else b.addEventListener('click',()=>searchTask(t.id,t.source,b));const buttons=document.createElement('div');buttons.append(b);if(t.source==='overture')buttons.append(copy);cell(tr,buttons);body.append(tr);}}catch(e){$('tasks-empty').textContent='无法读取任务：'+e.message+'（可能尚未执行数据库迁移）';}}
-async function loadLeads(){const body=$('leads');body.replaceChildren();const status=$('lead-status').value;try{const query='lead_discovery_leads?select=*&order=created_at.desc&limit=500'+(status?'&review_status=eq.'+encodeURIComponent(status):'');const fetched=await cloudRequest(query);
+async function loadTasks(cached=false){const body=$('tasks');body.replaceChildren();try{const tasks=cached?cachedTasks:await cloudRequest('lead_discovery_tasks?select=*&order=created_at.desc&limit=100');if(!cached)cachedTasks=tasks;$('tasks-empty').textContent=tasks.length?'':'暂无搜索任务。';const overtureSelect=$('overture-task'),oldValue=overtureSelect.value;overtureSelect.replaceChildren(new Option('请选择 Overture 城市任务',''));for(const task of tasks.filter(x=>x.source==='overture'))overtureSelect.append(new Option(task.country+' / '+task.city+' · '+task.id.slice(0,8),task.id));overtureSelect.value=oldValue;if(overtureSelect.selectedIndex<0)overtureSelect.value='';for(const t of taskFilters.apply(tasks)){const tr=document.createElement('tr');cell(tr,t.country);cell(tr,t.city);cell(tr,t.source);cell(tr,(t.keywords||[]).join('、'));cell(tr,t.target_count);cell(tr,t.status);cell(tr,new Date(t.created_at).toLocaleString());const b=document.createElement('button');b.textContent='实时搜索';b.className='secondary';let copy=null;if(t.source==='overture'){b.textContent='选择导入任务';copy=document.createElement('button');copy.type='button';copy.className='secondary';copy.textContent='复制任务ID';copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(t.id);copy.textContent='已复制';}catch{prompt('请复制 Overture 任务 ID',t.id);}});b.addEventListener('click',()=>{$('overture-task').value=t.id;$('overture-task').scrollIntoView({behavior:'smooth',block:'center'});});}else b.addEventListener('click',()=>searchTask(t.id,t.source,b));const buttons=document.createElement('div');buttons.append(b);if(t.source==='overture')buttons.append(copy);cell(tr,buttons);body.append(tr);}}catch(e){$('tasks-empty').textContent='无法读取任务：'+e.message+'（可能尚未执行数据库迁移）';}}
+let cachedLeads=[],cachedTasks=[];
+const candidateFilters=createListFilters('leads',[
+ {id:'search',label:'公司 / 网站 / 联系方式',get:r=>[r.company_name,r.website,...(r.contacts||[]).map(c=>c.value)].join(' ')},
+ {id:'country',label:'国家',get:r=>r.country},{id:'city',label:'城市',get:r=>r.city},
+ {id:'provider',label:'来源',type:'select',options:[['overture','Overture'],['openstreetmap','OpenStreetMap'],['google_places','Google Places']],get:r=>r.provider},
+ {id:'imported',label:'CRM入库',type:'select',options:[['yes','已入库'],['no','未入库']],get:r=>r.crm_company_id?'yes':'no'},
+ {id:'channel',label:'联系方式',type:'select',options:[['email','有邮箱'],['phone','有电话'],['none','暂无联系方式']],get:r=>{const types=(r.contacts||[]).map(c=>c.type);return types.length?types.map(t=>t==='邮箱'?'email':t==='电话'?'phone':t):['none'];}},
+ {id:'verification',label:'核实状态',get:r=>r.verification_status||'未验证'}
+],()=>{leadPage=1;loadLeads(true);});
+const taskFilters=createListFilters('tasks',[
+ {id:'country',label:'国家',get:r=>r.country},{id:'city',label:'城市',get:r=>r.city},
+ {id:'source',label:'来源',type:'select',options:[['overture','Overture'],['openstreetmap','OpenStreetMap'],['google_places','Google Places']],get:r=>r.source},
+ {id:'status',label:'任务状态',get:r=>r.status}
+],()=>loadTasks(true));
+function leadContactCell(lead,types) {
+ const box=document.createElement('div');for(const c of lead.contacts||[])if(types.includes(c.type)){
+ box.append(el('div',c.value));const source=cleanWebsite(c.source_url);if(source){const a=document.createElement('a');a.href=source;a.target='_blank';a.rel='noopener noreferrer';a.className='source';a.textContent='来源链接';box.append(a);}}
+ if(!box.childNodes.length)box.textContent='—';return box;
+}
+async function loadLeads(cached=false){const body=$('leads');body.replaceChildren();const status=$('lead-status').value;try{const query='lead_discovery_leads?select=*&order=created_at.desc&limit=500'+(status?'&review_status=eq.'+encodeURIComponent(status):'');const fetched=cached?cachedLeads:await cloudRequest(query);if(!cached)cachedLeads=fetched;
  const summary=$('discovery-overview');
- if(summary){
+ if(summary&&!cached){
   const all=await cloudRequest('lead_discovery_leads?select=id,review_status,website,crm_company_id&limit=500');
   const pending=all.filter(l=>l.review_status==='pending').length;
   const eligible=all.filter(l=>l.review_status==='pending'&&!l.crm_company_id&&l.website?.startsWith('https://')).length;
   const reviewed=all.filter(l=>l.review_status==='reviewed').length;
   summary.textContent='候选企业 '+all.length+' 家 · 待核实 '+pending+' 家 · 有 HTTPS 官网可核实 '+eligible+' 家 · 已审核 '+reviewed+' 家。默认优先展示待核实企业。';
  }
- const qualityFilter=$('lead-quality-filter').value;const leads=fetched.map(lead=>({...lead,_quality:assessLead(lead)})).filter(lead=>!qualityFilter||lead._quality.level===qualityFilter);leadRows=leads;const totalPages=Math.max(1,Math.ceil(leads.length/LEADS_PAGE_SIZE));leadPage=Math.min(leadPage,totalPages);$('leads-page').textContent='第 '+leadPage+' / '+totalPages+' 页 · '+leads.length+' 条（单次加载最多500条）';$('leads-prev').disabled=leadPage===1;$('leads-next').disabled=leadPage>=totalPages;$('leads-empty').textContent=leads.length?'':'暂无企业候选。';for(const lead of leads.slice((leadPage-1)*LEADS_PAGE_SIZE,leadPage*LEADS_PAGE_SIZE)){const tr=document.createElement('tr');const choose=document.createElement('input');choose.type='checkbox';choose.className='lead-choose';choose.dataset.id=lead.id;choose.disabled=!lead.website||!lead.website.startsWith('https://')||!!lead.crm_company_id||lead.provider==='google_places';choose.checked=selectedLeadIds.has(lead.id);choose.addEventListener('change',()=>{choose.checked?selectedLeadIds.add(lead.id):selectedLeadIds.delete(lead.id);syncSelection();});cell(tr,choose);const company=document.createElement('div');company.append(el('strong',lead.company_name));const u=cleanWebsite(lead.website);if(u){const a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener noreferrer';a.textContent=u;company.append(document.createElement('br'),a);}cell(tr,company);cell(tr,[lead.country,lead.city].filter(Boolean).join(' / '));const contact=document.createElement('div');for(const c of (lead.contacts||[])){contact.append(el('div',[c.type,c.value].filter(Boolean).join('：')));if(c.source_url){const source=cleanWebsite(c.source_url);if(source){const a=document.createElement('a');a.href=source;a.target='_blank';a.rel='noopener noreferrer';a.className='source';a.textContent='来源链接';contact.append(a);}}}cell(tr,contact);
+ const qualityFilter=$('lead-quality-filter').value;const leads=candidateFilters.apply(fetched.map(lead=>({...lead,_quality:assessLead(lead)})).filter(lead=>!qualityFilter||lead._quality.level===qualityFilter));leadRows=leads;const totalPages=Math.max(1,Math.ceil(leads.length/LEADS_PAGE_SIZE));leadPage=Math.min(leadPage,totalPages);$('leads-page').textContent='第 '+leadPage+' / '+totalPages+' 页 · '+leads.length+' 条（单次加载最多500条）';$('leads-prev').disabled=leadPage===1;$('leads-next').disabled=leadPage>=totalPages;$('leads-empty').textContent=leads.length?'':'暂无企业候选。';for(const lead of leads.slice((leadPage-1)*LEADS_PAGE_SIZE,leadPage*LEADS_PAGE_SIZE)){const tr=document.createElement('tr');const choose=document.createElement('input');choose.type='checkbox';choose.className='lead-choose';choose.dataset.id=lead.id;choose.disabled=!lead.website||!lead.website.startsWith('https://')||!!lead.crm_company_id||lead.provider==='google_places';choose.checked=selectedLeadIds.has(lead.id);choose.addEventListener('change',()=>{choose.checked?selectedLeadIds.add(lead.id):selectedLeadIds.delete(lead.id);syncSelection();});cell(tr,choose);cell(tr,lead.company_name);const u=cleanWebsite(lead.website);cell(tr,u?externalLink(u,u):'—');cell(tr,lead.country||'—');cell(tr,lead.city||'—');cell(tr,leadContactCell(lead,['email','邮箱']));cell(tr,leadContactCell(lead,['phone','电话']));
+
  const quality=lead._quality;const qBox=document.createElement('div');
  qBox.append(el('strong',quality.score+'分'));
  qBox.append(el('div',quality.level==='high'?'高优先级':quality.level==='medium'?'中优先级':'低优先级'));
@@ -105,8 +126,8 @@ $('candidate-contact-form').addEventListener('submit',async e=>{
 
 $('select-all-leads').addEventListener('click',selectCurrentPage);
 $('clear-leads').addEventListener('click',()=>{selectedLeadIds.clear();for(const box of document.querySelectorAll('.lead-choose'))box.checked=false;syncSelection();});
-$('leads-prev').addEventListener('click',()=>{leadPage=Math.max(1,leadPage-1);loadLeads();});
-$('leads-next').addEventListener('click',()=>{leadPage++;loadLeads();});
+$('leads-prev').addEventListener('click',()=>{leadPage=Math.max(1,leadPage-1);loadLeads(true);});
+$('leads-next').addEventListener('click',()=>{leadPage++;loadLeads(true);});
 $('batch-enrich').addEventListener('click',async()=>{
  const ids=[...selectedLeadIds];
  if(!ids.length)return;
@@ -130,9 +151,9 @@ async function loadEnrichJobs(){
   for(const job of jobs.slice(0,80)){
    const tr=document.createElement('tr');
    cell(tr,names.get(job.lead_id)||job.lead_id);
-   cell(tr,(labels[job.status]||job.status)+' · 第'+job.attempts+'次');
+   cell(tr,labels[job.status]||job.status);cell(tr,job.attempts);
    cell(tr,job.added_count);cell(tr,job.checked_pages);
-   const statusCell=cell(tr,job.error||job.finished_at?job.error||new Date(job.finished_at).toLocaleString():'—');
+   cell(tr,job.finished_at?new Date(job.finished_at).toLocaleString():'—');const statusCell=cell(tr,job.error||'—');
    if(job.status==='failed'){
     const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='重试';
     retry.onclick=async()=>{retry.disabled=true;try{const x=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:[job.lead_id]})});$('enrich-summary').textContent=x.message||x.error||'任务已重新提交';await loadEnrichJobs();}catch(e){alert('重新派发失败：'+e.message);}finally{retry.disabled=false;}};
@@ -211,14 +232,14 @@ async function loadOvertureBatches(){
  try{
   const batches=await cloudRequest('lead_overture_batches?select=batch_key,task_id,release,source_bbox,expected_count,processed,inserted,skipped,status,updated_at&order=updated_at.desc&limit=100');
   const tasks=await cloudRequest('lead_discovery_tasks?select=id,country,city&source=eq.overture&limit=100');
-  const names=new Map(tasks.map(t=>[t.id,[t.country,t.city].filter(Boolean).join(' / ')]));
+  const names=new Map(tasks.map(t=>[t.id,t]));
   const statuses={running:'处理中',completed:'已完成',failed:'失败'};
   $('overture-batches-summary').textContent='共 '+batches.length+' 个后台导入批次。记录保存在 Supabase，刷新或退出页面不会丢失。';
   for(const b of batches){
    const tr=document.createElement('tr');
-   cell(tr,(names.get(b.task_id)||b.task_id)+' / '+b.release);
+   cell(tr,names.get(b.task_id)?.country||'—');cell(tr,names.get(b.task_id)?.city||b.task_id);cell(tr,b.release);
    cell(tr,statuses[b.status]||b.status);
-   cell(tr,b.processed+' / '+b.expected_count);
+   cell(tr,b.processed);cell(tr,b.expected_count);
    cell(tr,b.inserted);cell(tr,b.skipped);
    cell(tr,new Date(b.updated_at).toLocaleString());
    body.append(tr);
