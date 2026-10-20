@@ -7,7 +7,7 @@ async function shell(stored,caseName){
   'login-panel':{hidden:false},workspace:{hidden:true},account:{textContent:''},logout:{hidden:true}
  };
  const classes=new Set();
- globalThis.document={getElementById:id=>elements[id]||null,documentElement:{classList:{add:value=>classes.add(value)}}};
+ globalThis.document={getElementById:id=>elements[id]||null,documentElement:{classList:{add:value=>classes.add(value),toggle:(value,force)=>force?classes.add(value):classes.delete(value)}}};
  const cloud=await import(`../src/cloud.js?${caseName}`);
  return {user:cloud.syncAuthShell(),elements,classes};
 }
@@ -20,6 +20,7 @@ test('认证界面在本地会话确认后一次性切换，避免登录框闪�
  assert.equal(active.elements.account.textContent,'benjamin@eurasiago.com');
  assert.equal(active.elements.logout.hidden,false);
  assert.ok(active.classes.has('auth-ready'));
+ assert.ok(active.classes.has('auth-user'));
 
  const anonymous=await shell(null,'anonymous');
  assert.equal(anonymous.user,undefined);
@@ -27,4 +28,5 @@ test('认证界面在本地会话确认后一次性切换，避免登录框闪�
  assert.equal(anonymous.elements.workspace.hidden,true);
  assert.equal(anonymous.elements.logout.hidden,true);
  assert.ok(anonymous.classes.has('auth-ready'));
+ assert.ok(!anonymous.classes.has('auth-user'));
 });

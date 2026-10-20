@@ -29,6 +29,7 @@ export function syncAuthShell() {
  if(workspace)workspace.hidden=!user;
  if(account)account.textContent=user?.email||'';
  if(logoutButton)logoutButton.hidden=!user;
+ document.documentElement.classList.toggle('auth-user',!!user);
  document.documentElement.classList.add('auth-ready');
  return user;
 }
