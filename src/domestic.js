@@ -1,6 +1,6 @@
 import {createListFilters} from './list-filters.js';
 import {createPager} from './pagination.js';
-import {login,currentUser,listSuppliers,cloudRequest} from './cloud.js';
+import {login,currentUser,listSuppliers,cloudRequest,syncAuthShell} from './cloud.js';
 import {blankRate,validateRate} from './domestic-model.js';
 import {prepareBulk} from './domestic-bulk.js';
 
@@ -38,5 +38,5 @@ $('bulk-form').onsubmit=async e=>{e.preventDefault();const fd=new FormData(e.tar
 
 for(const id of ['origin','destination','kind','status'])$(id).addEventListener('input',()=>{page=0;render();});$('prev').onclick=()=>{page--;render();};$('next').onclick=()=>{page++;render();};
 $('imports').onclick=()=>{const imported=rates.filter(r=>r.source_key);$('import-summary').textContent=`参考记录 ${imported.length} 条。可筛选待确认记录后，使用列表上方的批量确认。`;$('import-dialog').showModal();};$('show-drafts').onclick=()=>{$('status').value='draft';page=0;render();$('import-dialog').close();};
-async function start(){if(!currentUser())return;try{suppliers=await listSuppliers();await load();$('workspace').hidden=false;$('login-panel').hidden=true;}catch(error){$('notice').textContent=error.message;}}
+async function start(){if(!syncAuthShell())return;try{suppliers=await listSuppliers();await load();}catch(error){$('notice').textContent=error.message;}}
 $('login-form').onsubmit=async e=>{e.preventDefault();try{const f=new FormData(e.target);await login(f.get('email'),f.get('password'));e.target.reset();await start();}catch(error){$('notice').textContent=error.message;}};start();

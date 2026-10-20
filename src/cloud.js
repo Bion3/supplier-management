@@ -23,6 +23,15 @@ async function token() {
  return session.access_token;
 }
 export function currentUser() {return session?.user;}
+export function syncAuthShell() {
+ const user=currentUser(),loginPanel=document.getElementById('login-panel'),workspace=document.getElementById('workspace'),account=document.getElementById('account'),logoutButton=document.getElementById('logout');
+ if(loginPanel)loginPanel.hidden=!!user;
+ if(workspace)workspace.hidden=!user;
+ if(account)account.textContent=user?.email||'';
+ if(logoutButton)logoutButton.hidden=!user;
+ document.documentElement.classList.add('auth-ready');
+ return user;
+}
 export async function logout() {try {if(session) await request('/auth/v1/logout',{method:'POST'},await token());} finally {remember(null);}}
 const statuses = {active:'合作中',pending:'待评估',inactive:'暂停合作',blacklisted:'暂停合作'};
 export function fromRow(r) {return {id:r.id,name:r.company_name,country:r.country||'',region:r.region||'',city:r.city||'',contact:r.contact_name||'',category:r.supplier_type||'其他',phone:r.phone||'',email:r.email||'',routes:r.main_routes||'',notes:r.notes||'',status:statuses[r.status]||'待评估',createdAt:r.created_at,updatedAt:r.updated_at};}

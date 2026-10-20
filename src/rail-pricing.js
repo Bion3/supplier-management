@@ -1,6 +1,6 @@
 import {createPager} from './pagination.js';
 import {installRailActions} from './rail-actions.js';
-import {login,logout,currentUser,listSuppliers,cloudRequest} from './cloud.js';
+import {login,logout,currentUser,listSuppliers,cloudRequest,syncAuthShell} from './cloud.js';
 import {defaults} from './cost-model.js';
 import {railUnit} from './rail-unit.js';
 let state=defaults(),suppliers=[],history=[],page=0,selectedIds=new Set(),visiblePage=[];const expanded=new Set();const $=id=>document.getElementById(id),esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -27,6 +27,6 @@ function newRate(mode){state=defaults();state.mode=mode;expanded.clear();$('plan
 $('new').onclick=()=>newRate('external');$('new-own').onclick=()=>newRate('own');$('close-editor').onclick=()=>$('rail-editor').close();for(const id of ['rail-search','rail-mode','filter-origin','filter-destination','filter-supplier','filter-status'])$(id).addEventListener('input',()=>{page=0;selectedIds.clear();renderList();});$('rail-prev').onclick=()=>{page--;renderList();};$('rail-next').onclick=()=>{page++;renderList();};
 function syncSelection(){const eligible=visiblePage.filter(r=>r.status!=='inactive');$('rail-select-page').checked=eligible.length>0&&eligible.every(r=>selectedIds.has(r.id));$('rail-select-page').indeterminate=eligible.some(r=>selectedIds.has(r.id))&&!$('rail-select-page').checked;$('batch-edit').disabled=$('batch-delete').disabled=!selectedIds.size;$('selection-info').textContent=selectedIds.size?'已选 '+selectedIds.size+' 条（跨页保留）':'';}
 installRailActions({getRows:()=>history,getSuppliers:()=>suppliers,getPage:()=>visiblePage,selectedIds,reload:loadHistory,render:renderList,sync:syncSelection});
-async function start(){if(!currentUser()){ $('workspace').hidden=true;$('login-panel').hidden=false;return;}try{suppliers=await listSuppliers();$('filter-supplier').innerHTML='<option value="">全部</option>'+suppliers.map(s=>'<option>'+esc(s.name)+'</option>').join('');await loadHistory();$('login-panel').hidden=true;$('workspace').hidden=false;render();}catch(e){$('notice').textContent=e.message;}}
+async function start(){if(!syncAuthShell())return;try{suppliers=await listSuppliers();$('filter-supplier').innerHTML='<option value="">全部</option>'+suppliers.map(s=>'<option>'+esc(s.name)+'</option>').join('');await loadHistory();render();}catch(e){$('notice').textContent=e.message;}}
 $('login-form').onsubmit=async e=>{e.preventDefault();try{const f=new FormData(e.target);await login(f.get('email'),f.get('password'));e.target.reset();await start();}catch(e){$('notice').textContent=e.message;}};
 $('logout').onclick=async()=>{await logout();suppliers=[];history=[];$('history').innerHTML='';await start();};start();

@@ -1,7 +1,7 @@
 import {createListFilters} from './list-filters.js';
 import {chinaInput} from './mail-rules.js';
 import {addPagerAfter} from './pagination.js';
-import {login,logout,appRequest,cloudRequest,currentUser} from './cloud.js';
+import {login,logout,appRequest,cloudRequest,currentUser,syncAuthShell} from './cloud.js';
 const $=id=>document.getElementById(id);
 let rows=[],page=1,generation=0,sessionEpoch=0;
 const pager=addPagerAfter($('inbox-rows').closest('.table-wrap'),'inbox',value=>{page=value;render();});
@@ -11,7 +11,7 @@ const extraFilters=createListFilters('inbox-rows',[
  {id:'linked',label:'客户关联',type:'select',options:[['yes','已关联'],['no','待归档']],get:r=>r.company_id||r.reply_message_id?'yes':'no'},
  {id:'risk',label:'风险提示',type:'select',options:[['yes','有风险提示'],['no','无风险提示']],get:r=>r.risk?.is_risk?'yes':'no'}
 ],()=>{page=1;render();});
-function authUI(){const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
+function authUI(){syncAuthShell();}
 function clear(){extraFilters.clear();rows=[];page=1;$('inbox-search').value='';$('inbox-filter').value='normal';$('inbox-status').textContent='';$('notice').textContent='';$('inbox-detail').close();for(const id of ['inbox-detail-title','inbox-detail-from','inbox-detail-body','inbox-detail-attachments','inbox-detail-risk'])$(id).textContent='';render();}
 async function load(){
  if(!currentUser())return;

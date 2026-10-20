@@ -1,7 +1,7 @@
 import {createListFilters} from './list-filters.js';
 import {createPager} from './pagination.js';
 import {shipmentRequirements} from './shipment-model.js';
-import {login,logout,currentUser,cloudRequest,listSuppliers,storageUpload,storageRemove,storageSignedURL} from './cloud.js';
+import {login,logout,currentUser,cloudRequest,listSuppliers,storageUpload,storageRemove,storageSignedURL,syncAuthShell} from './cloud.js';
 import {validateEntry,effectiveStatus,filterEntries,filePath} from './knowledge-model.js';
 import {chinaDate} from './crm-model.js';
 const $=id=>document.getElementById(id);
@@ -10,7 +10,7 @@ let routes=[],entries=[],suppliers=[],selected=null,editing=null,page=1,generati
 let size=30;
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;size=newSize;render();},30);
 async function all(table,order='id.asc'){const result=[];for(let offset=0;;offset+=500){const rows=await cloudRequest(`${table}?select=*&order=${order}&limit=500&offset=${offset}`);result.push(...rows);if(rows.length<500)return result;}}
-function authUI(){const u=currentUser();$('login-panel').hidden=!!u;$('workspace').hidden=!u;$('account').textContent=u?.email||'';$('logout').hidden=!u;}
+function authUI(){syncAuthShell();}
 function option(value,text){const o=document.createElement('option');o.value=value;o.textContent=text;return o;}
 function routeOptions(){const current=$('route-filter').value;$('route-filter').replaceChildren(option('','全部航线'));$('entry-route').replaceChildren(option('','请选择航线'));for(const r of routes){const text=[r.name,r.origin&&r.destination?`${r.origin} → ${r.destination}`:'',r.nodes].filter(Boolean).join(' · ');$('route-filter').append(option(r.id,text));$('entry-route').append(option(r.id,text));}$('route-filter').value=current;$('entry-supplier').replaceChildren(option('','不关联'));for(const s of suppliers)$('entry-supplier').append(option(s.id,s.name));}
 async function load(){clearShipment();const g=++generation;for(const id of ['add-entry','add-route','open-sources','open-stations','shipment-submit'])$(id).disabled=true;$('notice').textContent='正在同步知识库…';try{const data=await Promise.all([all('freight_knowledge_routes'),all('freight_knowledge_entries','updated_at.desc,id.asc'),listSuppliers(),all('freight_knowledge_sources'),all('freight_knowledge_stations')]);if(g!==generation)return;[routes,entries,suppliers,sources,stations]=data;routeOptions();catalogOptions();shipmentOptions();render();$('notice').textContent='知识库已同步。';for(const id of ['add-entry','add-route','open-sources','open-stations','shipment-submit'])$(id).disabled=false;}catch(e){if(g!==generation)return;routes=[];entries=[];suppliers=[];sources=[];stations=[];routeOptions();catalogOptions();shipmentOptions();render();$('notice').textContent=e.message;authUI();}}

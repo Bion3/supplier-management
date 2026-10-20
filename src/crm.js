@@ -2,7 +2,7 @@ import {contactColumns} from './list-filters.js';
 import {installMailVerification} from './mail-verification.js';
 import {installCrmBulk} from './crm-bulk.js';
 import {createPager} from './pagination.js';
-import {login,logout,currentUser,cloudRequest} from './cloud.js';
+import {login,logout,currentUser,cloudRequest,syncAuthShell} from './cloud.js';
 import {companyGroupOptions,filterCompanies,latestFollowups,validateCompany,validateContact,chinaDate,initialContacts} from './crm-model.js';
 const $=id=>document.getElementById(id);
 let companies=[],contacts=[],shipments=[],followups=[],page=1,selected=null,editingCompany=null,editingContact=null,generation=0,detailGeneration=0,selectedCompanies=new Set(),filteredCompanies=[],pageCompanies=[];
@@ -12,7 +12,7 @@ async function all(table,order='id.asc'){
  const result=[];
  for(let offset=0;;offset+=500){const rows=await cloudRequest(`${table}?select=*&order=${order}&limit=500&offset=${offset}`);result.push(...rows);if(rows.length<500)return result;}
 }
-function authUI(){const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
+function authUI(){syncAuthShell();}
 async function load(){
  const g=++generation;$('add-company').disabled=true;$('notice').textContent='正在同步客户档案…';
  try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_shipments'),all('freight_followups','created_at.desc,id.asc')]);if(g!==generation)return;[companies,contacts,shipments,followups]=data;selectedCompanies.clear();fillOwners();render();$('notice').textContent='客户档案已同步。';$('add-company').disabled=false;}

@@ -1,6 +1,6 @@
 import {regions,countries,countryInfo,countryLabel,normalizeCountry,supplierRegion} from './supplier-geography.js';
 import {addPagerAfter} from './pagination.js';
-import {login,logout,currentUser,listSuppliers,saveSupplier} from './cloud.js';
+import {login,logout,currentUser,listSuppliers,saveSupplier,syncAuthShell} from './cloud.js';
 import {validateSupplier, filterSuppliers} from './suppliers.js';
 const $ = id => document.getElementById(id);
 let suppliers = [], editingId = null,page=1;
@@ -19,7 +19,7 @@ async function loadCloud() {
  try { suppliers=await listSuppliers(); updateCountryFilter(); render(); $('notice').textContent='云端数据已同步。'; $('add').disabled=false; }
  catch(error) {suppliers=[];render();$('notice').textContent=error.message;}
 }
-function authUI() {const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
+function authUI() {syncAuthShell();}
 $('login-form').addEventListener('submit',async event=>{event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;try {await login($('login-email').value,$('login-password').value);$('login-password').value='';authUI();await loadCloud();}catch(error){$('login-error').textContent=error.message;}finally{button.disabled=false;}});
 $('logout').addEventListener('click',async()=>{try{await logout();}catch{}suppliers=[];render();authUI();});
 $('refresh').addEventListener('click',loadCloud);

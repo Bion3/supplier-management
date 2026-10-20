@@ -4,7 +4,7 @@ import {createPager} from './pagination.js';
 import {mailContent,personaliseBody} from './mail-content.js';
 import {createMailEditor} from './mail-editor.js';
 import {defaultRules,chinaInput,scheduleISO,validateRules} from './mail-rules.js';
-import {login,logout,currentUser,cloudRequest,appRequest} from './cloud.js';
+import {login,logout,currentUser,cloudRequest,appRequest,syncAuthShell} from './cloud.js';
 import {eligibleContacts,personalise,validateMail,validEmail,filterRecipients,regionInfo,groupNames,batchRecipients,selectRows,selectionState,emailContactScope} from './mail-model.js';
 const $=id=>document.getElementById(id);
 let draftBulk=null,mailView="drafts";
@@ -15,7 +15,7 @@ const editor=createMailEditor($('body'),$('editor-toolbar'),message=>{$('editor-
 let rules={...defaultRules};
 const names=()=>new Map(companies.map(c=>[c.id,c]));
 async function all(table,order='id.asc'){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=${order}&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
-function authUI(){const user=currentUser();$('login-panel').hidden=!!user;$('workspace').hidden=!user;$('account').textContent=user?.email||'';$('logout').hidden=!user;}
+function authUI(){syncAuthShell();}
 async function load(){const e=++epoch;try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),all('freight_mail_messages','created_at.desc,id.desc'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected.clear();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){$('notice').textContent=err.message;authUI();}}}
 function cell(text){const td=document.createElement('td');td.textContent=text;return td;}
 function button(text,fn){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){$('notice').textContent=e.message;}finally{b.disabled=false;}});return b;}
