@@ -25,8 +25,8 @@ async function token() {
 export function currentUser() {return session?.user;}
 export async function logout() {try {if(session) await request('/auth/v1/logout',{method:'POST'},await token());} finally {remember(null);}}
 const statuses = {active:'合作中',pending:'待评估',inactive:'暂停合作',blacklisted:'暂停合作'};
-export function fromRow(r) {return {id:r.id,name:r.company_name,contact:r.contact_name||'',category:r.supplier_type||'其他',phone:r.phone||'',email:r.email||'',routes:r.main_routes||'',notes:r.notes||'',status:statuses[r.status]||'待评估',createdAt:r.created_at,updatedAt:r.updated_at};}
-export function toRow(s) {return {company_name:s.name,contact_name:s.contact,supplier_type:s.category,phone:s.phone,email:s.email,main_routes:s.routes,notes:s.notes,status:{'合作中':'active','待评估':'pending','暂停合作':'inactive'}[s.status],updated_at:new Date().toISOString()};}
+export function fromRow(r) {return {id:r.id,name:r.company_name,country:r.country||'',region:r.region||'',city:r.city||'',contact:r.contact_name||'',category:r.supplier_type||'其他',phone:r.phone||'',email:r.email||'',routes:r.main_routes||'',notes:r.notes||'',status:statuses[r.status]||'待评估',createdAt:r.created_at,updatedAt:r.updated_at};}
+export function toRow(s) {return {company_name:s.name,country:s.country,region:s.region,city:s.city,contact_name:s.contact,supplier_type:s.category,phone:s.phone,email:s.email,main_routes:s.routes,notes:s.notes,status:{'合作中':'active','待评估':'pending','暂停合作':'inactive'}[s.status],updated_at:new Date().toISOString()};}
 export async function listSuppliers() {
  const result=[]; const access=await token();
  for(let offset=0;;offset+=500) {const rows=await request(`/rest/v1/suppliers?select=*&order=created_at.desc,id.asc&limit=500&offset=${offset}`,{},access);result.push(...rows.map(fromRow)); if(rows.length<500)break;}
