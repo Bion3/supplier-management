@@ -1,4 +1,10 @@
 // Supplier sheets retain their original units and conditions until billing is verified.
+export function fixedFeeColumns(row){
+ const bands=row.inputs.ticketFeeBands;
+ if(bands)return [bands.upToHalf,bands.halfToThree,bands.overThree];
+ const fee=row.inputs.railUnitCost?.fees;
+ return [fee??null,fee??null,fee??null];
+}
 export function updateImportedQuote(row,rate){
  if(!row.inputs.importSource)throw Error('不是供应商原表报价');
  if(rate===''||rate===null||!Number.isFinite(Number(rate))||Number(rate)<0)throw Error('请填写非负运费单价');
