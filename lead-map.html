@@ -9,8 +9,8 @@
 <label>中心城市<select id="map-city"><option value="hamburg">Germany / Hamburg</option><option value="rotterdam">Netherlands / Rotterdam</option><option value="duisburg">Germany / Duisburg</option><option value="warsaw">Poland / Warsaw</option><option value="budapest">Hungary / Budapest</option><option value="custom">地图上选点</option></select></label>
 <label>半径<select id="map-radius"><option value="10">10 公里</option><option value="25">25 公里</option><option value="50" selected>50 公里</option><option value="100">100 公里</option></select></label>
 <label>企业类型<select id="map-type"><option value="">全部目标行业</option><option value="freight">国际货代 / 物流</option><option value="trade">进口商 / 出口商</option><option value="wholesale">批发商 / 分销商</option></select></label>
-<label>行业关键词<input id="map-keyword" placeholder="例如 freight / import / wholesale"/></label>
-</div><div class="map-toolbar"><button id="map-search-button" type="button">筛选本区域企业</button><button id="map-reset" class="secondary" type="button">重置</button><span id="map-search-status" role="status">从已采集的 Overture 数据及已保存候选中检索；暂不调用公共 Overpass。</span></div></section>
+<label>行业关键词<input id="map-keyword" value="freight" placeholder="例如 freight / import / wholesale"/></label>
+</div><div class="map-toolbar"><button id="map-search-button" type="button" class="secondary">筛选已有企业</button><button id="map-collect" type="button">采集本区域新企业</button><button id="map-reset" class="secondary" type="button">重置</button><span id="map-search-status" role="status">已保存企业即时筛选；采集新企业将在 GitHub 后台异步执行。</span></div><div class="map-jobs"><div class="map-jobs-heading"><strong>后台采集任务</strong><button type="button" class="secondary" id="map-refresh-jobs">刷新状态</button></div><p class="map-note">首次支持 Hamburg 周边 10/25/50 公里。自动采集由 GitHub Actions 定时运行，不会立即显示结果；100 公里目前仅能筛选已有企业。所有新企业保持待核实、不发送邮件。</p><div id="map-job-list" role="status">正在读取任务…</div></div></section>
 <section class="map-card panel">
 <div class="map-card-head"><strong>企业分布</strong><span>点击地图选中心点 · 蓝圈表示实际搜索半径 · 点位必须有来源坐标</span></div>
 <div id="lead-map" role="application" aria-label="企业点位地图"></div>
