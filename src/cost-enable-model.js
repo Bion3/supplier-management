@@ -1,11 +1,13 @@
 import {validateRate} from './domestic-model.js';
 import {railUnit} from './rail-unit.js';
+import {truckingVersion} from './trucking-model.js';
 import {rentalVersion} from './container-rental-model.js';
 import {fclVersion} from './fcl-rail-model.js';
 export const latestCosts=rows=>{const old=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));return rows.filter(r=>!old.has(r.id));};
 export function enableCost(row,kind){
  if(row.status==='confirmed')throw Error('已经启用');
  if(!row.origin?.trim()||!row.destination?.trim())throw Error('起运地或目的地缺失');
+ if(kind==='trucking')return truckingVersion(row,{status:'confirmed'});
  if(kind==='rental')return rentalVersion(row,{status:'confirmed'});
  if(kind==='fcl')return fclVersion(row,{status:'confirmed'});
  if(kind==='domestic'){
