@@ -7,7 +7,7 @@ export function validateTrucking(row){
  if(!['draft','confirmed','inactive'].includes(row.status))throw Error('状态无效');
  if(q.price!==null&&(!Number.isFinite(q.price)||q.price<0))throw Error('价格须为非负数或留空待确认');
  if(!['USD','CNY','EUR',''].includes(q.currency))throw Error('币种无效');
- if(!['','柜','车','票'].includes(q.unit))throw Error('计价单位无效');
+ if(!['','柜','车','票','40HQ'].includes(q.unit))throw Error('计价单位无效');
  if(!['','采购价','参考价','销售价'].includes(q.priceBasis))throw Error('价格口径无效');
  if(!['','出口','进口','内贸'].includes(q.direction))throw Error('进出口类型无效');
  if(q.validFrom&&q.validUntil&&q.validFrom>q.validUntil)throw Error('有效期顺序错误');
