@@ -37,3 +37,13 @@
  line-height:30px;text-align:center;text-decoration:none;font-size:21px;border-bottom:1px solid #ddd}
 #lead-map .leaflet-control-zoom{border:2px solid #0003;border-radius:4px;overflow:hidden}
 #lead-map .leaflet-interactive{cursor:pointer}
+
+
+/* Persisted asynchronous map search queue */
+.map-jobs{margin-top:16px;border-top:1px solid #e4eded;padding-top:12px}
+.map-jobs-heading{display:flex;gap:12px;align-items:center;justify-content:space-between}
+.map-jobs-heading strong{font-size:14px}
+#map-job-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:12px;font-size:13px}
+.map-job-row{border:1px solid #e1e9e7;background:#f8fbfa;border-radius:9px;padding:11px 12px;min-width:0}
+.map-job-row>span{display:block;color:#244a49;font-weight:650}
+.map-job-row>small{display:block;color:#6c8082;font-size:12px;margin-top:7px;line-height:1.5;overflow-wrap:anywhere}
