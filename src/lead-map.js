@@ -167,6 +167,22 @@ $('map-file').onchange=async()=>{
  try{const parsed=parseGeoText(await f.text(),f.name);fileRows=parsed.rows;chosen.clear();$('map-save-status').textContent='文件 '+parsed.original+' 条，'+parsed.rows.length+' 条包含有效坐标；'+parsed.missing+' 条缺失地点坐标或格式无效。请核对来源、区域与许可证。';search();}
  catch(e){$('map-save-status').textContent='读取文件失败：'+e.message;}
 };
+$('map-dispatch-queued').onclick=async()=>{
+ const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
+ try{
+  const jobs=await cloudRequest('lead_enrich_jobs?select=lead_id&status=eq.queued&order=created_at.asc&limit=500');
+  const ids=[...new Set(jobs.map(j=>j.lead_id))];
+  if(!ids.length){notice.textContent='当前没有排队中的官网核实任务。';return;}
+  let published=0;
+  for(let i=0;i<ids.length;i+=100){
+   const result=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:ids.slice(i,i+100)})});
+   published+=result.published||0;
+   if(result.error)throw Error(result.error);
+  }
+  notice.textContent='已尝试派发 '+published+' 条官网核实任务。后台异步执行，刷新可检查最新邮箱和电话；不发送邮件。';
+ }catch(e){notice.textContent='派发异常：'+e.message;}
+ finally{btn.disabled=false;}
+};
 $('map-verify').onclick=async()=>{
  const selected=[...selectedVerify];
  const eligible=dbRows.filter(r=>selectedVerify.has(r.dbId)&&r.website.startsWith('https://'));
