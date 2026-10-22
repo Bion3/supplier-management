@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createContactDrain} from '../api/lead-contact-drain.js';
+import {createContactDrain} from '../server/lead-contact-drain.js';
 const job='11111111-2222-4333-8444-555555555555';
 const lead='22222222-2222-4333-8444-555555555555';
 const req=ids=>new Request('https://app.example/api/lead-contact-drain',{method:'POST',headers:{authorization:'Bearer token','content-type':'application/json'},body:JSON.stringify({ids})});
