@@ -82,3 +82,12 @@ test('map contact filter controls are present and default preserves all leads',a
  assert.match(html,/id="map-hide-no-contact"/);
  assert.match(html,/id="map-sort"/);
 });
+
+test('map can dispatch previously queued website research tasks',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const html=await readFile(new URL('../lead-map.html',import.meta.url),'utf8');
+ const js=await readFile(new URL('../src/lead-map.js',import.meta.url),'utf8');
+ assert.match(html,/id="map-dispatch-queued"/);
+ assert.match(js,/lead_enrich_jobs\?select=lead_id&status=eq\.queued/);
+ assert.match(js,/map-dispatch-queued/);
+});
