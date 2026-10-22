@@ -89,6 +89,50 @@ function render(){
 function selectionStatus(){$('map-selected').textContent='已选 '+chosen.size+' 家新企业';$('map-save').disabled=!chosen.size;}
 function search(){setViewport();page=1;render();}
 $('map-search-button').onclick=search;
+const MAP_JOB_TASK_CITY='hamburg';
+async function loadMapJobs(){
+ const list=$('map-job-list');if(!list)return;
+ try{
+  const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12');
+  list.replaceChildren();
+  if(!jobs.length){list.textContent='尚无后台采集任务。输入 Hamburg 区域、半径和关键词，点击「采集本区域新企业」。';return;}
+  const statuses={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'失败'};
+  for(const j of jobs){
+   const row=document.createElement('div');row.className='map-job-row';
+   const details=document.createElement('span');details.textContent=j.city+' · '+j.radius_km+'km · '+j.keyword+' · '+(statuses[j.status]||j.status);
+   const stats=document.createElement('small');
+   stats.textContent='扫描入库处理 '+j.processed+' 条 · 新增 '+j.inserted+' · 补坐标 '+j.located_existing+(j.error_message?' · 原因：'+j.error_message:'');
+   row.append(details,stats);list.append(row);
+  }
+ }catch(e){list.textContent='读取采集任务失败：'+e.message;}
+}
+$('map-refresh-jobs').onclick=async()=>{await loadMapJobs();await loadDb();};
+$('map-collect').onclick=async()=>{
+ const status=$('map-search-status'),button=$('map-collect');
+ const city=$('map-city').value,km=Number($('map-radius').value);
+ const term=$('map-keyword').value.trim();
+ if(city!=='hamburg'&&city!=='custom'){status.textContent='自动采集试点仅支持 Hamburg，其他城市目前可筛选已保存数据。';return;}
+ if(distance(center[0],center[1],CITIES.hamburg[0],CITIES.hamburg[1])>50){
+  status.textContent='中心点距离 Hamburg 过远，请重新选择 Hamburg 附近的位置。';return;
+ }
+ if(km>50){status.textContent='100 公里暂不支持自动采集；请选 10、25 或 50 公里。';return;}
+ if(term.length<2||term.length>80){status.textContent='请填写 2–80 字的行业关键词（例如 freight、import）。';return;}
+ const jobsCountry=$('map-task');
+ let id=jobsCountry.value;
+ if(!id){status.textContent='尚无 Hamburg 的 Overture 任务，请先在候选审核页创建对应任务。';return;}
+ if(!confirm('将 Hamburg 周边 '+km+' 公里的「'+term+'」采集任务加入后台队列？采集后自动进入待审核候选池，不会发送邮件。'))return;
+ button.disabled=true;
+ try{
+  const type=$('map-type').value||'all';
+  await cloudRequest('lead_map_search_jobs',{method:'POST',body:JSON.stringify({
+   task_id:id,city:'Hamburg',center_lat:center[0],center_lng:center[1],
+   radius_km:km,keyword:term,customer_type:type,status:'queued'})});
+  status.textContent='已加入后台队列。GitHub Actions 约每30分钟检查一次任务，执行时间取决于地区数据量；可在下方刷新状态。';
+  await loadMapJobs();
+ }catch(e){status.textContent='提交采集任务失败：'+e.message;}
+ finally{button.disabled=false;}
+};
+
 $('map-radius').onchange=search;
 $('map-type').onchange=search;
 $('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter')search();});
@@ -112,6 +156,7 @@ async function loadDb(){
   const sel=$('map-task');for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
   const match=tasks.find(t=>t.city.toLowerCase()==='hamburg');if(match)sel.value=match.id;
   search();
+  await loadMapJobs();
   if(!dbRows.length)$('map-save-status').textContent='现有候选记录暂无地理坐标。请上传新版 Overture 地区文件生成点位并保存，之后地图会自动从数据库读取。';
  }catch(e){$('map-count').textContent='读取数据失败：'+e.message+'。请从客户资源页面登录。';}
 }
