@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>地图获客 · 国际物流管理系统</title>
+<link rel="stylesheet" href="/src/style.css"/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyo3S/ik3H9qH/0=" crossorigin="anonymous"/>
+<link rel="stylesheet" href="/src/lead-map.css"/></head>
+<body><header></header><main class="lead-map-page">
+<section class="map-top"><div><p class="eyebrow">客户开发 / 区域企业搜索</p><h1>地图获客</h1><p>按区域和半径查找企业 · 地图与列表联动 · 保存到待核实候选池</p></div><a href="/discovery.html">前往候选审核 →</a></section>
+<section class="map-search panel"><div class="map-fields">
+<label>中心城市<select id="map-city"><option value="hamburg">Germany / Hamburg</option><option value="rotterdam">Netherlands / Rotterdam</option><option value="duisburg">Germany / Duisburg</option><option value="warsaw">Poland / Warsaw</option><option value="budapest">Hungary / Budapest</option><option value="custom">地图上选点</option></select></label>
+<label>半径<select id="map-radius"><option value="10">10 公里</option><option value="25">25 公里</option><option value="50" selected>50 公里</option><option value="100">100 公里</option></select></label>
+<label>企业类型<select id="map-type"><option value="">全部目标行业</option><option value="freight">国际货代 / 物流</option><option value="trade">进口商 / 出口商</option><option value="wholesale">批发商 / 分销商</option></select></label>
+<label>行业关键词<input id="map-keyword" placeholder="例如 freight / import / wholesale"/></label>
+</div><div class="map-toolbar"><button id="map-search-button" type="button">筛选本区域企业</button><button id="map-reset" class="secondary" type="button">重置</button><span id="map-search-status" role="status">从已采集的 Overture 数据及已保存候选中检索；暂不调用公共 Overpass。</span></div></section>
+<section class="map-card panel">
+<div class="map-card-head"><strong>企业分布</strong><span>点击地图选中心点 · 蓝圈表示实际搜索半径 · 点位必须有来源坐标</span></div>
+<div id="lead-map" role="application" aria-label="企业点位地图"></div>
+<div class="map-legend"><span><i class="dot freight"></i>货代 / 物流</span><span><i class="dot trade"></i>进出口贸易</span><span><i class="dot wholesale"></i>批发 / 分销</span><span><i class="dot other"></i>待分类</span></div>
+</section>
+<section class="map-data panel"><div class="map-table-top"><div><h2>区域企业结果</h2><p id="map-count" role="status">准备加载企业数据…</p></div><div class="map-table-actions"><button id="map-select-all" class="secondary" type="button">全选本页</button><button id="map-clear" class="secondary" type="button">清除</button><button id="map-save" type="button" disabled>保存所选到候选池</button></div></div>
+<div class="map-file-row"><label>导入新地区文件（Overture NDJSON / GeoJSON）<input id="map-file" type="file" accept=".ndjson,.jsonl,.geojsonl,.geojson,.json"/></label><label>关联候选任务<select id="map-task"><option value="">请选择对应城市的 Overture 任务</option></select></label><label>数据版本<input id="map-release" value="2026-09-23.1" placeholder="YYYY-MM-DD.1"/></label></div>
+<p class="map-note">文件仅在本地浏览器预览；只有点击「保存所选到候选池」才写入 Supabase。坐标以 Overture 原始地点为准，不会对无坐标企业猜测位置。导入前请核对区域与数据许可。</p>
+<div class="map-table-wrap"><table><thead><tr><th><span class="sr-only">选择</span></th><th>企业名称</th><th>分类</th><th>距离</th><th>企业官网</th><th>地址</th><th>来源</th></tr></thead><tbody id="map-results"></tbody></table></div>
+<div class="map-bottom"><span id="map-selected">已选 0 家</span><div class="map-paging"><button id="map-prev" class="secondary">上一页</button><span id="map-page">1 / 1</span><button id="map-next" class="secondary">下一页</button></div></div>
+<p id="map-save-status" role="status"></p></section></main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script type="module" src="/src/lead-map.js"></script><script type="module" src="/src/nav.js"></script></body></html>
