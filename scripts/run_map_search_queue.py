@@ -80,11 +80,12 @@ def process(job):
             boxes=tiles(float(job["center_lat"]),float(job["center_lng"]),r)
             # Sequential to avoid placing high concurrent load on Overture public cloud.
             candidates=[];scanned=0
-            for ix,bbox in enumerate(boxes):
-                path,metric=download_tile((bbox,ix,base))
-                scanned+=metric["scanned"]
-                for line in path.read_text(encoding="utf8").splitlines():
-                    if line.strip():candidates.append(json.loads(line))
+            # Two downloads maximum, to balance latency and public S3 load.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                for path,metric in executor.map(download_tile,[(bbox,ix,base) for ix,bbox in enumerate(boxes)]):
+                    scanned+=metric["scanned"]
+                    for line in path.read_text(encoding="utf8").splitlines():
+                        if line.strip():candidates.append(json.loads(line))
             dedup={}
             type_keywords={
                 "freight":("freight","forward","spedition","logisti","transport","shipping","cargo","container","zoll"),
