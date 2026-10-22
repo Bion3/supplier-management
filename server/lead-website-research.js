@@ -46,12 +46,46 @@ function getContactLinks(html,base){
 }
 function extract(html,url){
  const found=[];
- function add(type,value){value=decode(value).trim().replace(/^[\s:]+|[\s.,;]+$/g,'');if(value.length<5||value.length>120)return;if(!found.some(c=>c.type===type&&c.value.toLowerCase()===value.toLowerCase()))found.push({type,value,source_url:url.href,source_type:'official_website',verification:'unverified'});}
- for(const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?<>\s]+)(?:\?[^"']*)?["']/gi)){try{add('email',decodeURIComponent(match[1]));}catch{add('email',match[1]);}}
+ function add(type,value,source='official_website'){
+  value=decode(String(value||'')).trim().replace(/^[\s:]+|[\s.,;]+$/g,'');
+  if(value.length<5||value.length>120)return;
+  if(type==='email'&&!/^[^\s@]+@[^\s@]+\.[A-Z]{2,}$/i.test(value))return;
+  if(type==='phone'&&value.replace(/\D/g,'').length<6)return;
+  if(!found.some(c=>c.type===type&&c.value.toLowerCase()===value.toLowerCase()))
+   found.push({type,value,source_url:url.href,source_type:source,verification:'unverified'});
+ }
+ for(const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?<>\s]+)(?:\?[^"']*)?["']/gi)){
+  try{add('email',decodeURIComponent(match[1]));}catch{add('email',match[1]);}
+ }
  for(const match of decode(html).matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi))add('email',match[0]);
- for(const match of html.matchAll(/href\s*=\s*["']tel:([^"'<>]+)["']/gi))add('phone',decodeURIComponent(match[1]));
- return found.filter(c=>c.type!=='email'||!c.value.match(/\.(png|jpg|svg|webp)$/i)).slice(0,25);
+ for(const match of html.matchAll(/href\s*=\s*["']tel:([^"'<>]+)["']/gi)){
+  try{add('phone',decodeURIComponent(match[1]));}catch{add('phone',match[1]);}
+ }
+ // Schema.org JSON-LD Organization/LocalBusiness can carry official published contacts.
+ // Parse only objects from the same page, never follow third-party URLs embedded in JSON-LD.
+ const scripts=html.matchAll(/<script\b[^>]*type\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]{1,50000}?)<\/script>/gi);
+ function walk(item,depth=0){
+  if(depth>4||!item||typeof item!=='object')return;
+  if(Array.isArray(item)){for(const value of item.slice(0,30))walk(value,depth+1);return;}
+  const allowed=/Organization|LocalBusiness|Corporation|ProfessionalService|ContactPoint/i.test(
+   Array.isArray(item['@type'])?item['@type'].join(' '):String(item['@type']||''));
+  if(allowed){
+   for(const key of ['email','telephone']){
+    const v=item[key];
+    for(const value of (Array.isArray(v)?v:[v]).slice(0,8)){
+     if(typeof value==='string')add(key==='email'?'email':'phone',value.replace(/^mailto:|^tel:/i,''),'official_website_structured_data');
+    }
+   }
+  }
+  for(const key of ['@graph','contactPoint','department','parentOrganization'])if(item[key])walk(item[key],depth+1);
+ }
+ for(const m of scripts){try{walk(JSON.parse(m[1]));}catch{}}
+ return found.filter(c=>c.type!=='email'||!c.value.match(/\.(png|jpg|svg|webp)$/i)).slice(0,30);
 }
+export function extractWebsiteContactsForTest(html,website){
+ return extract(String(html),new URL(website));
+}
+
 export async function researchWebsite(website){
  const home=websiteUrl(website);if(!home)throw Error('目前只支持正常的 HTTPS 企业官网');
  // Reduce scope to public homepage and at most two linked pages, same origin only.
@@ -61,7 +95,13 @@ export async function researchWebsite(website){
   try{
    const html=await fetchSafe(url),items=extract(html,url);evidence.push({url:url.href,found:items.length,checked_at:new Date().toISOString()});
    for(const item of items)if(!contacts.some(x=>x.type===item.type&&x.value.toLowerCase()===item.value.toLowerCase()))contacts.push(item);
-   if(i===0)for(const link of getContactLinks(html,url).slice(0,2))pages.push(link);
+   if(i===0){
+    const linked=getContactLinks(html,url).slice(0,2);
+    for(const link of linked)pages.push(link);
+    // Some websites do not link Contact / Impressum in crawlable markup.
+    // Only probe a couple of same-origin conventional pages if no contact links were found.
+    if(!linked.length)for(const path of ['/kontakt','/impressum'])pages.push(new URL(path,root));
+   }
   }catch(e){errors.push(url.href+': '+e.message);}
  }
  return {contacts:contacts.slice(0,40),evidence,errors,checked_pages:seen.size};
