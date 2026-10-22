@@ -7,7 +7,7 @@ export function enableCost(row,kind){
  if(!row.origin?.trim()||!row.destination?.trim())throw Error('起运地或目的地缺失');
  if(kind==='fcl')return fclVersion(row,{status:'confirmed'});
  if(kind==='domestic'){
-  const quote=structuredClone(row.quote);quote.status='confirmed';quote.supplier_id=row.supplier_id||quote.supplier_id||null;validateRate(quote);
+  const quote=structuredClone(row.quote);quote.status='confirmed';quote.kind=row.kind;quote.origin=row.origin;quote.destination=row.destination;quote.supplier_id=row.supplier_id||quote.supplier_id||null;validateRate(quote);
   return {kind:row.kind,origin:row.origin,destination:row.destination,supplier_id:quote.supplier_id,status:'confirmed',quote,supersedes_id:row.id};
  }
  if(kind!=='rail')throw Error('费用类型无效');
