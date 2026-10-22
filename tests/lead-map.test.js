@@ -40,3 +40,22 @@ test('map page ships complete Leaflet CSS locally and build has matching stylesh
  assert.match(stylesheet,/\.leaflet-map-pane/);
  assert.ok(stylesheet.length>10000,'full vendor CSS not fallback-only');
 });
+
+test('map normalization retains stored contacts and database row identity',()=>{
+ const row=normalize({id,dbId:'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  name:'Hamburg Forwarding GmbH',lat:53.55,lng:9.99,
+  contacts:[{type:'email',value:'office@example.org',source_url:'https://example.org/contact'}],
+  verification_status:'pending'},'database');
+ assert.equal(row.dbId,'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee');
+ assert.equal(row.contacts[0].value,'office@example.org');
+ assert.equal(row.verificationStatus,'pending');
+});
+test('map HTML includes contact channels and explicit website verification',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const html=await readFile(new URL('../lead-map.html',import.meta.url),'utf8');
+ const js=await readFile(new URL('../src/lead-map.js',import.meta.url),'utf8');
+ assert.match(html,/<th>邮箱<\/th><th>电话<\/th><th>核实状态<\/th>/);
+ assert.match(html,/id="map-verify"/);
+ assert.match(js,/\/api\/lead-batch/);
+ assert.match(js,/contacts,verification_status/);
+});
