@@ -1,3 +1,4 @@
+const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 export function distance(lat1,lon1,lat2,lon2){
  const toRad=Math.PI/180;
  const dLat=(lat2-lat1)*toRad,dLon=(lon2-lon1)*toRad;
