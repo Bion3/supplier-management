@@ -1,0 +1,3 @@
+const destinations=new Set(['/','/index.html','/hub.html','/crm.html','/discovery.html','/knowledge.html','/mail.html','/inbox.html','/cost.html','/rates.html','/rail-rates.html','/pickup-rates.html','/pricing.html']);
+export function loginDestination(value,origin){try{const url=new URL(value||'/hub.html',origin);return url.origin===origin&&destinations.has(url.pathname)?url.pathname+url.search+url.hash:'/hub.html';}catch{return '/hub.html';}}
+export function loginError(error){const message=String(error?.message||'');if(/invalid login credentials/i.test(message))return '邮箱或密码不正确。';if(/rate|too many|频繁/i.test(message))return '请求过于频繁，请稍后重试。';if(/权限|失效|暂不可用/.test(message))return message;return '登录失败，请检查账号信息和网络后重试。';}

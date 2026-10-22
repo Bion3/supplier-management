@@ -14,6 +14,7 @@
     "check": "node --check src/app.js && node --check src/suppliers.js && node --check src/cloud.js && node --check src/knowledge.js && node --check src/knowledge-model.js && node --check src/mail.js && node --check src/mail-model.js && node --check server/mail-service.js && node --check api/mail.js && node --check src/mail-rules.js && node --check server/mail-worker.js && node --check api/mail-queue.js && node --check src/discovery.js && node --check api/lead-batch.js && node --check server/lead-enrich-worker.js && node --check api/lead-enrich-queue.js && node --check server/lead-website-research.js && node --check src/lead-quality.js && node --check src/overture-import.js"
   },
   "dependencies": {
+    "@vercel/functions": "3.10.2",
     "@vercel/queue": "0.8.0",
     "nodemailer": "10.1.0"
   }

@@ -1,3 +1,4 @@
+import {logout} from './cloud.js';
 const pages=[
  {group:'首页',items:[['/hub.html','系统首页']]},
  {group:'基础资料',items:[['/','供应商档案']]},
@@ -19,6 +20,7 @@ if(header){
  }).join('');
  header.className='app-header';document.body.classList.add('has-sidebar');
  header.innerHTML=`<a class="app-brand" href="/hub.html"><span class="app-mark">E</span><span><b>国际物流管理系统</b><small>${active}</small></span></a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="system-directory" aria-label="展开系统目录">目录</button><nav id="system-directory" class="system-nav" aria-label="系统目录">${pages.map(section=>section.group==='首页'?`<div class="nav-home">${items(section)}</div>`:`<details class="nav-group" data-nav-group="${section.group}" ${section.items.some(([href])=>href===activePath)||saved[section.group]?'open':''}><summary>${section.group}</summary><div class="nav-children">${items(section)}</div></details>`).join('')}</nav>`;
+ const signout=document.createElement('button');signout.type='button';signout.className='nav-signout';signout.textContent='退出登录';signout.addEventListener('click',async()=>{signout.disabled=true;try{await logout();}catch{location.replace('/login.html');}});header.querySelector('.system-nav').append(signout);
  const toggle=header.querySelector('.nav-toggle'),nav=header.querySelector('.system-nav');
  function close(){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','展开系统目录');nav.classList.remove('open');}
  toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'收起系统目录':'展开系统目录');nav.classList.toggle('open',open);});

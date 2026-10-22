@@ -19,6 +19,19 @@
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; connect-src 'self' https://hcorkkudgicarsmexnqf.supabase.co; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+        },
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/login.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store, max-age=0"
         }
       ]
     }
@@ -61,5 +74,11 @@
         }
       ]
     }
+  },
+  "proxy": {
+    "entrypoint": "proxy.js",
+    "matcher": [
+      "/((?!api/|src/|favicon.ico|robots.txt).*)"
+    ]
   }
 }
