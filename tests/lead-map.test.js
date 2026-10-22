@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {distance,normalize,parseGeoText,classify} from '../src/lead-map-model.js';
+import {distance,normalize,parseGeoText,classify,contactChannels,contactFilterMatches,contactPriority} from '../src/lead-map-model.js';
 const id='11111111-2222-4333-8444-555555555555';
 test('Haversine returns zero at center and realistic 50 km distances',()=>{
  assert.equal(distance(53.5511,9.9937,53.5511,9.9937),0);
@@ -58,4 +58,27 @@ test('map HTML includes contact channels and explicit website verification',asyn
  assert.match(html,/id="map-verify"/);
  assert.match(js,/\/api\/lead-batch/);
  assert.match(js,/contacts,verification_status/);
+});
+
+test('contact-first sorting and absence filter reflect actual stored channels',()=>{
+ const empty={contacts:[]};
+ const email={contacts:[{type:'email',value:'sales@example.com'}]};
+ const phone={contacts:[{type:'phone',value:'+49 40 1234567'}]};
+ const both={contacts:[...email.contacts,...phone.contacts]};
+ assert.deepEqual([empty,phone,email,both].map(contactPriority),[0,1,2,3]);
+ assert.equal(contactFilterMatches(empty,'none'),true);
+ assert.equal(contactFilterMatches(empty,'has_contact'),false);
+ assert.equal(contactFilterMatches(email,'email'),true);
+ assert.equal(contactFilterMatches(phone,'phone'),true);
+ assert.equal(contactFilterMatches(both,'both'),true);
+ assert.equal(contactFilterMatches(phone,'both'),false);
+ assert.equal(contactChannels({contacts:[{type:'email',value:'nonsense'}]}).email,false);
+});
+test('map contact filter controls are present and default preserves all leads',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const html=await readFile(new URL('../lead-map.html',import.meta.url),'utf8');
+ assert.match(html,/id="map-contact-filter"/);
+ assert.match(html,/value="any" selected/);
+ assert.match(html,/id="map-hide-no-contact"/);
+ assert.match(html,/id="map-sort"/);
 });
