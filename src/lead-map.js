@@ -15,6 +15,28 @@ function ensureMap(){
 }
 const map=ensureMap(),markers=map?L.layerGroup().addTo(map):null;
 let circle=map?L.circle(center,{radius:radius*1000,color:'#2a82c5',weight:2,fillOpacity:.09}).addTo(map):null;
+if(map){
+ const target=$('lead-map');
+ // Sidebar transition, font layout and browser zoom may change the map size after first paint.
+ const refreshSize=()=>{map.invalidateSize({pan:false,animate:false});};
+ if(typeof ResizeObserver!=='undefined'){
+  const resizeObserver=new ResizeObserver(()=>requestAnimationFrame(refreshSize));
+  resizeObserver.observe(target);
+ }
+ window.addEventListener('resize',refreshSize,{passive:true});
+ window.addEventListener('load',()=>{requestAnimationFrame(refreshSize);setTimeout(refreshSize,250);},{once:true});
+ map.whenReady(()=>requestAnimationFrame(refreshSize));
+ let tileErrors=0;
+ map.eachLayer(layer=>{
+  if(layer instanceof L.TileLayer){
+   layer.on('tileerror',()=>{tileErrors++;
+    if(tileErrors>=4)$('map-search-status').textContent='地图底图加载受阻，请检查网络或浏览器扩展；企业筛选仍可使用。';
+   });
+   layer.on('tileload',()=>{tileErrors=0;});
+  }
+ });
+}
+
 function mapLocate(row){
  activeId=row.id;
  if(map){map.panTo([row.lat,row.lng]);map.setZoom(Math.max(map.getZoom(),11));}
