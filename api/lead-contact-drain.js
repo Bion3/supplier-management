@@ -2,7 +2,7 @@ import {researchWebsite} from '../server/lead-website-research.js';
 export const maxDuration=120;
 const BASE='https://hcorkkudgicarsmexnqf.supabase.co/rest/v1/';
 const PUB='sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp';
-const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const reply=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const failMessage=e=>String(e?.message||e||'未知错误').slice(0,240);
 
