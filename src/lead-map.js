@@ -170,19 +170,23 @@ $('map-file').onchange=async()=>{
 $('map-dispatch-queued').onclick=async()=>{
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
  try{
-  const jobs=await cloudRequest('lead_enrich_jobs?select=lead_id&status=eq.queued&order=created_at.asc&limit=500');
-  const ids=[...new Set(jobs.map(j=>j.lead_id))];
-  if(!ids.length){notice.textContent='当前没有排队中的官网核实任务。';return;}
-  let published=0;
-  for(let i=0;i<ids.length;i+=100){
-   const result=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:ids.slice(i,i+100)})});
-   published+=result.published||0;
-   if(result.error)throw Error(result.error);
+  const jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
+  if(!jobs.length){notice.textContent='当前没有排队中的官网核实任务。';return;}
+  notice.textContent='开始逐家访问官网，本次最多处理 '+jobs.length+' 家，请保持页面打开…';
+  let completed=0,added=0,failed=0;
+  for(let i=0;i<jobs.length;i+=2){
+   const batch=jobs.slice(i,i+2);
+   const result=await appRequest('/api/lead-contact-drain',{method:'POST',body:JSON.stringify({ids:batch.map(j=>j.id)})});
+   completed+=result.completed||0;added+=result.added||0;
+   failed+=(result.results||[]).filter(x=>x.status==='failed').length;
+   notice.textContent='已处理 '+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家：完成 '+completed+'，新增公开联系方式 '+added+'，失败 '+failed+'。';
   }
-  notice.textContent='已尝试派发 '+published+' 条官网核实任务。后台异步执行，刷新可检查最新邮箱和电话；不发送邮件。';
- }catch(e){notice.textContent='派发异常：'+e.message;}
+  notice.textContent+=' 本批已结束；未完成的任务可再次点击。联系方式仍需人工核实。';
+  await loadDb();
+ }catch(e){notice.textContent='执行中断：'+e.message+'。已经完成的记录会保留，可再次处理剩余任务。';}
  finally{btn.disabled=false;}
 };
+
 $('map-verify').onclick=async()=>{
  const selected=[...selectedVerify];
  const eligible=dbRows.filter(r=>selectedVerify.has(r.dbId)&&r.website.startsWith('https://'));
