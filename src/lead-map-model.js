@@ -39,3 +39,22 @@ export function parseGeoText(text,filename){
  for(const x of data){const row=normalize(x,'file');if(row)valid.set(row.id,row);else missing++;}
  return {rows:[...valid.values()],missing,original:data.length};
 }
+
+export function contactChannels(row){
+ const contacts=Array.isArray(row?.contacts)?row.contacts:[];
+ const emails=contacts.filter(c=>['email','邮箱'].includes(c?.type)&&typeof c?.value==='string'&&/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(c.value)).map(c=>c.value.trim());
+ const phones=contacts.filter(c=>['phone','电话'].includes(c?.type)&&typeof c?.value==='string'&&c.value.replace(/\\D/g,'').length>=6).map(c=>c.value.trim());
+ return {emails:[...new Set(emails)],phones:[...new Set(phones)],email:emails.length>0,phone:phones.length>0};
+}
+export function contactFilterMatches(row,filter='any'){
+ const c=contactChannels(row);
+ if(filter==='email')return c.email;
+ if(filter==='phone')return c.phone;
+ if(filter==='both')return c.email&&c.phone;
+ if(filter==='none')return !c.email&&!c.phone;
+ return true;
+}
+export function contactPriority(row){
+ const c=contactChannels(row);
+ return (c.email?2:0)+(c.phone?1:0);
+}
