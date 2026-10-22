@@ -1,5 +1,5 @@
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
-import {distance,normalize,parseGeoText,classify} from './lead-map-model.js';
+import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches} from './lead-map-model.js';
 const $=id=>document.getElementById(id);
 const CITIES={hamburg:[53.5511,9.9937],rotterdam:[51.9244,4.4777],duisburg:[51.4344,6.7623],warsaw:[52.2297,21.0122],budapest:[47.4979,19.0402]};
 let center=CITIES.hamburg.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
@@ -52,9 +52,16 @@ function render(){
  radius=Number($('map-radius').value);
  const query=$('map-keyword').value.toLowerCase().trim(),type=$('map-type').value;
  const combined=new Map([...dbRows,...fileRows].map(r=>[r.id,r]));
- rows=[...combined.values()].map(r=>({...r,km:distance(center[0],center[1],r.lat,r.lng)}))
-  .filter(r=>r.km<=radius&&(!type||r.type===type)&&(!query||[r.name,r.category,r.address].join(' ').toLowerCase().includes(query)))
-  .sort((a,b)=>a.km-b.km);
+ const inRadius=[...combined.values()].map(r=>({...r,km:distance(center[0],center[1],r.lat,r.lng)}))
+  .filter(r=>r.km<=radius&&(!type||r.type===type)&&(!query||[r.name,r.category,r.address].join(' ').toLowerCase().includes(query)));
+ const channel=$('map-contact-filter').value,hideEmpty=$('map-hide-no-contact').checked,sort=$('map-sort').value;
+ const counts={total:inRadius.length,email:0,phone:0,both:0,contactable:0};
+ for(const r of inRadius){const c=contactChannels(r);if(c.email)counts.email++;if(c.phone)counts.phone++;if(c.email&&c.phone)counts.both++;if(c.email||c.phone)counts.contactable++;}
+ $('map-contact-summary').textContent='区域内 '+counts.total+' 家 · 有邮箱 '+counts.email+' 家 · 有电话 '+counts.phone+' 家 · 两者都有 '+counts.both+' 家 · 暂无联系方式 '+(counts.total-counts.contactable)+' 家。无联系方式企业可隐藏，但不会删除。';
+ rows=inRadius.filter(r=>contactFilterMatches(r,channel)&&(!hideEmpty||contactPriority(r)>0))
+  .sort((a,b)=>sort==='distance'?a.km-b.km:sort==='email'?
+    (Number(contactChannels(b).email)-Number(contactChannels(a).email)||contactPriority(b)-contactPriority(a)||a.km-b.km):
+    (contactPriority(b)-contactPriority(a)||a.km-b.km));
  const pages=Math.max(1,Math.ceil(rows.length/PAGE_SIZE));page=Math.min(page,pages);
  $('map-count').textContent=rows.length+' 家区域内企业 · 已有坐标 '+combined.size+' 家 · 新文件预览 '+fileRows.length+' 家。数据不等于已核实客户。';
  $('map-page').textContent=page+' / '+pages;
@@ -143,11 +150,14 @@ $('map-collect').onclick=async()=>{
  finally{button.disabled=false;}
 };
 
+$('map-contact-filter').onchange=search;
+$('map-hide-no-contact').onchange=search;
+$('map-sort').onchange=search;
 $('map-radius').onchange=search;
 $('map-type').onchange=search;
 $('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter')search();});
 $('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].slice();search();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
-$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';search();};
+$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';search();};
 $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
 $('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
