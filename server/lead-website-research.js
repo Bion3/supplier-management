@@ -51,8 +51,9 @@ function extract(html,url){
   if(value.length<5||value.length>120)return;
   if(type==='email'&&!/^[^\s@]+@[^\s@]+\.[A-Z]{2,}$/i.test(value))return;
   if(type==='phone'&&value.replace(/\D/g,'').length<6)return;
-  if(!found.some(c=>c.type===type&&c.value.toLowerCase()===value.toLowerCase()))
-   found.push({type,value,source_url:url.href,source_type:source,verification:'unverified'});
+  const existing=found.find(c=>c.type===type&&c.value.toLowerCase()===value.toLowerCase());
+  if(existing){if(source==='official_website_structured_data')existing.source_type=source;return;}
+  found.push({type,value,source_url:url.href,source_type:source,verification:'unverified'});
  }
  for(const match of html.matchAll(/href\s*=\s*["']mailto:([^"'?<>\s]+)(?:\?[^"']*)?["']/gi)){
   try{add('email',decodeURIComponent(match[1]));}catch{add('email',match[1]);}
