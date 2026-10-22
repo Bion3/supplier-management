@@ -22,7 +22,7 @@ export function normalize(raw,source){
  const id=String(x.id||raw?.id||'').trim(),name=String(x.name||x.company_name||x.names?.primary||'').trim();
  if(!name||!uuid.test(id))return null;
  const website=String(x.website||x.websites?.[0]||'').trim();
- const item={id,name,category:String(x.category||x.map_category||x.taxonomy?.primary||x.basic_category||''),lat,lng,website,address:String(x.address||x.addresses?.[0]?.freeform||''),sources:x.sources||[],source,reviewStatus:x.review_status||'pending',quality:x.quality_score||null};
+ const item={id,name,dbId:x.dbId||null,contacts:Array.isArray(x.contacts)?x.contacts:[],verificationStatus:x.verification_status||'unverified',category:String(x.category||x.map_category||x.taxonomy?.primary||x.basic_category||''),lat,lng,website,address:String(x.address||x.addresses?.[0]?.freeform||''),sources:x.sources||[],source,reviewStatus:x.review_status||'pending',quality:x.quality_score||null};
  item.type=classify(item);return item;
 }
 export function parseGeoText(text,filename){
