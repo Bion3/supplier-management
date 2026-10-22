@@ -1,4 +1,4 @@
-import {verifySession,readSessionCookie,sessionCookie,sameOrigin,PRIVATE_HEADERS} from '../server/session-auth.js';
+import {verifySession,readSessionCookie,sessionCookie,sameOrigin,PRIVATE_HEADERS} from './session-auth.js';
 export async function GET(request){
  try{const user=await verifySession(readSessionCookie(request));return Response.json(user?{user}:{error:'请先登录。'},{status:user?200:401,headers:PRIVATE_HEADERS});}
  catch{return Response.json({error:'登录验证暂不可用，请稍后重试。'},{status:503,headers:PRIVATE_HEADERS});}

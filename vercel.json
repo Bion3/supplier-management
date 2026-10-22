@@ -80,5 +80,11 @@
     "matcher": [
       "/((?!api/|src/|favicon.ico|robots.txt).*)"
     ]
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/session",
+      "destination": "/api/mail?_session=1"
+    }
+  ]
 }
