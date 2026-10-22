@@ -1,50 +1,11 @@
 import {cloudRequest,currentUser} from './cloud.js';
+import {distance,normalize,parseGeoText,classify} from './lead-map-model.js';
 const $=id=>document.getElementById(id);
 const CITIES={hamburg:[53.5511,9.9937],rotterdam:[51.9244,4.4777],duisburg:[51.4344,6.7623],warsaw:[52.2297,21.0122],budapest:[47.4979,19.0402]};
 let center=CITIES.hamburg.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
 const chosen=new Set(),PAGE_SIZE=20;
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-function distance(lat1,lon1,lat2,lon2){
- const toRad=Math.PI/180;
- const dLat=(lat2-lat1)*toRad,dLon=(lon2-lon1)*toRad;
- const a=Math.sin(dLat/2)**2+Math.cos(lat1*toRad)*Math.cos(lat2*toRad)*Math.sin(dLon/2)**2;
- return 6371.0088*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
-}
-function classify(row){
- const cat=(row.category||'').toLowerCase(),name=(row.name||'').toLowerCase();
- if(/freight|forward|spedition|logisti|transport|shipping|cargo|container|customs|zoll|trucking/.test(cat+' '+name))return 'freight';
- if(/import|export|trading|handel/.test(cat+' '+name))return 'trade';
- if(/wholesale|wholesaler|distribut|großhandel|grosshandel/.test(cat+' '+name))return 'wholesale';
- return 'other';
-}
-function normalize(raw,source){
- const x=raw?.type==='Feature'?raw.properties||{}:raw||{};
- const coords=raw?.geometry?.type==='Point'?raw.geometry.coordinates:null;
- let lat=Number(x.lat??x.map_lat??(coords?.[1])),lng=Number(x.lng??x.map_lng??(coords?.[0]));
- // Missing positions must never default to (0,0).
- if((x.lat==null&&x.map_lat==null&&!coords)||(x.lng==null&&x.map_lng==null&&!coords))return null;
- if(!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180)return null;
- const id=String(x.id||raw?.id||'').trim(),name=String(x.name||x.company_name||x.names?.primary||'').trim();
- if(!name||!uuid.test(id))return null;
- const website=String(x.website||x.websites?.[0]||'').trim();
- const item={id,name,category:String(x.category||x.map_category||x.taxonomy?.primary||x.basic_category||''),lat,lng,website,address:String(x.address||x.addresses?.[0]?.freeform||''),sources:x.sources||[],source,reviewStatus:x.review_status||'pending',quality:x.quality_score||null};
- item.type=classify(item);return item;
-}
-function parseGeoText(text,filename){
- if(text.length>12*1024*1024)throw Error('文件超过12MB，请拆分');
- let data;
- if(/\.geojson$|\.json$/i.test(filename)){
-  const obj=JSON.parse(text);data=Array.isArray(obj)?obj:obj?.type==='FeatureCollection'?obj.features:null;
-  if(!data)throw Error('JSON 必须是数组或 FeatureCollection');
- }else{
-  data=text.split(/\r?\n/).filter(Boolean).map(line=>JSON.parse(line.trim().replace(/^\x1e/,'')));
- }
- if(data.length>5000)throw Error('单个文件最多5000条');
- const valid=new Map();let missing=0;
- for(const x of data){const row=normalize(x,'file');if(row)valid.set(row.id,row);else missing++;}
- return {rows:[...valid.values()],missing,original:data.length};
-}
 function ensureMap(){
  if(!window.L){$('map-search-status').textContent='地图组件加载失败。请检查网络访问；表格仍可用于筛选。';return null;}
  const m=L.map('lead-map',{zoomControl:true}).setView(center,10);
@@ -89,15 +50,17 @@ function render(){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
   tr.onclick=e=>{if(e.target.closest('input,a,button'))return;mapLocate(r);};body.append(tr);
-  if(markers){
+
+ }
+ if(markers){for(const r of rows.slice(0,1000)){
    const icon=L.divIcon({className:'',html:'<span class="map-marker '+r.type+'"></span>',iconSize:[19,19],iconAnchor:[9,9]});
    const marker=L.marker([r.lat,r.lng],{icon}).addTo(markers);
    const div=document.createElement('div');div.className='map-popup';const strong=document.createElement('strong');strong.textContent=r.name;div.append(strong);
    const info=document.createElement('small');info.textContent=(r.category||'待分类')+' · '+r.km.toFixed(1)+' km';div.append(info);
    const button=document.createElement('button');button.type='button';button.textContent='在表格中查看';button.onclick=()=>{const index=rows.findIndex(x=>x.id===r.id);page=Math.floor(index/PAGE_SIZE)+1;render();mapLocate(r);document.querySelector('#map-results tr.active')?.scrollIntoView({behavior:'smooth',block:'center'});};div.append(button);
    marker.bindPopup(div);marker.on('click',()=>{activeId=r.id;for(const tr of document.querySelectorAll('#map-results tr'))tr.classList.toggle('active',tr.dataset.id===r.id);});
-  }
- }
+  }}
+
  $('map-search-status').textContent=rows.length+' 家命中半径 '+radius+' 公里，当前显示 '+Math.min(PAGE_SIZE,rows.length)+' 家。';
  selectionStatus();
 }
