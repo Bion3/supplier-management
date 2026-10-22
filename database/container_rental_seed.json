@@ -1,0 +1,798 @@
+{
+  "quote": {
+    "container": "",
+    "currency": "",
+    "unit": "柜",
+    "validFrom": "2026-10-16",
+    "validUntil": "2026-10-31",
+    "freeDays": null,
+    "overdueDaily": null,
+    "lossAfterDays": 90,
+    "lossAmount": 7500,
+    "lossCurrency": "USD",
+    "notes": "外租箱：用箱期和超期费按照箱公司租赁要求实报实销。所有用箱超过90天算灭失，灭失金额USD7500+全额超期费。一旦提箱，视为接受上述条款。（此报价适用于10.16号至10.31号班列）从未放箱的开始执行！ 供应商、租箱价币种及箱型原图未注明，待确认；目的城市按原表保留，具体还箱堆场待确认。90天为灭失认定门槛，不是免租期。",
+    "fees": [],
+    "profitPreset": {
+      "mode": "markup",
+      "value": 0
+    }
+  },
+  "source": {
+    "filename": "箱价表（2026-10-14）.png",
+    "sha256": "d1f8604d731499362613bd2cc8299779cb8459aea870d869bfc20899133f8bf9",
+    "normalizationNotes": "有效期年份依据表头2026/10/14；未推断供应商、币种及箱型；原表“整柜”统一显示为整柜用途。",
+    "rawTerms": "外租箱：用箱期和超期费按照箱公司租赁要求实报实销。所有用箱超过90天算灭失，灭失金额USD7500+全额超期费。一旦提箱，视为接受上述条款。（此报价适用于10.16号至10.31号班列）从未放箱的开始执行！"
+  },
+  "entries": [
+    {
+      "origin": "天津",
+      "destination": "汉堡",
+      "price": 1550,
+      "service": "",
+      "cell": "R1C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "汉堡",
+      "price": 1550,
+      "service": "",
+      "cell": "R1C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "汉堡",
+      "price": 1600,
+      "service": "",
+      "cell": "R1C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "汉堡",
+      "price": 1600,
+      "service": "",
+      "cell": "R1C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "汉堡",
+      "price": 1700,
+      "service": "",
+      "cell": "R1C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "汉堡",
+      "price": 1700,
+      "service": "",
+      "cell": "R1C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "汉堡",
+      "price": 1650,
+      "service": "",
+      "cell": "R1C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "汉堡",
+      "price": 1600,
+      "service": "",
+      "cell": "R1C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "汉堡",
+      "price": 1700,
+      "service": "",
+      "cell": "R1C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "汉堡",
+      "price": 1800,
+      "service": "整柜",
+      "cell": "R1C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "汉堡",
+      "price": 1700,
+      "service": "拼箱",
+      "cell": "R1C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "杜伊斯堡",
+      "price": 1450,
+      "service": "",
+      "cell": "R2C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "杜伊斯堡",
+      "price": 1550,
+      "service": "",
+      "cell": "R2C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "杜伊斯堡",
+      "price": 1650,
+      "service": "整柜",
+      "cell": "R2C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "杜伊斯堡",
+      "price": 1600,
+      "service": "拼箱",
+      "cell": "R2C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "马拉",
+      "price": 1750,
+      "service": "",
+      "cell": "R3C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "马拉",
+      "price": 1750,
+      "service": "",
+      "cell": "R3C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "马拉",
+      "price": 1800,
+      "service": "",
+      "cell": "R3C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "马拉",
+      "price": 1800,
+      "service": "",
+      "cell": "R3C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "马拉",
+      "price": 1800,
+      "service": "",
+      "cell": "R3C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "马拉",
+      "price": 1750,
+      "service": "",
+      "cell": "R3C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "马拉",
+      "price": 1800,
+      "service": "",
+      "cell": "R3C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "马拉",
+      "price": 1700,
+      "service": "",
+      "cell": "R3C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "马拉",
+      "price": 1900,
+      "service": "",
+      "cell": "R3C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "马拉",
+      "price": 1950,
+      "service": "整柜",
+      "cell": "R3C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "马拉",
+      "price": 1800,
+      "service": "拼箱",
+      "cell": "R3C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "华沙",
+      "price": 1800,
+      "service": "",
+      "cell": "R4C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "华沙",
+      "price": 1750,
+      "service": "",
+      "cell": "R4C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "华沙",
+      "price": 1800,
+      "service": "",
+      "cell": "R4C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "华沙",
+      "price": 1900,
+      "service": "整柜",
+      "cell": "R4C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "华沙",
+      "price": 1800,
+      "service": "拼箱",
+      "cell": "R4C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "布达佩斯",
+      "price": 1700,
+      "service": "",
+      "cell": "R5C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "布达佩斯",
+      "price": 1700,
+      "service": "",
+      "cell": "R5C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "布达佩斯",
+      "price": 1700,
+      "service": "",
+      "cell": "R5C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "布达佩斯",
+      "price": 1700,
+      "service": "",
+      "cell": "R5C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "布达佩斯",
+      "price": 1800,
+      "service": "",
+      "cell": "R5C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "布达佩斯",
+      "price": 1800,
+      "service": "",
+      "cell": "R5C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "布达佩斯",
+      "price": 1700,
+      "service": "",
+      "cell": "R5C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "布达佩斯",
+      "price": 1650,
+      "service": "",
+      "cell": "R5C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "布达佩斯",
+      "price": 1800,
+      "service": "",
+      "cell": "R5C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "布达佩斯",
+      "price": 2000,
+      "service": "整柜",
+      "cell": "R5C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "布达佩斯",
+      "price": 1800,
+      "service": "拼箱",
+      "cell": "R5C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "莫斯科",
+      "price": 2100,
+      "service": "",
+      "cell": "R6C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "莫斯科",
+      "price": 2100,
+      "service": "",
+      "cell": "R6C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "莫斯科",
+      "price": 2400,
+      "service": "",
+      "cell": "R6C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "莫斯科",
+      "price": 2300,
+      "service": "",
+      "cell": "R6C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "莫斯科",
+      "price": 2450,
+      "service": "",
+      "cell": "R6C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "莫斯科",
+      "price": 2450,
+      "service": "",
+      "cell": "R6C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "莫斯科",
+      "price": 2350,
+      "service": "",
+      "cell": "R6C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "莫斯科",
+      "price": 2100,
+      "service": "",
+      "cell": "R6C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "莫斯科",
+      "price": 2400,
+      "service": "",
+      "cell": "R6C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "莫斯科",
+      "price": 2400,
+      "service": "整柜",
+      "cell": "R6C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "莫斯科",
+      "price": 2400,
+      "service": "拼箱",
+      "cell": "R6C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "明斯克",
+      "price": 2100,
+      "service": "",
+      "cell": "R7C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "明斯克",
+      "price": 2100,
+      "service": "",
+      "cell": "R7C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "明斯克",
+      "price": 2350,
+      "service": "",
+      "cell": "R7C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "明斯克",
+      "price": 2200,
+      "service": "",
+      "cell": "R7C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "明斯克",
+      "price": 2450,
+      "service": "",
+      "cell": "R7C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "明斯克",
+      "price": 2450,
+      "service": "",
+      "cell": "R7C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "明斯克",
+      "price": 2300,
+      "service": "",
+      "cell": "R7C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "明斯克",
+      "price": 2000,
+      "service": "",
+      "cell": "R7C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "明斯克",
+      "price": 2300,
+      "service": "",
+      "cell": "R7C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "明斯克",
+      "price": 2300,
+      "service": "整柜",
+      "cell": "R7C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "明斯克",
+      "price": 2300,
+      "service": "拼箱",
+      "cell": "R7C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "米兰",
+      "price": 2050,
+      "service": "",
+      "cell": "R8C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "米兰",
+      "price": 2050,
+      "service": "",
+      "cell": "R8C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "米兰",
+      "price": 2100,
+      "service": "",
+      "cell": "R8C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "米兰",
+      "price": 2050,
+      "service": "",
+      "cell": "R8C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "米兰",
+      "price": 2150,
+      "service": "",
+      "cell": "R8C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "米兰",
+      "price": 2150,
+      "service": "",
+      "cell": "R8C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "米兰",
+      "price": 2200,
+      "service": "",
+      "cell": "R8C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "米兰",
+      "price": 2000,
+      "service": "",
+      "cell": "R8C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "米兰",
+      "price": 2150,
+      "service": "",
+      "cell": "R8C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "米兰",
+      "price": 2250,
+      "service": "整柜",
+      "cell": "R8C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "米兰",
+      "price": 2200,
+      "service": "拼箱",
+      "cell": "R8C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "布拉格",
+      "price": 1750,
+      "service": "",
+      "cell": "R9C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "布拉格",
+      "price": 1750,
+      "service": "",
+      "cell": "R9C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "布拉格",
+      "price": 1800,
+      "service": "",
+      "cell": "R9C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "布拉格",
+      "price": 1750,
+      "service": "",
+      "cell": "R9C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "布拉格",
+      "price": 1900,
+      "service": "",
+      "cell": "R9C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "布拉格",
+      "price": 1900,
+      "service": "",
+      "cell": "R9C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "布拉格",
+      "price": 1800,
+      "service": "",
+      "cell": "R9C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "布拉格",
+      "price": 1750,
+      "service": "",
+      "cell": "R9C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "布拉格",
+      "price": 1950,
+      "service": "",
+      "cell": "R9C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "布拉格",
+      "price": 2200,
+      "service": "整柜",
+      "cell": "R9C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "布拉格",
+      "price": 2150,
+      "service": "拼箱",
+      "cell": "R9C11"
+    },
+    {
+      "origin": "天津",
+      "destination": "阿拉木图",
+      "price": 1100,
+      "service": "",
+      "cell": "R10C1"
+    },
+    {
+      "origin": "青岛",
+      "destination": "阿拉木图",
+      "price": 1100,
+      "service": "",
+      "cell": "R10C2"
+    },
+    {
+      "origin": "宁波",
+      "destination": "阿拉木图",
+      "price": 1150,
+      "service": "",
+      "cell": "R10C3"
+    },
+    {
+      "origin": "上海",
+      "destination": "阿拉木图",
+      "price": 1100,
+      "service": "",
+      "cell": "R10C4"
+    },
+    {
+      "origin": "广州",
+      "destination": "阿拉木图",
+      "price": 1150,
+      "service": "",
+      "cell": "R10C5"
+    },
+    {
+      "origin": "深圳",
+      "destination": "阿拉木图",
+      "price": 1200,
+      "service": "",
+      "cell": "R10C6"
+    },
+    {
+      "origin": "厦门",
+      "destination": "阿拉木图",
+      "price": 1150,
+      "service": "",
+      "cell": "R10C7"
+    },
+    {
+      "origin": "郑州",
+      "destination": "阿拉木图",
+      "price": 1100,
+      "service": "",
+      "cell": "R10C8"
+    },
+    {
+      "origin": "武汉",
+      "destination": "阿拉木图",
+      "price": 1250,
+      "service": "",
+      "cell": "R10C9"
+    },
+    {
+      "origin": "西安",
+      "destination": "阿拉木图",
+      "price": 1300,
+      "service": "整柜",
+      "cell": "R10C10"
+    },
+    {
+      "origin": "西安",
+      "destination": "阿拉木图",
+      "price": 1250,
+      "service": "拼箱",
+      "cell": "R10C11"
+    }
+  ]
+}
