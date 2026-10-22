@@ -29,3 +29,14 @@ test('industry search categories are distinct',()=>{
  assert.equal(classify({name:'Wholesale Supplies',category:'wholesaler'}),'wholesale');
  assert.equal(classify({name:'Baltic Spedition',category:''}),'freight');
 });
+
+test('map page ships complete Leaflet CSS locally and build has matching stylesheet asset',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const html=await readFile(new URL('../lead-map.html',import.meta.url),'utf8');
+ const stylesheet=await readFile(new URL('../src/vendor/leaflet.css',import.meta.url),'utf8');
+ assert.match(html,/href="\/src\/vendor\/leaflet\.css"/);
+ assert.doesNotMatch(html,/href="https:\/\/unpkg\.com\/leaflet/);
+ assert.match(stylesheet,/\.leaflet-tile\s*,/);
+ assert.match(stylesheet,/\.leaflet-map-pane/);
+ assert.ok(stylesheet.length>10000,'full vendor CSS not fallback-only');
+});
