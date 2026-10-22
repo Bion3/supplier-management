@@ -1,0 +1,66 @@
+import {matchCosts,placeMatches} from './cost-matching.js';
+import {calculate} from './cost-model.js';
+export const currentLeaves=rows=>{const old=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));return rows.filter(r=>!old.has(r.id));};
+const box=s=>String(s||'').toUpperCase().replace(/40HC/g,'40HQ').replace(/20尺/g,'20GP').replace(/45尺/g,'45HQ');
+const dateOK=(r,d)=>!r.quote.validFrom||r.quote.validFrom<=d;
+const usable=(rows,i)=>currentLeaves(rows).filter(r=>(r.status==='confirmed'||i.preview&&r.status==='draft')&&dateOK(r,i.date)&&(!r.quote.validUntil||r.quote.validUntil>=i.date));
+export function loadingMatches(quoted,requested){const tokens=String(requested||'').split(/[,，/]/).map(x=>x.trim()).filter(Boolean);return tokens.length>0&&placeMatches(quoted,tokens.at(-1));}
+export function candidates(i,data){
+ const matchesBox=r=>box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺');
+ return {
+  rail:usable(data.fcl||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&matchesBox(r)&&r.quote.unit==='柜'),
+  truck:i.truck?usable(data.trucks||[],i).filter(r=>placeMatches(r.origin,i.pickupPlace)&&loadingMatches(r.quote.loadingPlace,i.origin)&&placeMatches(r.destination,i.station)&&box(r.quote.container)===box(i.box)):[],
+  rent:i.rent&&i.equipment==='SOC'?usable(data.rentals||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&box(r.quote.container)===box(i.box)&&(!r.quote.service||r.quote.service==='整柜')):[]
+ };
+}
+export function validateInput(i){
+ if(!['lcl','fcl'].includes(i.transport))throw Error('请选择运输方式');
+ if(!i.destination?.trim())throw Error('请填写境外目的站');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(i.date))throw Error('请选择报价适用日期');
+ if(!Number.isFinite(i.fx)||i.fx<=0)throw Error('人民币兑美元汇率须大于0');
+ if(!Number.isFinite(i.profit)||i.profit<0||!['markup','margin','fixed'].includes(i.profitMode)||i.profitMode==='margin'&&i.profit>=100)throw Error('请检查利润设置，毛利率须低于100%');
+ if(i.transport==='fcl'){
+  if(!i.station?.trim())throw Error('请填写国内起运站');
+  if(!Number.isInteger(i.quantity)||i.quantity<=0)throw Error('柜量须为正整数');
+  if(!['SOC','COC'].includes(i.equipment)||!i.box)throw Error('请确认箱型及SOC/COC');
+  if(i.truck&&(!i.origin?.trim()||!i.pickupPlace?.trim()))throw Error('包含拖车时请填写装箱地和提箱地');
+ }else{
+  if((!i.origin?.trim()&&i.scope!=='station')||(i.scope==='station'&&!i.station?.trim()))throw Error('请填写始发地或国内起运站');
+  if(!Number.isInteger(i.pieces)||i.pieces<=0||!Number.isFinite(i.weight)||i.weight<=0||!Number.isFinite(i.volume)||i.volume<=0)throw Error('请填写有效的件数、毛重和体积');
+ }
+ return i;
+}
+export function finish(lines,pending,i){
+ const cost=lines.reduce((sum,l)=>sum+l.value,0);let price;
+ if(i.profitMode==='margin')price=cost/(1-i.profit/100);else if(i.profitMode==='fixed')price=cost+i.profit;else price=cost*(1+i.profit/100);
+ return {cost,price,profit:price-cost,lines,pending:[...new Set(pending)],complete:pending.length===0};
+}
+export function estimateFcl(input,data,choices={}){
+ const i=validateInput(input),available=candidates(i,data),lines=[],pending=[],sources={};
+ const usd=(value,currency,label)=>{if(value===null||value===''||!Number.isFinite(value)||value<0){pending.push(label+'：金额待确认');return null;}if(currency==='USD')return value;if(currency==='CNY')return value/i.fx;if(currency==='EUR'&&Number.isFinite(i.eurFx)&&i.eurFx>0)return value*i.eurFx;pending.push(label+'：币种或EUR汇率待确认');return null;};
+ function segment(key,label){
+  const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
+  sources[key]=structuredClone(r);const q=r.quote;if(!r.supplier_id)pending.push(label+'：供应商待确认');
+  if(r.status!=='confirmed')pending.push(label+'：待确认参考报价');
+  if(key==='rail'&&box(q.container)!==box(i.box))pending.push(label+'：原价仅注明40尺，需确认适用40HQ');
+  if(key==='truck'&&q.priceBasis!=='采购价')pending.push(label+'：采购价口径待确认');
+  const unitOK=key==='truck'?q.unit==='柜'||box(q.unit)===box(i.box):q.unit==='柜'||box(q.unit)===box(i.box);
+  if(!unitOK){pending.push(label+'：计价单位未确认或不支持，未计金额');return;}
+  const value=usd(q.price,q.currency,label);if(value!==null)lines.push({name:label,value:value*i.quantity,basis:`${q.currency} ${q.price} / ${q.unit} × ${i.quantity}柜`,quoteId:r.id,supplier_id:r.supplier_id});
+  for(const f of q.fees||[]){const labelFee=label+' / '+f.name;if(f.unit!=='柜'&&f.unit!=='票'&&box(f.unit)!==box(i.box)){pending.push(labelFee+'：计费条件需人工核对');continue;}const fee=usd(f.amount,f.currency,labelFee);if(fee!==null)lines.push({name:labelFee,value:fee*(f.unit==='票'?1:i.quantity),basis:`${f.currency} ${f.amount} / ${f.unit}`,quoteId:r.id,supplier_id:r.supplier_id});}
+  if(!i.termsReviewed&&(q.notes||q.source?.rawRemarks))pending.push(label+'：请核对原报价操作条款及另计费用');
+ }
+ if(i.truck)segment('truck','国内拖车');segment('rail','整箱铁路');if(i.equipment==='SOC'&&i.rent)segment('rent','租箱基础费（不含超期）');
+ for(const f of i.extraFees||[]){if(!f.name?.trim())throw Error('请填写补充费用名称');const n=usd(f.amount,f.currency,f.name);if(n!==null)lines.push({name:f.name,value:n*(f.unit==='柜'?i.quantity:1),basis:'本次手工补充 '+f.currency+' '+f.amount+' / '+f.unit});}
+ return {id:'fcl',label:`${i.station} → ${i.destination} · ${i.quantity}×${i.box} · ${i.equipment}`,inputs:{...structuredClone(i),route:[i.truck?i.origin:null,i.station,i.destination].filter(Boolean).join(' → '),sources},result:finish(lines,pending,i),available};
+}
+export function estimateLcl(i,data){
+ validateInput(i);
+ const plans=(data.plans||[]).filter(p=>!i.station||placeMatches(p.origin,i.station));
+ const options=matchCosts({...i,origin:i.scope==='station'?i.station:i.origin},data.domestic||[],plans);
+ for(const m of options){const s=m.inputs;s.fx=i.fx;s.profitMode=i.profitMode;s.profit=i.profit;s.transport='lcl';s.scope=i.scope;s.date=i.date;s.station=i.station;s.eurFx=i.eurFx;
+  if(i.scope==='station')for(const key of ['pickupQuote','linehaulQuote'])s[key]={status:'confirmed',rule:'fixed',fixed:0,minimum:0,deliveryIncluded:true,currency:'USD',source:'本次仅核算站到站，不含国内运输'};
+  m.result=calculate(s);
+ }
+ return options;
+}
