@@ -47,3 +47,12 @@
 .map-job-row{border:1px solid #e1e9e7;background:#f8fbfa;border-radius:9px;padding:11px 12px;min-width:0}
 .map-job-row>span{display:block;color:#244a49;font-weight:650}
 .map-job-row>small{display:block;color:#6c8082;font-size:12px;margin-top:7px;line-height:1.5;overflow-wrap:anywhere}
+
+
+/* Compact contact columns for map lead research */
+.map-table-wrap table{min-width:1190px}
+.map-table-wrap th:nth-child(6),.map-table-wrap th:nth-child(7){min-width:155px}
+.map-table-wrap td:nth-child(6),.map-table-wrap td:nth-child(7){max-width:235px;overflow-wrap:anywhere}
+.map-table-wrap td:nth-child(6) div,.map-table-wrap td:nth-child(7) div{line-height:1.5;margin:2px 0}
+.map-table-wrap td:nth-child(8){white-space:nowrap;color:#546b72}
+.map-table-actions button{white-space:nowrap}
