@@ -176,7 +176,7 @@ $('map-dispatch-queued').onclick=async()=>{
   let completed=0,added=0,failed=0;
   for(let i=0;i<jobs.length;i+=2){
    const batch=jobs.slice(i,i+2);
-   const result=await appRequest('/api/lead-contact-drain',{method:'POST',body:JSON.stringify({ids:batch.map(j=>j.id)})});
+   const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({action:'drain',ids:batch.map(j=>j.id)})});
    completed+=result.completed||0;added+=result.added||0;
    failed+=(result.results||[]).filter(x=>x.status==='failed').length;
    notice.textContent='已处理 '+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家：完成 '+completed+'，新增公开联系方式 '+added+'，失败 '+failed+'。';
