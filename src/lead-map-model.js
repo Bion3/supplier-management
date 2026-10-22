@@ -48,6 +48,7 @@ export function contactChannels(row){
 }
 export function contactFilterMatches(row,filter='any'){
  const c=contactChannels(row);
+ if(filter==='has_contact')return c.email||c.phone;
  if(filter==='email')return c.email;
  if(filter==='phone')return c.phone;
  if(filter==='both')return c.email&&c.phone;
