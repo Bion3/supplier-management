@@ -1,9 +1,9 @@
-import {cloudRequest,currentUser} from './cloud.js';
+import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {distance,normalize,parseGeoText,classify} from './lead-map-model.js';
 const $=id=>document.getElementById(id);
 const CITIES={hamburg:[53.5511,9.9937],rotterdam:[51.9244,4.4777],duisburg:[51.4344,6.7623],warsaw:[52.2297,21.0122],budapest:[47.4979,19.0402]};
 let center=CITIES.hamburg.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
-const chosen=new Set(),PAGE_SIZE=20;
+const chosen=new Set(),selectedVerify=new Set(),PAGE_SIZE=20;
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function ensureMap(){
@@ -63,11 +63,21 @@ function render(){
  if(markers)markers.clearLayers();
  for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE)){
   const tr=document.createElement('tr');tr.dataset.id=r.id;if(r.id===activeId)tr.classList.add('active');
-  const td=document.createElement('td');const check=document.createElement('input');check.type='checkbox';check.checked=chosen.has(r.id);check.disabled=r.source!=='file';check.title=r.source==='file'?'保存新文件的企业':'已存在候选池';check.onchange=()=>{if(check.checked)chosen.add(r.id);else chosen.delete(r.id);selectionStatus();};td.append(check);tr.append(td);
+  const td=document.createElement('td');const check=document.createElement('input');check.type='checkbox';const stored=r.source==='database';check.checked=stored?selectedVerify.has(r.dbId):chosen.has(r.id);check.title=stored?'选择官网核实':'选择保存到候选池';check.onchange=()=>{const collection=stored?selectedVerify:chosen,key=stored?r.dbId:r.id;if(check.checked)collection.add(key);else collection.delete(key);selectionStatus();};td.append(check);tr.append(td);
   for(const value of [r.name,r.category||'待分类',r.km.toFixed(1)+' km']){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
   const site=document.createElement('td');if(validWebsite(r.website)){const a=document.createElement('a');a.href=validWebsite(r.website);a.target='_blank';a.rel='noopener noreferrer';a.textContent='查看官网';site.append(a);}else site.textContent='待查';tr.append(site);
+  const contacts=Array.isArray(r.contacts)?r.contacts:[];
+  for(const kind of ['email','phone']){
+   const td=document.createElement('td');
+   const values=contacts.filter(c=>[kind,kind==='email'?'邮箱':'电话'].includes(c.type)).map(c=>String(c.value||'')).filter(Boolean);
+   if(values.length){
+    for(const value of values.slice(0,2)){const line=document.createElement('div');line.textContent=value;line.title='官网公开来源提取，未验证有效性';td.append(line);}
+   }else td.textContent=r.source==='database'?'待核实':'尚未入库';
+   tr.append(td);
+  }
+  const verification=document.createElement('td');verification.textContent=r.verificationStatus==='unverified'?'未核实':r.verificationStatus||'未核实';tr.append(verification);
   for(const value of [r.address||'—',r.source==='file'?'新文件 · 待保存':'现有候选']){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
@@ -86,7 +96,7 @@ function render(){
  $('map-search-status').textContent=rows.length+' 家命中半径 '+radius+' 公里，当前显示 '+Math.min(PAGE_SIZE,rows.length)+' 家。';
  selectionStatus();
 }
-function selectionStatus(){$('map-selected').textContent='已选 '+chosen.size+' 家新企业';$('map-save').disabled=!chosen.size;}
+function selectionStatus(){$('map-selected').textContent='待保存 '+chosen.size+' 家 · 待官网核实 '+selectedVerify.size+' 家';$('map-save').disabled=!chosen.size;$('map-verify').disabled=!selectedVerify.size;}
 function search(){setViewport();page=1;render();}
 $('map-search-button').onclick=search;
 const MAP_JOB_TASK_CITY='hamburg';
@@ -140,19 +150,38 @@ $('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center
 $('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';search();};
 $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
-$('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);render();};
-$('map-clear').onclick=()=>{chosen.clear();render();};
+$('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
+$('map-clear').onclick=()=>{chosen.clear();selectedVerify.clear();render();};
 $('map-file').onchange=async()=>{
  const f=$('map-file').files?.[0];if(!f)return;
  try{const parsed=parseGeoText(await f.text(),f.name);fileRows=parsed.rows;chosen.clear();$('map-save-status').textContent='文件 '+parsed.original+' 条，'+parsed.rows.length+' 条包含有效坐标；'+parsed.missing+' 条缺失地点坐标或格式无效。请核对来源、区域与许可证。';search();}
  catch(e){$('map-save-status').textContent='读取文件失败：'+e.message;}
 };
+$('map-verify').onclick=async()=>{
+ const selected=[...selectedVerify];
+ const eligible=dbRows.filter(r=>selectedVerify.has(r.dbId)&&r.website.startsWith('https://'));
+ const notice=$('map-contact-status');
+ if(!eligible.length){notice.textContent='当前选中的企业没有 HTTPS 官网。请先核实 HTTP 网站能否安全升级到 HTTPS，或补充企业官网。';return;}
+ if(!confirm('为 '+eligible.length+' 家 HTTPS 官网企业建立公开联系方式核实任务？提取结果不是邮箱有效性验证，也不会发送邮件。'))return;
+ const btn=$('map-verify');btn.disabled=true;
+ try{
+  let queued=0,published=0;
+  for(let i=0;i<eligible.length;i+=100){
+   const response=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:eligible.slice(i,i+100).map(r=>r.dbId)})});
+   queued+=response.queued||0;published+=response.published||0;
+   if(response.error)notice.textContent='部分任务派发失败：'+response.error;
+  }
+  notice.textContent='已选择 '+selected.length+' 家，符合 HTTPS 条件 '+eligible.length+' 家；新增核实任务 '+queued+'，已派发 '+published+'。请在候选审核的官网补全队列检查结果。';
+  selectedVerify.clear();await loadDb();
+ }catch(e){notice.textContent='官网核实启动失败：'+e.message;}
+ finally{selectionStatus();}
+};
 async function loadDb(){
  try{
   const [leads,tasks]=await Promise.all([
-   cloudRequest('lead_discovery_leads?select=id,provider_place_id,company_name,website,address,country,city,map_lat,map_lng,map_category,review_status&map_lat=not.is.null&map_lng=not.is.null&order=created_at.desc&limit=1000'),
+   cloudRequest('lead_discovery_leads?select=id,provider_place_id,company_name,website,address,country,city,map_lat,map_lng,map_category,review_status,contacts,verification_status&map_lat=not.is.null&map_lng=not.is.null&order=created_at.desc&limit=1000'),
    cloudRequest('lead_discovery_tasks?select=id,country,city,source&source=eq.overture&order=created_at.desc&limit=100')]);
-  dbRows=leads.map(x=>normalize({id:x.provider_place_id||x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status},'database')).filter(Boolean);
+  dbRows=leads.map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
   const sel=$('map-task');for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
   const match=tasks.find(t=>t.city.toLowerCase()==='hamburg');if(match)sel.value=match.id;
   search();
