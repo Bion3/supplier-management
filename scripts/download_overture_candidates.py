@@ -55,6 +55,18 @@ def assess_feature(obj):
     if not isinstance(sites,list):sites=[]
     raw=next((clean(v,500) for v in sites if isinstance(v,str) and host_of(v)),'')
     host=host_of(raw);website=raw if not is_platform(host) else ''
+    geom=obj.get('geometry') if isinstance(obj.get('geometry'),dict) else x.get('geometry')
+    point=None
+    if isinstance(geom,dict):
+        typ=geom.get('type');coords=geom.get('coordinates')
+        if typ=='Point' and isinstance(coords,list) and len(coords)>=2:
+            point=coords
+        elif typ=='MultiPoint' and isinstance(coords,list) and coords and isinstance(coords[0],list):
+            point=coords[0]
+    lat=lng=None
+    if point and all(isinstance(v,(int,float)) for v in point[:2]):
+        lng,lat=point[:2]
+        if not(-180<=lng<=180 and -90<=lat<=90):lat=lng=None
     addr=x.get('addresses') or ([{'freeform':x['address']}] if x.get('address') else [])
     if not isinstance(addr,list):addr=[]
     address=next((clean(v.get('freeform'),500) for v in addr if isinstance(v,dict) and v.get('freeform')),'')
@@ -72,7 +84,7 @@ def assess_feature(obj):
     if host and is_platform(host):reasons.append('第三方目录链接，未认定为官网')
     if not website:reasons.append('缺少独立官网，需人工核实')
     return {'id':oid,'name':name,'category':category,'website':website,'address':address,
-        'emails':[],'phones':[],
+        'lat':lat,'lng':lng,'emails':[],'phones':[],
         'sources':[{'dataset':clean(v.get('dataset'),100),'license':clean(v.get('license'),80)}
             for v in sources[:8] if isinstance(v,dict)],
         'quality_score':score,'lead_tier':'high' if score>=65 else 'review' if score>=37 else 'low',
