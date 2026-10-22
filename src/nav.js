@@ -7,7 +7,7 @@ const pages=[
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/index.html'?'/':location.pathname;
-const pricePages={'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费']};
+const pricePages={'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费'],'/fcl-rail.html':['国际运输','整箱铁路运费']};
 const activePath=pricePages[path]?'/pricing.html':path;
 const header=document.querySelector('body>header');
 if(header){

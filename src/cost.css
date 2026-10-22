@@ -26,3 +26,5 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 .supplier-quote-dialog footer{position:sticky;bottom:-20px;background:white;padding:12px 0;margin-top:12px}
 .quote-charge.fields{grid-template-columns:2fr 1fr 1fr auto;align-items:end;padding-bottom:10px;border-bottom:1px solid #edf1f2}
 @media(max-width:640px){.supplier-quote-dialog .fields{grid-template-columns:1fr 1fr}.quote-charge.fields{grid-template-columns:1fr 1fr}.data-columns th,.data-columns td{padding:8px}}
+.fcl-toolbar{display:grid;grid-template-columns:minmax(180px,2fr) repeat(3,minmax(100px,1fr));gap:10px;padding:12px}.fcl-toolbar input,.fcl-toolbar select{padding:8px}.fcl-toolbar label:first-child input{max-width:none}
+@media(max-width:850px){.fcl-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
