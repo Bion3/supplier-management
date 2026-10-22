@@ -10,7 +10,7 @@ function ensureMap(){
  if(!window.L){$('map-search-status').textContent='地图组件加载失败。请检查网络访问；表格仍可用于筛选。';return null;}
  const m=L.map('lead-map',{zoomControl:true}).setView(center,10);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors',crossOrigin:true}).addTo(m);
- m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];$('map-city').value='custom';render();});
+ m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];$('map-city').value='custom';search();});
  return m;
 }
 const map=ensureMap(),markers=map?L.layerGroup().addTo(map):null;
