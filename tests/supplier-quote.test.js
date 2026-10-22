@@ -8,3 +8,12 @@ test('supplier rate edits retain conditions, source, dates and draft status',()=
 test('missing supplier ratios are not displayed as confirmed billing ratios',()=>{assert.deepEqual(quoteDisplay(row),{unit:'CBM',ratio:'待确认',status:'待确认'});});
 test('ambiguous supplier quotes cannot be converted by generic batch edits',()=>{assert.throws(()=>editRailRows([row],{rate:'190'}),/特殊计费规则/);assert.equal(deactivateRailRows([row])[0].status,'inactive');});
 test('invalid and empty imported rates are rejected',()=>{for(const value of ['',null,-1,'oops'])assert.throws(()=>updateImportedQuote(row,value));});
+test('individual fees preserve currency, unknown amounts and source while profit stays separate',()=>{
+ const updated=updateImportedQuote(row,180,{bands:{upToHalf:55,halfToThree:110,overThree:''},minimum:0,chargeItems:[{name:'报关费',amount:150,currency:'CNY'},{name:'文件费',amount:'',currency:'USD'}],profitPreset:{mode:'markup',value:15}});
+ assert.deepEqual(updated.inputs.ticketFeeBands,{currency:'USD',unit:'票',upToHalf:55,halfToThree:110,overThree:null});
+ assert.equal(updated.inputs.chargeItems[0].currency,'CNY');assert.equal(updated.inputs.chargeItems[1].amount,null);
+ assert.equal(updated.inputs.railUnitCost.unit,180);assert.equal(updated.inputs.railUnitCost.minimum,0);
+ assert.deepEqual(updated.inputs.profitPreset,{mode:'markup',value:15});assert.equal(updated.status,'draft');assert.deepEqual(updated.inputs.importSource,row.inputs.importSource);
+ assert.throws(()=>updateImportedQuote(row,180,{profitPreset:{mode:'margin',value:100}}),/毛利率/);
+ assert.throws(()=>updateImportedQuote(row,180,{chargeItems:[{name:'报关费',amount:-1,currency:'CNY'}]}),/非负数/);
+});

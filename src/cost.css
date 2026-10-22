@@ -5,3 +5,24 @@
 main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointer;font-weight:600;padding:8px 0}details.panel{margin-top:12px;padding:16px 20px}details[open]>summary{margin-bottom:14px}.pager{padding:16px;display:flex;justify-content:space-between;align-items:center}.tier{padding:12px 0;border-bottom:1px solid #eee}
 .select-col{width:46px;min-width:46px;text-align:center}.select-col input,td.row-select input{width:18px;height:18px}.bulk-summary{background:#f2f7f6;border-radius:9px;padding:12px;margin:16px 0}.bulk-summary strong{color:#173f46}.bulk-skipped{color:#a65c00}
 .rail-tag{display:inline-block;padding:4px 8px;background:#eaf4f2;color:#27655e;border-radius:12px;font-size:12px;margin:2px}#rail-editor{width:min(900px,94vw);max-height:88vh;overflow:auto}
+
+/* Compact procurement lists keep actions reachable while scrolling wide tables. */
+.table-wrap:has(.data-columns){max-height:62vh;overflow:auto;isolation:isolate}
+.data-columns{min-width:980px;font-size:12px}
+.data-columns th,.data-columns td{padding:9px 10px;line-height:1.4;min-width:76px;overflow-wrap:normal;word-break:normal}
+.data-columns th{position:sticky;top:0;z-index:2;font-size:11px}
+.data-columns th:last-child,.data-columns td:last-child{position:sticky;right:0;min-width:98px;white-space:nowrap;background:#fff;box-shadow:-3px 0 6px #173f4612;z-index:3}
+.data-columns th:last-child{background:#fafcfc;z-index:4}
+.data-columns td:last-child button,#history button{font-size:12px;padding:7px 9px;margin:0}
+#history td:nth-child(5){min-width:140px;max-width:170px}
+#history td:nth-child(6){min-width:120px;max-width:160px}
+.data-columns .rail-tag{font-size:10px;padding:2px 5px;line-height:1.4;white-space:nowrap;margin:1px}
+.data-columns .select-col,.data-columns td.row-select{min-width:32px;width:32px}
+.supplier-quote-dialog{width:min(850px,94vw);padding:20px;max-height:88vh}
+.supplier-quote-dialog .dialog-heading{position:sticky;top:-20px;background:white;z-index:2;padding:12px 0;margin-bottom:12px}
+.supplier-quote-dialog p{font-size:12px;line-height:1.5;margin:10px 0}
+.supplier-quote-dialog .fields{gap:10px;margin:12px 0;grid-template-columns:repeat(2,minmax(0,1fr))}
+.supplier-quote-dialog input,.supplier-quote-dialog select{padding:8px}
+.supplier-quote-dialog footer{position:sticky;bottom:-20px;background:white;padding:12px 0;margin-top:12px}
+.quote-charge.fields{grid-template-columns:2fr 1fr 1fr auto;align-items:end;padding-bottom:10px;border-bottom:1px solid #edf1f2}
+@media(max-width:640px){.supplier-quote-dialog .fields{grid-template-columns:1fr 1fr}.quote-charge.fields{grid-template-columns:1fr 1fr}.data-columns th,.data-columns td{padding:8px}}
