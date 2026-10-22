@@ -5,11 +5,20 @@ const box=s=>String(s||'').toUpperCase().replace(/40HC/g,'40HQ').replace(/20尺/
 const dateOK=(r,d)=>!r.quote.validFrom||r.quote.validFrom<=d;
 const usable=(rows,i)=>currentLeaves(rows).filter(r=>(r.status==='confirmed'||i.preview&&r.status==='draft')&&dateOK(r,i.date)&&(!r.quote.validUntil||r.quote.validUntil>=i.date));
 export function loadingMatches(quoted,requested){const tokens=String(requested||'').split(/[,，/]/).map(x=>x.trim()).filter(Boolean);return tokens.length>0&&placeMatches(quoted,tokens.at(-1));}
+function normalizeFclInput(input,data){
+ const i={...input,box:input.box||'40HQ',equipment:input.equipment||'SOC',quantity:input.quantity===null||input.quantity===''||input.quantity===undefined?1:input.quantity};
+ if(i.station?.trim())return i;
+ const rail=usable(data.fcl||[],i).filter(r=>placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&(box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺'))&&r.quote.unit==='柜');
+ const trucks=usable(data.trucks||[],i);
+ const stationWithTruck=rail.find(r=>trucks.some(t=>loadingMatches(t.quote.loadingPlace,i.origin)&&placeMatches(t.destination,r.origin)&&(!i.pickupPlace?.trim()||placeMatches(t.origin,i.pickupPlace))&&box(t.quote.container)===box(i.box)));
+ i.station=(stationWithTruck||rail[0])?.origin||'';
+ return i;
+}
 export function candidates(i,data){
  const matchesBox=r=>box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺');
  return {
   rail:usable(data.fcl||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&matchesBox(r)&&r.quote.unit==='柜'),
-  truck:i.truck?usable(data.trucks||[],i).filter(r=>placeMatches(r.origin,i.pickupPlace)&&loadingMatches(r.quote.loadingPlace,i.origin)&&placeMatches(r.destination,i.station)&&box(r.quote.container)===box(i.box)):[],
+  truck:i.truck?usable(data.trucks||[],i).filter(r=>(!i.pickupPlace?.trim()||placeMatches(r.origin,i.pickupPlace))&&loadingMatches(r.quote.loadingPlace,i.origin)&&placeMatches(r.destination,i.station)&&box(r.quote.container)===box(i.box)):[],
   rent:i.rent&&i.equipment==='SOC'?usable(data.rentals||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&box(r.quote.container)===box(i.box)&&(!r.quote.service||r.quote.service==='整柜')):[]
  };
 }
@@ -23,7 +32,7 @@ export function validateInput(i){
   if(!i.station?.trim())throw Error('请填写国内起运站');
   if(!Number.isInteger(i.quantity)||i.quantity<=0)throw Error('柜量须为正整数');
   if(!['SOC','COC'].includes(i.equipment)||!i.box)throw Error('请确认箱型及SOC/COC');
-  if(i.truck&&(!i.origin?.trim()||!i.pickupPlace?.trim()))throw Error('包含拖车时请填写装箱地和提箱地');
+  if(i.truck&&!i.origin?.trim())throw Error('包含拖车时请填写始发地 / 装箱地');
  }else{
   if((!i.origin?.trim()&&i.scope!=='station')||(i.scope==='station'&&!i.station?.trim()))throw Error('请填写始发地或国内起运站');
   if(!Number.isInteger(i.pieces)||i.pieces<=0||!Number.isFinite(i.weight)||i.weight<=0||!Number.isFinite(i.volume)||i.volume<=0)throw Error('请填写有效的件数、毛重和体积');
@@ -36,7 +45,7 @@ export function finish(lines,pending,i){
  return {cost,price,profit:price-cost,lines,pending:[...new Set(pending)],complete:pending.length===0};
 }
 export function estimateFcl(input,data,choices={}){
- const i=validateInput(input),available=candidates(i,data),lines=[],pending=[],sources={};
+ const i=validateInput(normalizeFclInput(input,data)),available=candidates(i,data),lines=[],pending=[],sources={};
  const usd=(value,currency,label)=>{if(value===null||value===''||!Number.isFinite(value)||value<0){pending.push(label+'：金额待确认');return null;}if(currency==='USD')return value;if(currency==='CNY')return value/i.fx;if(currency==='EUR'&&Number.isFinite(i.eurFx)&&i.eurFx>0)return value*i.eurFx;pending.push(label+'：币种或EUR汇率待确认');return null;};
  function segment(key,label){
   const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
