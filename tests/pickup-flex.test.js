@@ -1,0 +1,12 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {blankRate,domesticCost} from '../src/domestic-model.js';
+import {matchCosts} from '../src/cost-matching.js';import {defaults} from '../src/cost-model.js';
+const q=()=>({...blankRate(),kind:'pickup',status:'confirmed',currency:'USD',rule:'tier',tierMode:'ceil',minimum:0,deliveryIncluded:true,sharedPickup:true,tiers:[{minVolume:1,maxVolume:5,minWeight:0,maxWeight:2500,amount:80,unit:'fixed'},{minVolume:6,maxVolume:10,minWeight:2500,maxWeight:5000,amount:100,unit:'fixed'},{minVolume:10,maxVolume:15,minWeight:5000,maxWeight:7500,amount:150,unit:'fixed'}]});
+test('upper-limit bands handle light bulky, dense and fractional cargo without gaps',()=>{for(const [v,w,price] of [[10,2000,100],[8,2500,100],[8,5000,100],[5,2500,80],[5.5,1000,100],[0.5,100,80],[10,5000,100],[10.1,5000,150]]){const r=domesticCost(q(),v,w,7);assert.equal(r.original,price);assert.equal(r.complete,true);}assert.equal(domesticCost(q(),16,500,7).complete,false);assert.equal(domesticCost({...q(),tierMode:'strict'},10,2000,7).complete,false);});
+test('crossing caps do not silently select an arbitrary band',()=>{const r=q();r.tiers[1].maxWeight=1000;assert.equal(domesticCost(r,8,100,7).complete,false);});
+const input={origin:'上海',destination:'汉堡',pieces:5,weight:2000,volume:10,date:'2026-10-22'};
+const plan={id:'rail',origin:'西安',destination:'汉堡',status:'confirmed',inputs:defaults()};
+const shared={id:'shared',kind:'pickup',origin:'通用',destination:'本地仓',status:'confirmed',quote:q()};
+const line={id:'line',kind:'linehaul',origin:'上海',destination:'西安',status:'confirmed',quote:{...blankRate(),rule:'fixed',fixed:700,minimum:0,deliveryIncluded:true}};
+test('inapplicable specific price falls back to suitable shared template',()=>{const specific={...shared,id:'specific',origin:'上海',destination:'上海',quote:{...q(),sharedPickup:false,tierMode:'strict'}};const m=matchCosts(input,[specific,shared,line],[plan])[0];assert.equal(m.inputs.pickupQuote.quoteId,'shared');assert(m.inputs.pickupChoices.some(p=>p.id==='specific'));});
+test('manual pickup is snapshot-only and requires reason, currency and amount',()=>{const args={...input,pickupOverride:{amount:120,currency:'USD',reason:'车队本票确认'}};const m=matchCosts(args,[shared,line],[plan])[0];assert.equal(m.inputs.pickupQuote.fixed,120);assert.equal(shared.quote.tiers[0].amount,80);assert.throws(()=>matchCosts({...args,pickupOverride:{amount:120,currency:'USD',reason:''}},[shared,line],[plan]));});
