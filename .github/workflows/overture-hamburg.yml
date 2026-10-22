@@ -44,7 +44,7 @@ jobs:
       - name: Checkout pinned development extractor (not main app)
         uses: actions/checkout@v4
         with:
-          ref: 564879ecd37c41b60afd0fd598f5ae0176ddd48d
+          ref: e36bfe0263ef3202cbac2eef9ca0d687245e8086
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
