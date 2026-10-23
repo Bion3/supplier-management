@@ -1,7 +1,7 @@
 import {mkdir, rm, cp, readFile, writeFile} from 'node:fs/promises';
 await rm('dist', {recursive:true,force:true});
 await mkdir('dist',{recursive:true});
-const htmlFiles=['index.html','crm.html','discovery.html','lead-map.html','knowledge.html','mail.html','inbox.html','cost.html','rates.html','rail-rates.html','fcl-rail.html','container-rental.html','trucking.html','hub.html','pickup-rates.html','pricing.html'];
+const htmlFiles=['index.html','crm.html','discovery.html','lead-map.html','knowledge.html','mail.html','inbox.html','cost.html','rates.html','rail-rates.html','fcl-rail.html','container-rental.html','trucking.html','hub.html','pickup-rates.html','pricing.html','sales-prices.html'];
 const authBoot='<script data-auth-boot src="/src/auth-boot.js"></script>';
 for(const file of htmlFiles){
  const source=await readFile(file,'utf8');
