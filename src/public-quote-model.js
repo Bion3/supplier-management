@@ -22,7 +22,7 @@ export function websiteQuoteDraft(selected, snapshotId = null) {
     ratio: input.transport === 'lcl' ? (input.railUnitCost?.ratio || input.railRatio || 500) : null,
     valid_from: input.date || null,
     valid_until: input.webValidUntil || null,
-    status: 'active',
+    status: 'draft',
     public_note: 'Indicative rail price. Final quotation is subject to cargo, schedule, customs and delivery confirmation.',
     pricing_meta: {
       profitMode: input.profitMode,
