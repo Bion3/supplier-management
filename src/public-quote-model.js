@@ -8,11 +8,11 @@ export function websiteQuoteDraft(selected, snapshotId = null) {
   if (!Number.isFinite(input.webMinimum) || input.webMinimum < 0) throw Error('官网最低收费须为非负数');
   const unitPrice = selected.result.price / quantity;
   return {
-    origin: input.origin,
+    origin: input.scope === 'station' || (input.transport === 'fcl' && !input.truck) ? input.station : (input.origin || input.station),
     station: input.station || null,
     destination: input.destination,
     transport: input.transport,
-    service_scope: input.scope || 'door',
+    service_scope: input.transport === 'fcl' ? (input.truck ? 'door_to_station' : 'port_to_port') : (input.scope === 'station' ? 'port_to_port' : 'door_to_station'),
     container: input.transport === 'fcl' ? input.box : null,
     currency: 'USD',
     unit: input.transport === 'lcl' ? 'billable_cbm' : 'container',
@@ -28,6 +28,8 @@ export function websiteQuoteDraft(selected, snapshotId = null) {
       profitMode: input.profitMode,
       profit: input.profit,
       cost: selected.result.cost,
+      quantity,
+      sourceScope: input.scope || 'door',
       targetPrice: selected.result.price,
       rangePercent: range,
     },
