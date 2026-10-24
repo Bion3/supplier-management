@@ -51,6 +51,8 @@ export function estimateFcl(input,data,choices={}){
   const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
   sources[key]=structuredClone(r);const q=r.quote;if(!r.supplier_id)pending.push(label+'：供应商待确认');
   if(r.status!=='confirmed')pending.push(label+'：待确认参考报价');
+  if(!q.validFrom||!q.validUntil)pending.push(label+'：缺少采购价有效期，不能确认销售价');
+  if(q.price===0)pending.push(label+'：采购金额为零，需人工确认');
   if(key==='rail'&&box(q.container)!==box(i.box))pending.push(label+'：原价仅注明40尺，需确认适用40HQ');
   if(key==='truck'&&q.priceBasis!=='采购价')pending.push(label+'：采购价口径待确认');
   const unitOK=key==='truck'?q.unit==='柜'||box(q.unit)===box(i.box):q.unit==='柜'||box(q.unit)===box(i.box);
