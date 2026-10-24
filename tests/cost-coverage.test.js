@@ -13,15 +13,15 @@ test('confirmed but undated FCL procurement must not be considered quote-ready',
  const r=estimateFcl(input,{fcl:[source(false)]});
  assert.equal(r.result.cost,16800);
  assert.equal(r.result.complete,false);
- assert.match(r.result.pending.join(';'),'有效期');
+ assert.match(r.result.pending.join(';'),/有效期/);
 });
 test('zero-amount procurement must not generate a publishable complete price',()=>{
  const r=estimateFcl(input,{fcl:[source(true,0)]});
  assert.equal(r.result.complete,false);
- assert.match(r.result.pending.join(';'),'零');
+ assert.match(r.result.pending.join(';'),/零/);
 });
 test('missing required trucking cost must remain incomplete',()=>{
  const r=estimateFcl({...input,truck:true},{fcl:[source()],trucks:[]});
  assert.equal(r.result.complete,false);
- assert.match(r.result.pending.join(';'),'国内拖车');
+ assert.match(r.result.pending.join(';'),/国内拖车/);
 });
