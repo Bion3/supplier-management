@@ -39,3 +39,15 @@ test('explicit validFrom takes priority over source month',()=>{
  const oct=estimateFcl(input,{fcl:[r]});
  assert.equal(oct.result.complete,true);
 });
+
+test('live Zhengzhou to Hamburg 20GP COC rail surcharge is not silently excluded',()=>{
+ const quoted={...source(false,6550),origin:'郑州',quote:{...source(false,6550).quote,container:'20尺',equipment:'COC',validUntil:'2026-11-30',source:{quotationPeriod:'2026年11月'},notes:'COC提还箱平衡费：根据提还箱地单询。'}};
+ const nov={...input,station:'郑州',box:'20GP',date:'2026-11-10',termsReviewed:true,quantity:1};
+ const result=estimateFcl(nov,{fcl:[quoted]});
+ assert.equal(result.result.cost,6550);
+ assert.equal(result.result.complete,false);
+ assert.match(result.result.pending.join(';'),/平衡费/);
+ const completed=estimateFcl({...nov,extraFees:[{name:'COC提还箱平衡费',amount:200,currency:'USD',unit:'柜'}]},{fcl:[quoted]});
+ assert.equal(completed.result.cost,6750);
+ assert.equal(completed.result.complete,true);
+});
