@@ -1,3 +1,4 @@
+import {draftableStationRail,needsBalanceFee,prepareStationRailQuote,stationRailSalesDraft} from './sales-quote-generator.js';
 import {cloudRequest,currentUser,syncAuthShell} from './cloud.js';
 const $=id=>document.getElementById(id), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let rows=[],filtered=[],page=1,busy=false;const pageSize=30,selected=new Set();
@@ -44,4 +45,55 @@ $('refresh').onclick=()=>guarded(load);
 $('publish').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请选择要发布的草稿。');await publish(picked());});
 $('archive').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请选择要下架的报价。');await archive(picked());});
 $('reprice').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请选择要更新的草稿。');await reprice(picked());});
+
+let procurementRows=[],sourceCandidates=[];
+const currencyMoney=r=>String(r.quote.currency||'USD')+' '+Number(r.quote.price).toLocaleString();
+function autoExisting(r){return rows.some(q=>['draft','active'].includes(q.status)&&q.pricing_meta?.sourceRailId===r.id);}
+function sourceRender(){
+ const body=$('source-rows');body.innerHTML=sourceCandidates.map(r=>'<tr><td>'+esc(r.origin)+' → '+esc(r.destination)+'<details><summary>原始条款与费用说明</summary><p style="white-space:pre-wrap;max-width:420px">'+esc(r.quote.notes||'无特别说明')+'</p></details></td><td>'+esc(currencyMoney(r))+' / 柜</td><td>'+ (needsBalanceFee(r)?'<input data-fee="'+esc(r.id)+'" type="number" min="0" step="any" placeholder="核实后填写" style="width:125px">':'<span>无单询标记</span>')+'</td><td><input data-other="'+esc(r.id)+'" type="number" min="0" step="any" value="0" style="width:125px"></td><td><label><input data-review="'+esc(r.id)+'" type="checkbox"> 逐条已核实全部附加费</label></td><td><button class="secondary" data-create="'+esc(r.id)+'" '+(autoExisting(r)?'disabled':'')+'>'+(autoExisting(r)?'已有待审核价格':'生成草稿')+'</button></td></tr>').join('');
+ $('source-summary').textContent='可处理 '+sourceCandidates.length+' 条明确箱型的采购记录，其他箱型与未确认采购价不自动生成。';
+}
+async function sourceLoad(){
+ if(!currentUser())throw Error('请先登录');
+ const month=$('source-month').value;
+ if(!/^\\d{4}-\\d{2}$/.test(month))throw Error('请选择运价月份');
+ const shipmentDate=month+'-01';
+ if(!procurementRows.length){
+  for(let offset=0;;offset+=500){
+   const chunk=await cloudRequest('freight_fcl_rail_rates?select=*&order=created_at.desc,id.asc&limit=500&offset='+offset);
+   procurementRows.push(...chunk);if(chunk.length<500)break;
+  }
+ }
+ sourceCandidates=draftableStationRail(procurementRows,shipmentDate);
+ sourceRender();
+}
+$('source-load').onclick=()=>guarded(sourceLoad);
+$('source-rows').addEventListener('click',event=>{
+ const btn=event.target.closest('[data-create]');if(!btn)return;
+ guarded(async()=>{
+  const row=sourceCandidates.find(x=>x.id===btn.dataset.create);
+  if(!row)throw Error('采购版本已变化，请刷新采购价');
+  if(autoExisting(row))throw Error('这条采购价格已生成过销售草稿，避免重复生成');
+  const balanceInput=$('source-rows').querySelector('[data-fee="'+row.id+'"]');
+  const otherInput=$('source-rows').querySelector('[data-other="'+row.id+'"]');
+  const termsInput=$('source-rows').querySelector('[data-review="'+row.id+'"]');
+  const date=$('source-month').value+'-01',fx=Number($('source-fx').value);
+  if(!Number.isFinite(fx)||fx<=0)throw Error('请检查人民币兑美元汇率');
+  const selectedRate=prepareStationRailQuote(row,{
+   date,fx,reviewed:termsInput?.checked,
+   profitMode:$('profit-mode').value,profit:Number($('profit').value),
+   balanceFee:balanceInput?.value??null,otherFee:otherInput?.value??0,
+   range:5,minimum:0
+  });
+  // Write an immutable cost snapshot before creating a sales quote.
+  const saved=await cloudRequest('freight_cost_snapshots',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({route:selectedRate.inputs.route,inputs:selectedRate.inputs,result:selectedRate.result})});
+  if(saved.length!==1)throw Error('成本快照保存失败');
+  const draft=stationRailSalesDraft(selectedRate,saved[0].id);
+  const inserted=await cloudRequest('freight_public_quotes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(draft)});
+  if(inserted.length!==1)throw Error('销售草稿创建失败');
+  rows.unshift(inserted[0]);notify(row.origin+' → '+row.destination+' 已生成待审核销售草稿，尚未发布到官网。');
+  sourceRender();
+ });
+});
+
 if(syncAuthShell()&&currentUser()){$('workspace').hidden=false;load().catch(e=>notify(e.message));}else{$('login-panel').hidden=false;}
