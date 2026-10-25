@@ -11,8 +11,8 @@ export function draftableStationRail(rows, date='2026-11-10') {
   Number.isFinite(r.quote?.price)&&r.quote.price>0&&
   r.quote.validUntil&&r.quote.validUntil>=date&&
   (!r.quote.validFrom||r.quote.validFrom<=date)&&
-  (!r.quote.source?.quotationPeriod||!/^\\d{4}年\\d{1,2}月$/.test(r.quote.source.quotationPeriod)||
-   date.slice(0,7)===r.quote.source.quotationPeriod.replace(/^(\\d{4})年(\\d{1,2})月$/,(all,y,m)=>y+'-'+m.padStart(2,'0'))));
+  (!r.quote.source?.quotationPeriod||!/^\d{4}年\d{1,2}月$/.test(r.quote.source.quotationPeriod)||
+   date.slice(0,7)===r.quote.source.quotationPeriod.replace(/^(\d{4})年(\d{1,2})月$/,(all,y,m)=>y+'-'+m.padStart(2,'0'))));
 }
 export function needsBalanceFee(row){
  return row.quote?.equipment==='COC'&&/平衡费.{0,80}(单询|另询|待询)/s.test(row.quote?.notes||'');
