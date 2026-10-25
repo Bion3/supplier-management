@@ -56,7 +56,7 @@ function sourceRender(){
 async function sourceLoad(){
  if(!currentUser())throw Error('请先登录');
  const month=$('source-month').value;
- if(!/^\\d{4}-\\d{2}$/.test(month))throw Error('请选择运价月份');
+ if(!/^\d{4}-\d{2}$/.test(month))throw Error('请选择运价月份');
  const shipmentDate=month+'-01';
  if(!procurementRows.length){
   for(let offset=0;;offset+=500){
