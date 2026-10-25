@@ -56,6 +56,7 @@ export function estimateFcl(input,data,choices={}){
   if(q.price===0)pending.push(label+'：采购金额为零，需人工确认');
   if(key==='rail'&&box(q.container)!==box(i.box))pending.push(label+'：原价仅注明40尺，需确认适用40HQ');
   if(key==='truck'&&q.priceBasis!=='采购价')pending.push(label+'：采购价口径待确认');
+  if(key==='rail'&&q.equipment==='COC'&&/平衡费[\\s\\S]{0,32}(单询|另询|待询)/.test(q.notes||'')&&!([...(q.fees||[]),...(i.extraFees||[])].some(f=>/平衡费/.test(f.name||'')&&Number.isFinite(f.amount)&&f.amount>=0)))pending.push(label+'：COC提还箱平衡费单询，未录入金额');
   const unitOK=key==='truck'?q.unit==='柜'||box(q.unit)===box(i.box):q.unit==='柜'||box(q.unit)===box(i.box);
   if(!unitOK){pending.push(label+'：计价单位未确认或不支持，未计金额');return;}
   const value=usd(q.price,q.currency,label);if(value!==null)lines.push({name:label,value:value*i.quantity,basis:`${q.currency} ${q.price} / ${q.unit} × ${i.quantity}柜`,quoteId:r.id,supplier_id:r.supplier_id});
