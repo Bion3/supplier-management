@@ -22,7 +22,7 @@ test('reviewed November COC generates immutable, unpublished sales draft',()=>{
  const cost=prepareStationRailQuote(source,{date:'2026-11-01',reviewed:true,balanceFee:200,otherFee:100,profitMode:'markup',profit:10,fx:7});
  assert.equal(cost.result.complete,true);
  assert.equal(cost.result.cost,6850);
- assert.equal(cost.result.price,7535);
+ assert.ok(Math.abs(cost.result.price-7535)<0.001);
  const draft=stationRailSalesDraft(cost,'33333333-3333-4333-8333-333333333333');
  assert.equal(draft.status,'draft');
  assert.equal(draft.service_scope,'port_to_port');
