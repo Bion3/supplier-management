@@ -25,3 +25,17 @@ test('missing required trucking cost must remain incomplete',()=>{
  assert.equal(r.result.complete,false);
  assert.match(r.result.pending.join(';'),/国内拖车/);
 });
+test('November rate file cannot price October shipments',()=>{
+ const r=source(false);r.quote.validUntil='2026-11-30';r.quote.source={quotationPeriod:'2026年11月'};
+ const oct=estimateFcl(input,{fcl:[r]});
+ assert.equal(oct.result.complete,false);
+ assert.match(oct.result.pending.join(';'),/未匹配/);
+ const nov=estimateFcl({...input,date:'2026-11-10'}, {fcl:[r]});
+ assert.equal(nov.result.complete,true);
+ assert.equal(nov.result.cost,16800);
+});
+test('explicit validFrom takes priority over source month',()=>{
+ const r=source(true);r.quote.source={quotationPeriod:'2026年11月'};
+ const oct=estimateFcl(input,{fcl:[r]});
+ assert.equal(oct.result.complete,true);
+});
