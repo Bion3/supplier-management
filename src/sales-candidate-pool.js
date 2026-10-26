@@ -10,10 +10,11 @@ function render(){
   const q=row.source_quote||{},type=types[row.source_kind]||['其他','/pricing.html'];
   const currency=row.purchase_currency||q.currency||'';
   const cost=row.purchase_amount===null?'待核算':currency+' '+Number(row.purchase_amount).toLocaleString('en-US',{maximumFractionDigits:2});
+  const indicative=row.purchase_amount!==null&&currency==='USD'&&Number(row.purchase_amount)>0?'USD '+(Number(row.purchase_amount)*1.15).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}):'待核算';
   const unit=q.container||q.box||'';const date=(row.valid_from||'未填写')+' — '+(row.valid_until||'未填写');
   const status=row.source_status==='confirmed'?'已确认':'待核实';
-  return '<tr><td>'+clean(type[0])+'</td><td>'+clean(row.origin)+' → '+clean(row.destination)+'</td><td>'+clean(cost)+'</td><td>'+clean([unit,q.equipment,q.unit].filter(Boolean).join(' / '))+'</td><td>'+clean(status)+'</td><td>'+clean(date)+'</td><td><a href="'+type[1]+'">查看采购来源 →</a></td></tr>';
- }).join('')||'<tr><td colspan="7">暂无匹配数据，请调整筛选。</td></tr>';
+  return '<tr><td>'+clean(type[0])+'</td><td>'+clean(row.origin)+' → '+clean(row.destination)+'</td><td>'+clean(cost)+'</td><td>'+clean(indicative)+'</td><td>'+clean([unit,q.equipment,q.unit].filter(Boolean).join(' / '))+'</td><td>'+clean(status)+'</td><td>'+clean(date)+'</td><td><a href="'+type[1]+'">查看采购来源 →</a></td></tr>';
+ }).join('')||'<tr><td colspan="8">暂无匹配数据，请调整筛选。</td></tr>';
  $('pool-page').textContent=page+' / '+Math.max(1,Math.ceil(filtered.length/size));
  $('pool-prev').disabled=page<=1;$('pool-next').disabled=page*size>=filtered.length;
 }
