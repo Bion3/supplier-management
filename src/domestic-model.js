@@ -2,12 +2,19 @@ export const blankRate=()=>({kind:'linehaul',origin:'',destination:'',supplier_i
 const n=(x,label)=>{if(x===null||x===undefined||x==='')return null;if(!Number.isFinite(x)||x<0)throw Error(label+'须为非负数');return x;};
 export function domesticCost(q,volume,weight,fx,date=new Date().toISOString().slice(0,10)){
  const pending=[],warnings=[],basis=[];let freight=null;
- if(volume<=0||weight<=0||fx<=0)throw Error('货物及汇率必须大于0');
+ if(!Number.isFinite(volume)||!Number.isFinite(weight)||!Number.isFinite(fx)||volume<=0||weight<=0||fx<=0)throw Error('货物及汇率必须大于0');
  if(q.status!=='confirmed')pending.push('采购价未确认');
  if(q.validFrom&&q.validFrom>date)warnings.push('采购价尚未生效');
  if(q.validUntil&&q.validUntil<date)warnings.push('采购价已过期');
  const cbm=n(q.cbm,'方价'),ton=n(q.ton,'吨价');
- switch(q.rule){
+ // Linehaul selects the tariff by density, never by comparing charge amounts.
+ if(q.kind==='linehaul'&&['cbm','ton','max','billable'].includes(q.rule)){
+  if(!Number.isFinite(q.ratio)||q.ratio<=0)throw Error('重抛比必须大于0');
+  const heavy=weight>=volume*q.ratio,rate=heavy?ton:cbm,quantity=heavy?weight/1000:volume;
+  freight=rate===null?null:quantity*rate;
+  basis.push(`重抛比1:${q.ratio}；${heavy?'重货':'轻货'}；${quantity}${heavy?'吨':'CBM'} × ${rate??'待定'}${heavy?'/吨':'/CBM'}`);
+  if(rate===null)pending.push(heavy?'重货吨价缺失':'轻货方价缺失');
+ }else switch(q.rule){
  case 'cbm':freight=cbm===null?null:volume*cbm;basis.push(`${volume}CBM × ${cbm??'待定'}`);break;
  case 'ton':freight=ton===null?null:weight/1000*ton;basis.push(`${weight/1000}吨 × ${ton??'待定'}`);break;
  case 'max':freight=cbm===null||ton===null?null:Math.max(volume*cbm,weight/1000*ton);basis.push('吨价金额与方价金额取大');break;
@@ -28,5 +35,6 @@ export function validateRate(q){
  if(!['pickup','linehaul'].includes(q.kind))throw Error('无效运输段');
  if(q.validFrom&&q.validUntil&&q.validFrom>q.validUntil)throw Error('有效期起止顺序错误');
  if(q.rule==='tier'){if(!Array.isArray(q.tiers)||!q.tiers.length)throw Error('请添加阶梯');for(const t of q.tiers){for(const k of ['minVolume','maxVolume','minWeight','maxWeight','amount'])if(n(t[k],k)===null)throw Error('阶梯字段缺失');if(t.minVolume>t.maxVolume||t.minWeight>t.maxWeight||!['fixed','cbm','billable'].includes(t.unit))throw Error('阶梯范围或单位错误');}}
- const r=domesticCost(q,1,300,7);if(q.status==='confirmed'){if(!q.supplier_id&&!q.sharedPickup)throw Error('确认采购价前请关联供应商');const blocked=r.pending.filter(x=>!['货物不在阶梯范围','运费缺价','采购价尚未生效','采购价已过期'].includes(x));if(blocked.length)throw Error(blocked.join('、'));if(q.rule!=='tier'&&r.pending.includes('运费缺价'))throw Error('运费缺价');}return q;
+ const densityRule=q.kind==='linehaul'&&['cbm','ton','max','billable'].includes(q.rule);
+ const r=domesticCost(q,1,densityRule?(n(q.cbm,'方价')!==null?q.ratio/2:q.ratio):300,7);if(q.status==='confirmed'){if(!q.supplier_id&&!q.sharedPickup)throw Error('确认采购价前请关联供应商');const blocked=r.pending.filter(x=>!['货物不在阶梯范围','运费缺价','采购价尚未生效','采购价已过期'].includes(x));if(blocked.length)throw Error(blocked.join('、'));if(q.rule!=='tier'&&r.pending.includes('运费缺价'))throw Error('运费缺价');}return q;
 }
