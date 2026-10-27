@@ -10,6 +10,22 @@ export const equipmentChoices=value=>[
  ...EQUIPMENT_OPTIONS.map(v=>[v,v]),
  ...(value&&!EQUIPMENT_OPTIONS.includes(value)?[[value,value+'（历史值）']]:[])
 ];
+export function validateBatchPriceTargets(rows,newPrice){
+ if(newPrice===null)return;
+ if(!Number.isFinite(newPrice)||newPrice<=0)throw Error('采购单价必须大于0。');
+ const currencies=new Set(rows.map(r=>r.quote.currency));
+ if(currencies.size!==1||![...currencies][0])throw Error('所选记录币种不同或未确认，不能统一设置单价；请先按币种筛选。');
+ const units=new Set(rows.map(r=>r.quote.unit));
+ if(units.size!==1||![...units][0])throw Error('所选记录计价单位不同或未确认，不能统一设置单价；请先按计价单位筛选。');
+}
+export function buildBatchVersions(rows,changes,version){
+ return rows.map(r=>{
+  const quote=structuredClone(r.quote);
+  for(const k of ['container','equipment','validFrom','validUntil'])if(changes[k])quote[k]=changes[k];
+  if(changes.price!==null)quote.price=changes.price;
+  return version(r,{quote,supplier_id:changes.supplier||r.supplier_id,status:'draft'});
+ });
+}
 export function installBatchPricing({getFiltered,getSelected,getRows,getLatest,version,save,reload,render,suppliers,withEquipment=false,header}) {
  const existing=document.querySelector('#workspace .fcl-toolbar');
  const target=existing?.parentElement||document.querySelector('#workspace .panel');
@@ -56,15 +72,12 @@ export function installBatchPricing({getFiltered,getSelected,getRows,getLatest,v
     const current=getLatest(getRows()).filter(r=>ids.includes(r.id));
     if(current.length!==ids.length)throw Error('有价格已经更新，请重新选择后操作。');
     if(current.length>500)throw Error('每次最多修改500条。');
-    if(newPrice!==null&&new Set(current.map(r=>r.quote.currency)).size>1)throw Error('所选记录包含不同币种，不能统一设置单价；请先按币种筛选。');
-    const payload=current.map(r=>{
-     const quote=structuredClone(r.quote);
-     for(const k of ['container','equipment','validFrom','validUntil'])if(v[k])quote[k]=v[k];
-     if(newPrice!==null)quote.price=newPrice;
-     return version(r,{quote,supplier_id:v.supplier||r.supplier_id,status:'draft'});
-    });
+    validateBatchPriceTargets(current,newPrice);
+    const payload=buildBatchVersions(current,{...v,price:newPrice},version);
     if(!window.confirm('确认批量保存 '+payload.length+' 条修改吗？修改后为待确认，需核对并批量启用。'))return;
-    for(let i=0;i<payload.length;i+=50)await save(payload.slice(i,i+50));
+    let savedCount=0;
+    try{for(let i=0;i<payload.length;i+=50){const chunk=payload.slice(i,i+50);await save(chunk);savedCount+=chunk.length;}}
+    catch(err){throw Error('已保存 '+savedCount+' 条，其余未完成：'+err.message);}
     selection.clear();await reload();dialog.close();
     const notice=document.getElementById('notice');if(notice)notice.textContent='批量修改 '+payload.length+' 条成功；新版本待确认，历史价保留。';
    }catch(err){form.querySelector('[data-error]').textContent=err.message;}
