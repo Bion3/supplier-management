@@ -80,6 +80,20 @@ export function estimateLcl(i,data){
  for(const m of options){const s=m.inputs;s.fx=i.fx;s.profitMode=i.profitMode;s.profit=i.profit;s.transport='lcl';s.scope=i.scope;s.date=i.date;s.station=i.station;s.eurFx=i.eurFx;
   if(i.scope==='station')for(const key of ['pickupQuote','linehaulQuote'])s[key]={status:'confirmed',rule:'fixed',fixed:0,minimum:0,deliveryIncluded:true,currency:'USD',source:'本次仅核算站到站，不含国内运输'};
   m.result=calculate(s);
+  const dates=[];
+  for(const [name,q] of [['国内提货',s.pickupQuote],['国内干线',s.linehaulQuote]]){
+   if(!q?.quoteId)continue;
+   const from=q.validFrom||'',until=q.validUntil||'';
+   const status=from&&i.date<from?'尚未生效':until&&i.date>until?'已过期':!from||!until?'日期未完整':'有效期内';
+   dates.push({name,from,until,status,needsReview:status!=='有效期内'});
+  }
+  const p=(data.plans||[]).find(row=>row.id===s.railPlanId);
+  if(p){
+   const from=p.valid_from||p.inputs?.validFrom||'',until=p.valid_until||p.inputs?.validUntil||'';
+   const status=from&&i.date<from?'尚未生效':until&&i.date>until?'已过期':!from||!until?'日期未完整':'有效期内';
+   dates.push({name:'拼箱铁路运费',from,until,status,needsReview:status!=='有效期内'});
+  }
+  m.result.validity=dates;
  }
  return options;
 }
