@@ -10,6 +10,7 @@ export const SALE_FIELDS={
 export function saleFields(kind,row){
  if(kind!=='domestic')return SALE_FIELDS[kind];
  const q=row?.quote||{};
+ if(q.sharedPickup)return (q.tiers||[]).map((t,i)=>['tier_'+i, (t.minVolume??0)+'–'+(t.maxVolume??0)+'方 / '+(t.minWeight??0)+'–'+(t.maxWeight??0)+'kg']);
  if(q.rule==='fixed')return [['fixed','卖价/票']];
  if(q.rule==='tier')return [['fixed','阶梯卖价参考/票']];
  return [['cbm','方卖价'],['ton','吨卖价']];
@@ -19,7 +20,7 @@ export function validSellingFields(kind,fields,currency){
  const allowed=new Set(SALE_FIELDS[kind].map(x=>x[0]));
  if(!allowed.size)throw Error('未知价格类别');
  for(const [k,v] of Object.entries(fields)){
-  if(!allowed.has(k))throw Error('非法卖价字段');
+  if(!allowed.has(k)&&!(kind==='domestic'&&/^tier_\d+$/.test(k)))throw Error('非法卖价字段');
   if(v!==null&&(!Number.isFinite(v)||v<=0))throw Error('卖价必须大于零；清空表示未设置');
  }
  return true;
@@ -30,7 +31,8 @@ const config={
  '/trucking.html':['trucking','#trucking-rows'],
  '/container-rental.html':['rental','#rental-rows'],
  '/rates.html':['domestic','#rows'],
- '/rail-rates.html':['lcl_plan','#history']
+ '/rail-rates.html':['lcl_plan','#history'],
+ '/pickup-rates.html':['domestic','#rows']
 };
 export function mountPurchaseSellingPrices(){
  const [kind,selector]=config[location.pathname]||[];
@@ -40,7 +42,7 @@ export function mountPurchaseSellingPrices(){
  let saved=new Map(),selection=new Set(),busy=false,sourceRows=new Map(),pending=new Set();
  let currencyFor=()=>null;
  const head=table.querySelector('thead tr');
- const th=document.createElement('th');th.textContent='卖价（内部）';th.className='sale-col';head.insertBefore(th,head.lastElementChild);
+ if(!head.querySelector('th.sale-col')){const th=document.createElement('th');th.textContent='卖价（内部）';th.className='sale-col';head.insertBefore(th,head.lastElementChild);}
  const actions=document.createElement('div');actions.className='toolbar sale-toolbar';
  actions.innerHTML='<button type="button" class="secondary" data-sel-visible>选中本页</button><button type="button" class="secondary" data-clear>清除选择</button><span data-count>卖价已选0条</span><button type="button" data-bulk>批量修改卖价</button><span data-message role="status"></span>';
  table.closest('.panel').insertBefore(actions,table.closest('.table-wrap'));
@@ -59,7 +61,7 @@ export function mountPurchaseSellingPrices(){
  function updateCount(){actions.querySelector('[data-count]').textContent='卖价已选 '+selection.size+' 条';}
  function renderCells(){
   for(const tr of body.querySelectorAll(':scope > tr')){
-   const id=tr.querySelector('input[data-select],input[data-rail-select]')?.dataset.select||tr.querySelector('input[data-rail-select]')?.dataset.railSelect;
+   const id=tr.dataset.saleRow||tr.querySelector('input[data-select]')?.dataset.select||tr.querySelector('input[data-rail-select]')?.dataset.railSelect;
    if(!id||tr.querySelector('td.sale-col'))continue;
    const row=sourceRows.get(id),value=saved.get(id);
    const td=document.createElement('td');td.className='sale-col';
@@ -105,9 +107,9 @@ export function mountPurchaseSellingPrices(){
   const ids=[...selection].filter(id=>sourceRows.has(id));
   if(!ids.length)return message('未找到选中采购版本，请刷新');
   if(ids.length>500)return message('单次最多修改500条');
-  const field=kind==='domestic'?window.prompt('选择修改字段：cbm（方卖价）/ ton（吨卖价）/ fixed（固定卖价）','cbm'):kind==='lcl_plan'?'unit':'price';
+  const field=kind==='domestic'?window.prompt('选择修改字段：cbm（方卖价）/ ton（吨卖价）/ fixed（固定卖价）；提货模板请输入 tier_0、tier_1 等档位','cbm'):kind==='lcl_plan'?'unit':'price';
   if(field===null)return;
-  if(!SALE_FIELDS[kind].some(([key])=>key===field))return message('字段不正确');
+  if(!SALE_FIELDS[kind].some(([key])=>key===field)&&!(kind==='domestic'&&/^tier_\d+$/.test(field)))return message('字段不正确');
   const raw=window.prompt('输入统一卖价（按原币种与计价单位；不能用空值批量覆盖）');
   if(raw===null)return;
   const amount=Number(raw);
