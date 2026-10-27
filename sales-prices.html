@@ -45,7 +45,7 @@
 </section>
 <section class="panel">
 <details class="advanced" id="published-management">
-<summary>销售草稿与发布管理 <span id="summary" class="subtle"></span></summary>
+<summary>第三步：集中审核与发布 <span id="summary" class="subtle"></span></summary>
 <div class="toolbar">
 <label>月份<input type="month" id="month"></label>
 <label>方式<select id="transport"><option value="">全部</option><option value="fcl">整箱</option><option value="lcl">拼箱</option></select></label>
@@ -66,12 +66,12 @@
 </section>
 <section class="panel">
 <details class="advanced" id="rail-generator">
-<summary>从采购价生成销售草稿（20GP COC）</summary>
-<p class="subtle">核实原始报价和另计费用后再生成；生成后仍须审核发布。</p>
+<summary>第二步：批量生成销售价格草稿（20GP / 40HQ / 45HQ）</summary>
+<p class="subtle">第一步筛选确认的采购价格，逐条核对条款和费用，再批量生成销售草稿。历史运价可测算，但超过采购有效期的草稿需另外复核，不可直接发布。</p>
 <div class="toolbar"><label>报价月份<input type="month" id="source-month" value="2026-11"></label><label>人民币/美元汇率<input type="number" id="source-fx" min="0.001" step="any" value="7"></label><button id="source-load" class="secondary" type="button">读取适用运价</button></div>
-<p id="source-summary" class="subtle" role="status"></p>
-<div class="table-wrap"><table><thead><tr><th>线路</th><th>运价</th><th>平衡费 USD/柜</th><th>其他费用 USD/柜</th><th>条款确认</th><th>操作</th></tr></thead><tbody id="source-rows"></tbody></table></div>
-<p class="subtle">未经核实的费用不要填写为零；仅含所确认的铁路站到站服务范围。</p>
+<div class="toolbar"><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="source-all"> 全选当前列表</label><button id="source-batch" type="button">批量生成所选草稿</button><button id="source-to-review" type="button" class="secondary">查看待审核草稿</button></div><p id="source-summary" class="subtle" role="status"></p>
+<div class="table-wrap"><table><thead><tr><th>选择</th><th>线路 / 箱型 / 用箱</th><th>运价</th><th>平衡费 USD/柜</th><th>其他费用 USD/柜</th><th>条款确认</th><th>操作</th></tr></thead><tbody id="source-rows"></tbody></table></div>
+<p class="subtle">只有明确核实无需其他附加费时才填写0。已确认价格生成草稿不等于官网公开，仍须审核发布。</p>
 </details>
 </section>
 </div></main>
