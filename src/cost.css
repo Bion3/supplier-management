@@ -69,3 +69,30 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 .cost-compare-group td small{font-size:11px;color:#64748b}
 .cost-compare-group .compare-selected{background:#e6f6ef}
 .cost-compare-group button{white-space:nowrap;padding:6px 12px;font-size:12px}
+
+/* Simplified calculator layout */
+#workspace:has(#goods)>.panel{padding:16px 20px}
+#goods>.fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 14px}
+#goods>.fields label{font-size:12px;color:#465c68}
+#goods>.fields input,#goods>.fields select{min-height:38px;padding:7px 10px}
+#goods #pickup-place-wrap:not([hidden]){padding:8px 0;max-width:340px}
+#goods #pickup-place-wrap input{width:100%;margin-top:5px}
+#goods .cost-switches{margin:10px 0;gap:10px}
+#goods .cost-switches label{border:1px solid #dce8e6;border-radius:7px;padding:7px 11px;background:#f7faf9;font-size:12px}
+#goods>details{border-top:1px solid #e8edee;margin-top:9px;padding-top:3px}
+#goods>details>summary{font-size:13px;color:#486269}
+#goods .cost-main-actions{margin-top:10px;padding-top:12px}
+#goods .cost-main-actions #compute{padding:10px 22px}
+.cost-supplier-comparison{padding:12px 14px;margin:10px 0 14px}
+.cost-compare-group table{min-width:560px}
+.cost-compare-group th,.cost-compare-group td{padding:8px}
+.cost-compare-group h4{margin:9px 0 6px}
+.cost-compare-group .pending{font-size:11px}
+.cost-validity{padding:8px 12px;margin:8px 0}
+.cost-validity>summary{font-size:12px;color:#64748b}
+#result .website-price{padding:10px 13px;margin:10px 0}
+#result .website-price span{font-size:18px}
+#result .stats article{padding:10px 12px}
+#result .stats strong{margin-top:4px}
+@media(max-width:1050px){#goods>.fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){#goods>.fields{grid-template-columns:1fr}.cost-compare-title{display:block}}
