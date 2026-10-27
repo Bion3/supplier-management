@@ -33,8 +33,9 @@ function show(){
  const r=selected.result,s=selected.inputs;
  const sources=s.sources?Object.values(s.sources):[s.pickupQuote,s.linehaulQuote].filter(Boolean);
  const costDates=sources.map(x=>x.quote?.validUntil||x.quote?.valid_until||x.valid_until||x.validUntil).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x||''))).sort();
- if(!s.webValidUntil&&costDates.length)s.webValidUntil=costDates[0];
- if(s.webValidUntil&&costDates.length&&s.webValidUntil>costDates[0])s.webValidUntil=costDates[0];
+ const usableExpiry=costDates.find(x=>x>=s.date);
+ if(!s.webValidUntil&&usableExpiry)s.webValidUntil=usableExpiry;
+ if(s.webValidUntil&&usableExpiry&&s.webValidUntil>usableExpiry)s.webValidUntil=usableExpiry;
  const validityRows=(r.validity||[]).map(v=>`<tr><td>${esc(v.name)}</td><td>${esc(v.from||'未填写')} — ${esc(v.until||'未填写')}</td><td>${esc(v.status)}</td></tr>`).join('');
  const validityHtml=validityRows?`<div class="cost-validity"><strong>采购价有效期（仅供参考，不影响成本匹配）</strong><table><thead><tr><th>费用项目</th><th>采购价有效期</th><th>匹配日期状态</th></tr></thead><tbody>${validityRows}</tbody></table></div>`:'';
  const qty=s.transport==='lcl'?r.railQty:s.quantity,mid=qty>0?r.price/qty:null,range=s.webRange??5,low=mid===null?null:mid*(1-range/100),high=mid===null?null:mid*(1+range/100);selected.websitePrice={quantity:qty,unit:s.transport==='lcl'?'billable_cbm':'container',mid,low,high};
