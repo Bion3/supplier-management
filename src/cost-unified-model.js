@@ -15,7 +15,7 @@ export function loadingMatches(quoted,requested){const tokens=String(requested||
 function normalizeFclInput(input,data){
  const i={...input,box:input.box||'40HQ',equipment:input.equipment||'SOC',quantity:input.quantity===null||input.quantity===''||input.quantity===undefined?1:input.quantity};
  if(i.station?.trim())return i;
- const rail=usable(data.fcl||[],i).filter(r=>placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&(box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺'))&&r.quote.unit==='柜');
+ const rail=usable(data.fcl||[],i).filter(r=>placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&(box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺'))&&(r.quote.unit==='柜'||box(r.quote.unit)===box(i.box)));
  const trucks=usable(data.trucks||[],i);
  const stationWithTruck=rail.find(r=>trucks.some(t=>loadingMatches(t.quote.loadingPlace,i.origin)&&placeMatches(t.destination,r.origin)&&(!i.pickupPlace?.trim()||placeMatches(t.origin,i.pickupPlace))&&box(t.quote.container)===box(i.box)));
  i.station=(stationWithTruck||rail[0])?.origin||'';
@@ -24,7 +24,7 @@ function normalizeFclInput(input,data){
 export function candidates(i,data){
  const matchesBox=r=>box(r.quote.container)===box(i.box)||(box(i.box)==='40HQ'&&r.quote.container==='40尺');
  return {
-  rail:usable(data.fcl||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&matchesBox(r)&&r.quote.unit==='柜'),
+  rail:usable(data.fcl||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&r.quote.scope==='站到站'&&r.quote.equipment===i.equipment&&matchesBox(r)&&(r.quote.unit==='柜'||box(r.quote.unit)===box(i.box))),
   truck:i.truck?usable(data.trucks||[],i).filter(r=>(!i.pickupPlace?.trim()||placeMatches(r.origin,i.pickupPlace))&&loadingMatches(r.quote.loadingPlace,i.origin)&&placeMatches(r.destination,i.station)&&box(r.quote.container)===box(i.box)):[],
   rent:i.rent&&i.equipment==='SOC'?usable(data.rentals||[],i).filter(r=>placeMatches(r.origin,i.station)&&placeMatches(r.destination,i.destination)&&box(r.quote.container)===box(i.box)&&(!r.quote.service||r.quote.service==='整柜')):[]
  };
