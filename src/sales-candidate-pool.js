@@ -10,6 +10,13 @@ export const groupOf=category=>category.startsWith('lcl_')?'lcl':category.starts
 const categoryNames={lcl_linehaul:'拼箱 · 干线',lcl_rail:'拼箱 · 铁路运费',fcl_truck:'整柜 · 拖车费',fcl_rail:'整柜 · 铁路运费',fcl_rent:'整柜 · 租箱费',other:'其他待归类'};
 let rows=[],filtered=[],page=1,activeGroup='lcl',busy=false;const selected=new Set(),size=40;
 const key=r=>r.source_kind+'|'+r.source_id;
+export function salesPriceReadiness(row){
+ if(row.review_status==='reviewed')return 'reviewed';
+ if(row.source_kind==='domestic'||row.source_kind==='lcl_plan')return 'rule';
+ const n=row.purchase_price_override??row.purchase_amount;
+ return Number.isFinite(Number(n))&&Number(n)>0&&Boolean(row.purchase_currency)?'direct':'missing';
+}
+const readinessText={reviewed:'销售已核实',rule:'规则计费，按货量核算',direct:'可核实单价',missing:'缺少金额或币种'};
 const chosen=()=>rows.filter(r=>selected.has(key(r)));
 const pageRows=()=>filtered.slice((page-1)*size,page*size);
 const usd=x=>'USD '+Number(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -25,19 +32,19 @@ function render(){
   const q=row.source_quote||{},type=types[row.source_kind]||['其他','/pricing.html'],category=priceCategory(row);
   const currency=row.purchase_currency||q.currency||'';
   const cost=row.purchase_amount===null?'待核算':currency+' '+Number(row.purchase_amount).toLocaleString('en-US',{maximumFractionDigits:2});
-  const effectiveCost=row.purchase_price_override===null?cost:currency+' '+Number(row.purchase_price_override).toLocaleString('en-US',{maximumFractionDigits:2})+'（测算调整）';
+  const effectiveCost=row.source_kind==='domestic'||row.source_kind==='lcl_plan'?'规则/方案价格':row.purchase_price_override===null?cost:currency+' '+Number(row.purchase_price_override).toLocaleString('en-US',{maximumFractionDigits:2})+'（测算调整）';
   const basis=row.purchase_price_override??row.purchase_amount;
-  const indicative=row.selling_price_override!==null?usd(row.selling_price_override):basis!==null&&currency==='USD'&&Number(basis)>0?usd(Number(basis)*(1+Number(row.markup_percent??15)/100)):'待核算';
+  const indicative=salesPriceReadiness(row)==='rule'?'按货量核算':row.selling_price_override!==null?usd(row.selling_price_override):basis!==null&&currency==='USD'&&Number(basis)>0?usd(Number(basis)*(1+Number(row.markup_percent??15)/100)):'待核算';
   const unit=q.container||q.box||'';const date=(row.valid_from||'未填写')+' — '+(row.valid_until||'未填写');
   const status=row.source_status==='confirmed'?'已确认':'待核实';
-  return '<tr><td><input type="checkbox" data-pool-select="'+clean(key(row))+'" '+(selected.has(key(row))?'checked':'')+' aria-label="选择价格"></td><td>'+clean(categoryNames[category]||type[0])+'</td><td>'+clean(row.origin)+' → '+clean(row.destination)+'</td><td>'+clean(effectiveCost)+'</td><td>'+clean(indicative)+'</td><td>'+clean([unit,q.equipment,q.unit].filter(Boolean).join(' / '))+'</td><td>'+clean(status)+' / '+(row.review_status==='reviewed'?'销售已核实':'销售待核实')+'</td><td>'+clean(row.override_valid_until||row.valid_until||'未填写')+'</td><td><a href="'+type[1]+'">查看来源</a></td></tr>';
+  return '<tr><td><input type="checkbox" data-pool-select="'+clean(key(row))+'" '+(selected.has(key(row))?'checked':'')+' aria-label="选择价格"></td><td>'+clean(categoryNames[category]||type[0])+'</td><td>'+clean(row.origin)+' → '+clean(row.destination)+'</td><td>'+clean(effectiveCost)+'</td><td>'+clean(indicative)+'</td><td>'+clean([unit,q.equipment,q.unit].filter(Boolean).join(' / '))+'</td><td>'+clean(status)+' / '+clean(readinessText[salesPriceReadiness(row)])+'</td><td>'+clean(row.override_valid_until||row.valid_until||'未填写')+'</td><td><a href="'+type[1]+'">查看来源</a></td></tr>';
  }).join('')||'<tr><td colspan="9">暂无匹配数据，请调整筛选。</td></tr>';
  $('pool-page').textContent=page+' / '+Math.max(1,Math.ceil(filtered.length/size));
  $('pool-prev').disabled=page<=1;$('pool-next').disabled=page*size>=filtered.length;refreshSelected();
 }
 function filter(){
- const kind=$('pool-kind').value,state=$('pool-state').value,query=$('pool-search').value.trim().toLowerCase();
- filtered=rows.filter(row=>groupOf(priceCategory(row))===activeGroup&&(!kind||priceCategory(row)===kind)&&(!state||row.source_status===state)&&(!query||(row.origin+' '+row.destination).toLowerCase().includes(query)));
+ const kind=$('pool-kind').value,state=$('pool-state').value,ready=$('pool-readiness').value,query=$('pool-search').value.trim().toLowerCase();
+ filtered=rows.filter(row=>groupOf(priceCategory(row))===activeGroup&&(!kind||priceCategory(row)===kind)&&(!state||row.source_status===state)&&(!ready||salesPriceReadiness(row)===ready)&&(!query||(row.origin+' '+row.destination).toLowerCase().includes(query)));
  page=1;render();
 }
 async function load(){
@@ -58,7 +65,7 @@ for(const tab of document.querySelectorAll('[data-pool-group]'))tab.addEventList
  }
  $('pool-kind').value='';filter();
 });
-for(const id of ['pool-kind','pool-state'])$(id).addEventListener('change',filter);
+for(const id of ['pool-kind','pool-state','pool-readiness'])$(id).addEventListener('change',filter);
 $('pool-search').addEventListener('input',filter);
 $('pool-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('pool-next').onclick=()=>{page++;render();};
@@ -75,8 +82,10 @@ $('pool-all').addEventListener('change',e=>{
  render();
 });
 $('pool-select-filtered').onclick=()=>{
+ if(!filtered.length)return statusNotice('当前筛选没有可选择的价格。');
+ if(filtered.length>100&&!confirm('本次将选择 '+filtered.length+' 条价格。建议先按确认状态和处理状态缩小范围。仍要继续吗？'))return;
  for(const r of filtered)selected.add(key(r));render();
- statusNotice('已选中当前筛选的 '+filtered.length+' 条价格。');
+ statusNotice('已选中当前筛选的 '+filtered.length+' 条价格；未执行核实或发布。');
 };
 $('pool-clear').onclick=()=>{selected.clear();render();statusNotice('已清空选择');};
 $('pool-edit').onclick=()=>{$('pool-edit-panel').hidden=!$('pool-edit-panel').hidden;};
@@ -112,6 +121,7 @@ async function batchPatch(changes,label){
 $('pool-review').onclick=()=>{
  const target=chosen();if(!target.length)return statusNotice('请先选择需要核实的记录。');
  if(target.some(r=>r.source_status!=='confirmed'))return statusNotice('选中记录包含采购待核实项，请先确认原始采购价，再批量核实销售价。');
+ if(target.some(r=>salesPriceReadiness(r)==='rule'))return statusNotice('包含拼箱规则计费或方案记录，必须先按货物方数、吨数完成成本测算，不能作为固定单价直接核实。');
  if(target.some(r=>!(Number(r.purchase_price_override??r.purchase_amount)>0)||!r.purchase_currency))return statusNotice('选中记录包含未确定金额或币种的费用，不能批量核实。');
  if(!confirm('请确认已核对所选 '+target.length+' 条的采购金额、币种、适用线路及所有另计费用。标记已核实不会直接发布官网。'))return;
  batchPatch({review_status:'reviewed',reviewed_at:new Date().toISOString()},'销售价格批量核实');
@@ -120,7 +130,7 @@ $('pool-edit-apply').onclick=()=>{
  const mode=$('pool-edit-mode').value;
  if(mode==='expiry'){
   const value=$('pool-edit-date').value;
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(value))return statusNotice('请选择有效日期。');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return statusNotice('请选择有效日期。');
   if(chosen().some(r=>r.valid_from&&value<r.valid_from))return statusNotice('截止日期不能早于原报价开始日期。');
   return batchPatch({override_valid_until:value,review_status:'needs_review'},'销售有效期修改');
  }
