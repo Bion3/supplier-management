@@ -77,3 +77,24 @@ export function estimateLcl(i,data){
  }
  return options;
 }
+
+export function diagnoseFclMatches(input,data){
+ const rail=currentLeaves(data.fcl||[]);
+ const boxWanted=box(input.box),equipment=input.equipment||'SOC';
+ const destination=rail.filter(r=>placeMatches(r.destination,input.destination));
+ const station=input.station?destination.filter(r=>placeMatches(r.origin,input.station)):destination;
+ const equipmentMatches=station.filter(r=>r.quote.equipment===equipment);
+ const compatible=equipmentMatches.filter(r=>box(r.quote.container)===boxWanted||(boxWanted==='40HQ'&&r.quote.container==='40尺'));
+ const applicable=compatible.filter(r=>r.status==='confirmed'&&dateOK(r,input.date)&&(!r.quote.validUntil||r.quote.validUntil>=input.date));
+ const reasons=[];
+ if(!rail.length)reasons.push('铁路采购价格库暂无记录');
+ else if(!destination.length)reasons.push('未找到该境外目的站的铁路报价');
+ else if(input.station&&!station.length)reasons.push('当前国内起运站与目的站没有匹配线路');
+ else if(!equipmentMatches.length)reasons.push('没有匹配'+equipment+'用箱方式的铁路运价');
+ else if(!compatible.length)reasons.push('箱型不匹配；请核对40尺、40HQ或20尺的采购报价');
+ else if(!applicable.length){
+  if(compatible.some(r=>r.status==='confirmed'))reasons.push('该线路有采购价，但在所选日期没有已生效且未到期的确认价格');
+  if(compatible.some(r=>r.status==='draft'))reasons.push('该线路存在待确认采购报价，可勾选“使用待确认参考价”暂估');
+ }
+ return {railTotal:rail.length,destinationCount:destination.length,routeCount:station.length,compatibleCount:compatible.length,confirmedApplicable:applicable.length,reasons};
+}
