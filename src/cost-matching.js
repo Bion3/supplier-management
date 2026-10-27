@@ -4,7 +4,7 @@ import {railUnit} from './rail-unit.js';
 const norm=s=>String(s||'').trim().toLowerCase().replace(/[\s’']/g,'').replace(/市$/,'').replace(/^hamburg$/,'汉堡').replace(/^xian$/,'西安');
 export const placeMatches=(a,b)=>!!norm(a)&&!!norm(b)&&String(a).split(/[,，/]/).some(x=>String(b).split(/[,，/]/).some(y=>norm(x)===norm(y)));
 export function currentRates(rows,date=new Date().toISOString().slice(0,10)){
- const superseded=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));return rows.filter(r=>!superseded.has(r.id)&&r.status==='confirmed'&&(!r.quote.validFrom||r.quote.validFrom<=date)&&(!r.quote.validUntil||r.quote.validUntil>=date));
+ const superseded=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));return rows.filter(r=>!superseded.has(r.id)&&r.status==='confirmed');
 }
 const snapshot=r=>({...structuredClone(r.quote),status:r.status,origin:r.origin,destination:r.destination,supplier_id:r.supplier_id,quoteId:r.id});
 const missing=(name)=>({...blankRate(),status:'draft',rule:'unknown',source:name,minimum:null,delivery:null});
@@ -12,7 +12,7 @@ export function matchCosts(input,rates,plans){
  if(!input.origin.trim()||!input.destination.trim())return [];
  if(!Number.isInteger(input.pieces)||input.pieces<=0)throw Error('件数必须是正整数');
  const valid=currentRates(rates,input.date),replaced=new Set(plans.map(p=>p.supersedes_id).filter(Boolean));const result=[];
- for(const plan of plans.filter(p=>!replaced.has(p.id)&&p.status==='confirmed'&&(!p.inputs.importSource||p.inputs.railUnitCost?.complete===true)&&placeMatches(p.destination,input.destination)&&(!p.valid_from||p.valid_from<=input.date)&&(!p.valid_until||p.valid_until>=input.date))){
+ for(const plan of plans.filter(p=>!replaced.has(p.id)&&p.status==='confirmed'&&(!p.inputs.importSource||p.inputs.railUnitCost?.complete===true)&&placeMatches(p.destination,input.destination))){
   const config=structuredClone(plan.inputs),volume=input.volume,weight=input.weight,fx=config.fx;
   config.railUnitCost=config.railUnitCost||railUnit(config);
   const lines=valid.filter(r=>r.kind==='linehaul'&&placeMatches(r.destination,plan.origin));
