@@ -53,3 +53,5 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 #segments{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
 #result>details{border-top:1px solid #e6edf1;padding-top:10px}
 @media(max-width:780px){#goods>.fields,#segments{grid-template-columns:1fr}.cost-output-title{display:block}}
+
+.cost-validity{margin:12px 0;padding:12px 14px;border:1px solid #dbe5e9;border-radius:9px;background:#f8fafc;color:#334155;font-size:13px}.cost-validity table{width:100%;border-collapse:collapse;margin-top:8px}.cost-validity th,.cost-validity td{padding:7px 10px;text-align:left;border-bottom:1px solid #e2e8f0}.cost-validity th{font-size:12px;color:#64748b}.cost-validity td:last-child{font-weight:600}
