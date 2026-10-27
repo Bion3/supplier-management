@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estimateFcl} from '../src/cost-unified-model.js';
+import {estimateFcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
 const source=(valid=true,price=8400)=>({id:'rail-1',origin:'西安',destination:'汉堡',supplier_id:'supplier-1',status:'confirmed',quote:{container:'40HQ',equipment:'COC',scope:'站到站',unit:'柜',price,currency:'USD',fees:[],validFrom:valid?'2026-10-01':'',validUntil:valid?'2026-11-30':''}});
 const input={transport:'fcl',station:'西安',origin:'西安',destination:'汉堡',date:'2026-10-25',quantity:2,box:'40HQ',equipment:'COC',truck:false,rent:false,fx:7,eurFx:null,profitMode:'markup',profit:10,termsReviewed:true};
 test('confirmed valid FCL rail rate is calculated per container',()=>{
@@ -50,4 +50,25 @@ test('live Zhengzhou to Hamburg 20GP COC rail surcharge is not silently excluded
  const completed=estimateFcl({...nov,extraFees:[{name:'COC提还箱平衡费',amount:200,currency:'USD',unit:'柜'}]},{fcl:[quoted]});
  assert.equal(completed.result.cost,6750);
  assert.equal(completed.result.complete,true);
+});
+
+test('default station rail scope can produce complete quote without unwanted trucking and rental',()=>{
+ const result=estimateFcl({...input,equipment:'COC',truck:false,rent:false}, {fcl:[source()]});
+ assert.equal(result.result.complete,true);
+ assert.equal(result.result.pending.length,0);
+});
+test('match diagnosis identifies November-only rates selected for October',()=>{
+ const r=source(false);r.quote.validUntil='2026-11-30';r.quote.source={quotationPeriod:'2026年11月'};
+ const october=diagnoseFclMatches(input,{fcl:[r]});
+ assert.equal(october.confirmedApplicable,0);
+ assert.match(october.reasons.join(';'),/日期/);
+ const november=diagnoseFclMatches({...input,date:'2026-11-10'}, {fcl:[r]});
+ assert.equal(november.confirmedApplicable,1);
+ assert.equal(november.reasons.length,0);
+});
+test('match diagnosis distinguishes a box-type mismatch from missing station',()=>{
+ const wrongBox={...source(),quote:{...source().quote,container:'20尺'}};
+ assert.match(diagnoseFclMatches(input,{fcl:[wrongBox]}).reasons.join(';'),/箱型/);
+ const wrongStation={...source(),origin:'郑州'};
+ assert.match(diagnoseFclMatches(input,{fcl:[wrongStation]}).reasons.join(';'),/起运站/);
 });
