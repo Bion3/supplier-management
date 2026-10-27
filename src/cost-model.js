@@ -4,9 +4,9 @@ const positive=(x,label)=>{if(!Number.isFinite(x)||x<=0)throw Error(label+'必�
 const amount=(x,label)=>{if(x===null||x==='')return null;if(!Number.isFinite(x)||x<0)throw Error(label+'不能为负数');return x;};
 export function calculate(s){
  positive(s.fx,'汇率');positive(s.capacity,'预计计费方');positive(s.domesticRatio,'干线重抛比');positive(s.railRatio,'铁路重抛比');positive(s.volume,'体积');positive(s.weight,'重量');
- const pending=[],lines=[],domesticQty=Math.max(s.volume,s.weight/s.domesticRatio);let railQty,unit;
+ const pending=[],warnings=[],lines=[],domesticQty=Math.max(s.volume,s.weight/s.domesticRatio);let railQty,unit;
  const add=(name,value,basis)=>{if(value===null)pending.push(name);else lines.push({name,value,basis});};
- const applyDomestic=(name,q)=>{const r=domesticCost(q,s.volume,s.weight,s.fx,s.date);add(name,r.usd,r.basis+'；采购版本 '+(q.quoteId||q.source||''));pending.push(...r.pending.map(p=>name+'：'+p));};
+ const applyDomestic=(name,q)=>{const r=domesticCost(q,s.volume,s.weight,s.fx,s.date);add(name,r.usd,r.basis+'；采购版本 '+(q.quoteId||q.source||''));pending.push(...r.pending.map(p=>name+'：'+p));warnings.push(...(r.warnings||[]).map(p=>name+'：'+p));};
  const pickup=amount(s.pickup,'提货费');
  // Original bands are preserved. Cross-band and fractional gaps require an explicit price.
  const matches=(s.volume>=1&&s.volume<=5&&s.weight<=2500)||(s.volume>=6&&s.volume<=10&&s.weight>=2500&&s.weight<=5000);
@@ -18,8 +18,8 @@ export function calculate(s){
   railQty=Math.max(s.volume,s.weight/s.railRatio);let pool=0;
   for(const item of s.own){const a=item.alternatives[item.selected];const n=amount(a.amount,item.name);if(n===null)pending.push(item.name);else pool+=n/(a.currency==='CNY'?s.fx:1);}
   unit=pool/s.capacity;add('自营铁路折算',railQty*unit,`已知整柜USD ${pool} ÷ ${s.capacity} × ${railQty}`);
- }else{const a=s.external[s.selected];positive(a.ratio,'外配重抛比');railQty=Math.max(s.volume,s.weight/a.ratio);const rate=amount(a.rate,'外配单价'),min=amount(a.minimum,'最低收费');unit=rate;add('外配铁路',rate===null?null:Math.max(railQty*rate,min??0),`${railQty}计费方；最低收费USD ${min??0}`);add('外配杂费',amount(a.fees,'外配杂费'),'供应商杂费合计／票');if(a.validUntil&&a.validUntil<(s.date||new Date().toISOString().slice(0,10)))pending.push('外配报价已过期');}
+ }else{const a=s.external[s.selected];positive(a.ratio,'外配重抛比');railQty=Math.max(s.volume,s.weight/a.ratio);const rate=amount(a.rate,'外配单价'),min=amount(a.minimum,'最低收费');unit=rate;add('外配铁路',rate===null?null:Math.max(railQty*rate,min??0),`${railQty}计费方；最低收费USD ${min??0}`);add('外配杂费',amount(a.fees,'外配杂费'),'供应商杂费合计／票');if(a.validUntil&&a.validUntil<(s.date||new Date().toISOString().slice(0,10)))warnings.push('外配报价已过期');}
  const cost=lines.reduce((n,l)=>n+l.value,0),p=amount(s.profit,'利润');if(p===null)throw Error('请填写利润');let price;
  if(s.profitMode==='margin'){if(p>=100)throw Error('毛利率必须小于100%');price=cost/(1-p/100);}else price=s.profitMode==='fixed'?cost+p:cost*(1+p/100);
- return {domesticQty,railQty,unit,cost,price,profit:price-cost,lines,pending,complete:pending.length===0};
+ return {domesticQty,railQty,unit,cost,price,profit:price-cost,lines,pending,warnings,complete:pending.length===0};
 }
