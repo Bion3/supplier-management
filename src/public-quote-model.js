@@ -32,6 +32,7 @@ export function websiteQuoteDraft(selected, snapshotId = null) {
       sourceScope: input.scope || 'door',
       targetPrice: selected.result.price,
       rangePercent: range,
+      sourceValidityNeedsReview: (selected.result.validity||[]).some(v=>v.needsReview),
     },
     source_snapshot_id: snapshotId,
   };
