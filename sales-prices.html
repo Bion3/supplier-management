@@ -22,8 +22,24 @@
 <label>线路搜索<input id="pool-search" type="search" placeholder="输入起运地或目的地"></label>
 <button id="pool-refresh" type="button" class="secondary">刷新</button>
 </div>
+<div class="toolbar" style="margin-top:12px;gap:8px;align-items:center">
+<label style="display:flex;align-items:center;gap:6px"><input id="pool-all" type="checkbox"> 选本页</label>
+<button type="button" id="pool-select-filtered" class="secondary">选中当前筛选全部</button>
+<button type="button" id="pool-clear" class="secondary">清空选择</button>
+<strong id="pool-selected" style="font-size:13px">已选0条</strong>
+<button type="button" id="pool-review">批量核实</button>
+<button type="button" id="pool-edit" class="secondary">批量修改售价</button>
+</div>
+<section id="pool-edit-panel" hidden style="padding:14px;margin-top:12px;background:#f8fafc;border-radius:10px">
+<div class="toolbar"><label>修改内容<select id="pool-edit-mode"><option value="markup">统一售价加成率</option><option value="price">统一销售单价（USD）</option><option value="purchase">调整销售测算成本（原币种）</option><option value="expiry">统一销售有效期</option></select></label>
+<label id="pool-edit-number-label">数值<input id="pool-edit-number" type="number" min="0" step="any" placeholder="输入数值"></label>
+<label id="pool-edit-date-label" hidden>有效期<input id="pool-edit-date" type="date"></label>
+<button type="button" id="pool-edit-apply">预览并确认修改</button><button type="button" id="pool-edit-close" class="secondary">取消</button></div>
+<small>售价修改只保存到销售价格管理，不改采购原始价格；单段售价仍不能直接公开。操作前会提示影响条数。</small>
+</section>
+<p id="pool-bulk-notice" role="status" style="font-size:13px"></p>
 <p id="pool-summary" role="status">正在读取价格...</p>
-<div class="table-wrap"><table><thead><tr><th>类型</th><th>线路</th><th>采购价</th><th>参考售价（+15%）</th><th>规格</th><th>状态</th><th>到期</th><th></th></tr></thead><tbody id="pool-rows"></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>选择</th><th>类型</th><th>线路</th><th>采购价</th><th>销售单价（参考）</th><th>规格</th><th>采购状态 / 销售核实</th><th>到期</th><th></th></tr></thead><tbody id="pool-rows"></tbody></table></div>
 <div class="pager"><button id="pool-prev" type="button" class="secondary">上一页</button><span id="pool-page"></span><button id="pool-next" type="button" class="secondary">下一页</button></div>
 <p class="subtle">参考售价为单段估算，缺少的附加费用不计入；核价完成前不可对外发布。</p>
 </section>
