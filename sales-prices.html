@@ -18,13 +18,13 @@
 <div class="toolbar">
 <div class="price-tabs" role="group" aria-label="业务类型"><button type="button" class="price-tab" data-pool-group="lcl" aria-pressed="true">拼箱</button><button type="button" class="price-tab" data-pool-group="fcl" aria-pressed="false">整柜</button><button type="button" class="price-tab" data-pool-group="other" aria-pressed="false">其他</button></div>
 <label>费用项目<select id="pool-kind"><option value="">全部项目</option><option value="lcl_linehaul">拼箱 · 国内干线</option><option value="lcl_rail">拼箱 · 铁路运费</option><option value="fcl_truck">整柜 · 拖车费</option><option value="fcl_rail">整柜 · 铁路运费</option><option value="fcl_rent">整柜 · 租箱费</option><option value="other">待归类费用</option></select></label>
-<label>状态<select id="pool-state"><option value="">全部状态</option><option value="confirmed">已确认</option><option value="draft">待核实</option></select></label>
+<label>状态<select id="pool-state"><option value="">全部状态</option><option value="confirmed">已确认</option><option value="draft">待核实</option></select></label><label>处理状态<select id="pool-readiness"><option value="">全部价格</option><option value="direct">可直接核实单价</option><option value="rule">规则计费/组合方案</option><option value="missing">需补充金额或币种</option><option value="reviewed">销售已核实</option></select></label>
 <label>线路搜索<input id="pool-search" type="search" placeholder="输入起运地或目的地"></label>
 <button id="pool-refresh" type="button" class="secondary">刷新</button>
 </div>
 <div class="toolbar" style="margin-top:12px;gap:8px;align-items:center">
 <label style="display:flex;align-items:center;gap:6px"><input id="pool-all" type="checkbox"> 选本页</label>
-<button type="button" id="pool-select-filtered" class="secondary">选中当前筛选全部</button>
+<button type="button" id="pool-select-filtered" class="secondary">选中筛选结果</button>
 <button type="button" id="pool-clear" class="secondary">清空选择</button>
 <strong id="pool-selected" style="font-size:13px">已选0条</strong>
 <button type="button" id="pool-review">批量核实</button>
@@ -41,7 +41,7 @@
 <p id="pool-summary" role="status">正在读取价格...</p>
 <div class="table-wrap"><table><thead><tr><th>选择</th><th>类型</th><th>线路</th><th>采购价</th><th>销售单价（参考）</th><th>规格</th><th>采购状态 / 销售核实</th><th>到期</th><th></th></tr></thead><tbody id="pool-rows"></tbody></table></div>
 <div class="pager"><button id="pool-prev" type="button" class="secondary">上一页</button><span id="pool-page"></span><button id="pool-next" type="button" class="secondary">下一页</button></div>
-<p class="subtle">参考售价为单段估算，缺少的附加费用不计入；核价完成前不可对外发布。</p>
+<p class="subtle">拼箱国内干线多为按CBM/吨/阶梯价计费，须输入货物数量后核算，不能将单段成本直接当官网售价。仅审核完成的完整销售报价可对外发布。</p>
 </section>
 <section class="panel">
 <details class="advanced" id="rail-generator">
