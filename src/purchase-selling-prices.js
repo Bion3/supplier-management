@@ -39,8 +39,7 @@ export function mountPurchaseSellingPrices(){
  if(!kind)return;
  const body=document.querySelector(selector),table=body?.closest('table');
  if(!body||!table)return;
- let saved=new Map(),selection=new Set(),busy=false,sourceRows=new Map(),pending=new Set();
- let currencyFor=()=>null;
+ let saved=new Map(),selection=new Set(),busy=false,sourceRows=new Map(),loadingRows=false,booted=false;
  const head=table.querySelector('thead tr');
  if(!head.querySelector('th.sale-col')){const th=document.createElement('th');th.textContent='卖价（内部）';th.className='sale-col';head.insertBefore(th,head.lastElementChild);}
  const actions=document.createElement('div');actions.className='toolbar sale-toolbar';
@@ -65,7 +64,7 @@ export function mountPurchaseSellingPrices(){
    if(!id||tr.querySelector('td.sale-col'))continue;
    const row=sourceRows.get(id),value=saved.get(id);
    const td=document.createElement('td');td.className='sale-col';
-   if(!row){td.textContent='读取中';tr.insertBefore(td,tr.lastElementChild);continue;}
+   if(!row){td.textContent='读取新版本…';tr.insertBefore(td,tr.lastElementChild);if(!loadingRows&&currentUser()){loadingRows=true;queueMicrotask(async()=>{try{await loadRows();rerender();}catch(e){message('采购版本读取失败：'+e.message);}finally{loadingRows=false;}});}continue;}
    const fs=fieldsFor(row),unit=kind==='lcl_plan'?'USD':currency(row);
    td.innerHTML='<div class="sale-cell"><label class="sale-select"><input type="checkbox" data-sale-select="'+esc(id)+'" '+(selection.has(id)?'checked':'')+' aria-label="选择卖价修改"></label><div class="sale-inputs">'+fs.map(([k,label])=>'<label>'+esc(label)+'<input type="number" min="0.01" step="any" data-sale-id="'+esc(id)+'" data-sale-field="'+esc(k)+'" value="'+esc(value?.selling_values?.[k]??'')+'" placeholder="未设置" title="'+esc(label)+'"></label>').join('')+'<small>'+esc(unit||'币种未定')+' · '+(kind==='domestic'?'按原计价规则':'按采购计价单位')+'</small></div></div>';
    tr.insertBefore(td,tr.lastElementChild);
@@ -123,6 +122,14 @@ export function mountPurchaseSellingPrices(){
   try{for(const id of ids){try{await persist(id,{[field]:amount});done++;}catch(e){message('完成 '+done+' 条，失败记录：'+e.message);break;}}}
   finally{busy=false;selection.clear();rerender();message('已保存 '+done+' / '+ids.length+' 条卖价；采购价未修改');}
  };
- (async()=>{try{await loadRows();renderCells();await fetchValues();}catch(e){message('卖价加载失败：'+e.message);}})();
+ async function boot(){
+  if(booted||!currentUser())return;
+  booted=true;
+  try{await loadRows();renderCells();await fetchValues();}
+  catch(e){booted=false;message('卖价加载失败：'+e.message);}
+ }
+ void boot();
+ const authObserver=new MutationObserver(()=>{if(currentUser())void boot();});
+ authObserver.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
 }
 if(typeof document!=='undefined')mountPurchaseSellingPrices();
