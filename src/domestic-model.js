@@ -1,11 +1,11 @@
 export const blankRate=()=>({kind:'linehaul',origin:'',destination:'',supplier_id:null,currency:'CNY',status:'draft',rule:'billable',cbm:null,ton:null,fixed:null,ratio:300,minimum:0,delivery:null,deliveryIncluded:false,validFrom:'',validUntil:'',source:'',notes:'',tiers:[]});
 const n=(x,label)=>{if(x===null||x===undefined||x==='')return null;if(!Number.isFinite(x)||x<0)throw Error(label+'须为非负数');return x;};
 export function domesticCost(q,volume,weight,fx,date=new Date().toISOString().slice(0,10)){
- const pending=[],basis=[];let freight=null;
+ const pending=[],warnings=[],basis=[];let freight=null;
  if(volume<=0||weight<=0||fx<=0)throw Error('货物及汇率必须大于0');
  if(q.status!=='confirmed')pending.push('采购价未确认');
- if(q.validFrom&&q.validFrom>date)pending.push('采购价尚未生效');
- if(q.validUntil&&q.validUntil<date)pending.push('采购价已过期');
+ if(q.validFrom&&q.validFrom>date)warnings.push('采购价尚未生效');
+ if(q.validUntil&&q.validUntil<date)warnings.push('采购价已过期');
  const cbm=n(q.cbm,'方价'),ton=n(q.ton,'吨价');
  switch(q.rule){
  case 'cbm':freight=cbm===null?null:volume*cbm;basis.push(`${volume}CBM × ${cbm??'待定'}`);break;
@@ -20,7 +20,7 @@ export function domesticCost(q,volume,weight,fx,date=new Date().toISOString().sl
  const minimum=n(q.minimum,'最低收费');if(minimum===null)pending.push('最低收费待确认');
  const delivery=q.deliveryIncluded?0:n(q.delivery,'送货费');if(delivery===null)pending.push('送货费待确认');
  const original=(freight===null?0:Math.max(freight,minimum??0))+(delivery??0);const usd=original/(q.currency==='CNY'?fx:1);
- return {usd,original,currency:q.currency,basis:basis.join('；')+(q.deliveryIncluded?'；送货已含':`；送货费 ${delivery??'待定'}`),pending,complete:pending.length===0};
+ return {usd,original,currency:q.currency,warnings,basis:basis.join('；')+(q.deliveryIncluded?'；送货已含':`；送货费 ${delivery??'待定'}`),pending,complete:pending.length===0};
 }
 export function validateRate(q){
  if(!q.origin.trim()||!q.destination.trim())throw Error('请填写始发区域及目的仓');
