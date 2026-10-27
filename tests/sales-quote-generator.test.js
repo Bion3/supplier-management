@@ -7,7 +7,7 @@ const source={
 };
 test('only current unambiguous procurement can enter the source draft pool',()=>{
  assert.equal(draftableStationRail([source],'2026-11-01').length,1);
- assert.equal(draftableStationRail([source],'2026-10-25').length,0);
+ assert.equal(draftableStationRail([source],'2026-10-25').length,1);
  assert.equal(draftableStationRail([{...source,quote:{...source.quote,container:'40尺'}}],'2026-11-01').length,0);
  assert.equal(draftableStationRail([{...source,status:'draft'}],'2026-11-01').length,0);
  const newer={...source,id:'new-version',supersedes_id:source.id};
@@ -31,6 +31,31 @@ test('reviewed November COC generates immutable, unpublished sales draft',()=>{
  assert.equal(draft.valid_until,'2026-11-30');
  assert.equal(draft.pricing_meta.sourceRailId,source.id);
  assert.equal(draft.pricing_meta.cost,6850);
+ assert.equal(draft.pricing_meta.sourceValidityNeedsReview,false);
  assert.equal(draft.unit_price_low,7158.25);
  assert.equal(draft.unit_price_high,7911.75);
+});
+
+test('SOC 20GP, explicit 40HQ and 45HQ confirmed prices may generate reviewed drafts',()=>{
+ for(const container of ['20尺','40HQ','45尺']){
+  const row={...source,id:container,quote:{...source.quote,equipment:'SOC',container,notes:'',unit:container==='40HQ'?'40HQ':'柜'}};
+  assert.equal(draftableStationRail([row],'2026-11-01').length,1);
+  const calculation=prepareStationRailQuote(row,{date:'2026-11-01',reviewed:true,otherFee:0,profit:15,fx:7});
+  assert.equal(calculation.result.complete,true);
+  const draft=stationRailSalesDraft(calculation,'33333333-3333-4333-8333-333333333333');
+  assert.equal(draft.status,'draft');
+  assert.equal(draft.container,container==='20尺'?'20GP':container==='45尺'?'45HQ':container);
+ }
+});
+test('draft generation requires explicit confirmation of zero additional fees',()=>{
+ const row={...source,quote:{...source.quote,equipment:'SOC',notes:''}};
+ assert.throws(()=>prepareStationRailQuote(row,{date:'2026-11-01',reviewed:true}),/其他附加费/);
+ assert.equal(prepareStationRailQuote(row,{date:'2026-11-01',reviewed:true,otherFee:0}).result.complete,true);
+});
+test('expired procurement can create a draft but marks validity for publication review',()=>{
+ const old={...source,quote:{...source.quote,validFrom:'2026-06-01',validUntil:'2026-09-30',equipment:'SOC',notes:''}};
+ const result=prepareStationRailQuote(old,{date:'2026-11-01',reviewed:true,otherFee:0});
+ assert.equal(result.result.complete,true);
+ const draft=stationRailSalesDraft(result,'33333333-3333-4333-8333-333333333333');
+ assert.equal(draft.pricing_meta.sourceValidityNeedsReview,true);
 });
