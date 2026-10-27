@@ -55,3 +55,17 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 @media(max-width:780px){#goods>.fields,#segments{grid-template-columns:1fr}.cost-output-title{display:block}}
 
 .cost-validity{margin:12px 0;padding:12px 14px;border:1px solid #dbe5e9;border-radius:9px;background:#f8fafc;color:#334155;font-size:13px}.cost-validity table{width:100%;border-collapse:collapse;margin-top:8px}.cost-validity th,.cost-validity td{padding:7px 10px;text-align:left;border-bottom:1px solid #e2e8f0}.cost-validity th{font-size:12px;color:#64748b}.cost-validity td:last-child{font-weight:600}
+
+.cost-supplier-comparison{margin:14px 0 20px;padding:14px 16px;border:1px solid #d6e6e2;background:#f8fcfb;border-radius:10px}
+.cost-compare-title{display:flex;gap:14px;align-items:baseline;justify-content:space-between;flex-wrap:wrap}
+.cost-compare-title h3{margin:0;font-size:17px}
+.cost-compare-title small{color:#60766f}
+.cost-compare-group{margin-top:14px}
+.cost-compare-group h4{margin:0 0 8px;font-size:14px}
+.cost-compare-group .table-wrap{overflow-x:auto}
+.cost-compare-group table{width:100%;border-collapse:collapse;font-size:12px;min-width:760px}
+.cost-compare-group th,.cost-compare-group td{padding:10px 9px;text-align:left;border-bottom:1px solid #e3ebe8;vertical-align:middle}
+.cost-compare-group th{font-weight:650;color:#536a65;background:#eef6f3}
+.cost-compare-group td small{font-size:11px;color:#64748b}
+.cost-compare-group .compare-selected{background:#e6f6ef}
+.cost-compare-group button{white-space:nowrap;padding:6px 12px;font-size:12px}
