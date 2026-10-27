@@ -32,7 +32,7 @@ function show(){
  if(!selected){$('result').innerHTML='<p>未匹配可用的铁路拼箱方案。请核对站点、日期及价格启用状态；未完成特殊计费规则核对的原表报价暂不参与自动测算。</p>';$('save').disabled=true;$('publish').disabled=true;return;}
  const r=selected.result,s=selected.inputs;
  const sources=s.sources?Object.values(s.sources):[s.pickupQuote,s.linehaulQuote].filter(Boolean);
- const costDates=sources.map(x=>x.quote?.validUntil||x.quote?.valid_until||x.valid_until||x.validUntil).filter(x=>/^\\d{4}-\\d{2}-\\d{2}$/.test(String(x||''))).sort();
+ const costDates=sources.map(x=>x.quote?.validUntil||x.quote?.valid_until||x.valid_until||x.validUntil).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(String(x||''))).sort();
  if(!s.webValidUntil&&costDates.length)s.webValidUntil=costDates[0];
  if(s.webValidUntil&&costDates.length&&s.webValidUntil>costDates[0])s.webValidUntil=costDates[0];
  const qty=s.transport==='lcl'?r.railQty:s.quantity,mid=qty>0?r.price/qty:null,range=s.webRange??5,low=mid===null?null:mid*(1-range/100),high=mid===null?null:mid*(1+range/100);selected.websitePrice={quantity:qty,unit:s.transport==='lcl'?'billable_cbm':'container',mid,low,high};
