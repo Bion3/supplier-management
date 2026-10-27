@@ -46,54 +46,81 @@ $('publish').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请�
 $('archive').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请选择要下架的报价。');await archive(picked());});
 $('reprice').onclick=()=>guarded(async()=>{if(!picked().length)throw Error('请选择要更新的草稿。');await reprice(picked());});
 
-let procurementRows=[],sourceCandidates=[];
+let procurementRows=[],sourceCandidates=[],sourceBusy=false;
+const sourceSelected=new Set();
 const currencyMoney=r=>String(r.quote.currency||'USD')+' '+Number(r.quote.price).toLocaleString();
-function autoExisting(r){return rows.some(q=>['draft','active'].includes(q.status)&&q.pricing_meta?.sourceRailId===r.id);}
+const sourceExisting=r=>rows.some(q=>['draft','active'].includes(q.status)&&q.pricing_meta?.sourceRailId===r.id);
 function sourceRender(){
- const body=$('source-rows');body.innerHTML=sourceCandidates.map(r=>'<tr><td>'+esc(r.origin)+' → '+esc(r.destination)+'<details><summary>原始条款与费用说明</summary><p style="white-space:pre-wrap;max-width:420px">'+esc(r.quote.notes||'无特别说明')+'</p></details></td><td>'+esc(currencyMoney(r))+' / 柜</td><td>'+ (needsBalanceFee(r)?'<input data-fee="'+esc(r.id)+'" type="number" min="0" step="any" placeholder="核实后填写" style="width:125px">':'<span>无单询标记</span>')+'</td><td><input data-other="'+esc(r.id)+'" type="number" min="0" step="any" value="0" style="width:125px"></td><td><label><input data-review="'+esc(r.id)+'" type="checkbox"> 逐条已核实全部附加费</label></td><td><button class="secondary" data-create="'+esc(r.id)+'" '+(autoExisting(r)?'disabled':'')+'>'+(autoExisting(r)?'已有待审核价格':'生成草稿')+'</button></td></tr>').join('');
- $('source-summary').textContent='可处理 '+sourceCandidates.length+' 条明确箱型的采购记录，其他箱型与未确认采购价不自动生成。';
+ const body=$('source-rows');
+ body.innerHTML=sourceCandidates.map(r=>{
+  const available=!sourceExisting(r),checked=sourceSelected.has(r.id);
+  const needsFee=needsBalanceFee(r);
+  return '<tr><td><input type="checkbox" data-source-select="'+esc(r.id)+'" '+(checked?'checked':'')+' '+(!available?'disabled':'')+'></td><td>'+esc(r.origin)+' → '+esc(r.destination)+'<small style="display:block">'+esc(r.quote.container)+' / '+esc(r.quote.equipment)+'</small><details><summary>原始条款</summary><p style="white-space:pre-wrap;max-width:440px">'+esc(r.quote.notes||'无特殊备注，仍应核实费用范围')+'</p></details></td><td>'+esc(currencyMoney(r))+' / '+esc(r.quote.unit)+'</td><td>'+(needsFee?'<input data-fee="'+esc(r.id)+'" type="number" min="0" step="any" placeholder="核实后填写" style="width:120px">':'—')+'</td><td><input data-other="'+esc(r.id)+'" type="number" min="0" step="any" placeholder="需核实；无则填0" style="width:140px"></td><td><label><input data-review="'+esc(r.id)+'" type="checkbox"> 已核实费用和条款</label></td><td><button class="secondary" data-create="'+esc(r.id)+'" '+(!available?'disabled':'')+'>'+(available?'生成草稿':'已有草稿')+'</button></td></tr>';
+ }).join('')||'<tr><td colspan="7">没有符合自动生成条件的采购价；可返回采购库核实箱型、单位和采购状态。</td></tr>';
+ $('source-summary').textContent='匹配 '+sourceCandidates.length+' 条已确认采购价，已选 '+sourceSelected.size+' 条。明确的20GP、40HQ和45HQ按柜计价可进入草稿；模糊40尺和2×20尺仍须单独审核。';
+ $('source-all').checked=sourceCandidates.length>0&&sourceCandidates.filter(r=>!sourceExisting(r)).every(r=>sourceSelected.has(r.id));
 }
 async function sourceLoad(){
  if(!currentUser())throw Error('请先登录');
  const month=$('source-month').value;
  if(!/^\d{4}-\d{2}$/.test(month))throw Error('请选择运价月份');
- const shipmentDate=month+'-01';
- if(!procurementRows.length){
-  for(let offset=0;;offset+=500){
-   const chunk=await cloudRequest('freight_fcl_rail_rates?select=*&order=created_at.desc,id.asc&limit=500&offset='+offset);
-   procurementRows.push(...chunk);if(chunk.length<500)break;
-  }
+ procurementRows=[];
+ for(let offset=0;;offset+=500){
+  const chunk=await cloudRequest('freight_fcl_rail_rates?select=*&order=created_at.desc,id.asc&limit=500&offset='+offset);
+  procurementRows.push(...chunk);if(chunk.length<500)break;
  }
- sourceCandidates=draftableStationRail(procurementRows,shipmentDate);
- sourceRender();
+ sourceCandidates=draftableStationRail(procurementRows,month+'-01');
+ sourceSelected.clear();sourceRender();
+}
+function sourceFields(id){
+ const body=$('source-rows');
+ return {fee:body.querySelector('[data-fee="'+id+'"]'),other:body.querySelector('[data-other="'+id+'"]'),review:body.querySelector('[data-review="'+id+'"]')};
+}
+function prepareSelectedRail(row){
+ const form=sourceFields(row.id),date=$('source-month').value+'-01',fx=Number($('source-fx').value);
+ if(!Number.isFinite(fx)||fx<=0)throw Error('人民币兑美元汇率必须大于零');
+ const result=prepareStationRailQuote(row,{date,fx,reviewed:form.review?.checked,profitMode:$('profit-mode').value,profit:Number($('profit').value),balanceFee:form.fee?.value??null,otherFee:form.other?.value??null,range:5,minimum:0});
+ return result;
+}
+async function persistDraft(row,selectedRate){
+ const snapshot=await cloudRequest('freight_cost_snapshots',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({route:selectedRate.inputs.route,inputs:selectedRate.inputs,result:selectedRate.result})});
+ if(snapshot.length!==1)throw Error('成本快照保存失败');
+ const draft=stationRailSalesDraft(selectedRate,snapshot[0].id);
+ const inserted=await cloudRequest('freight_public_quotes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(draft)});
+ if(inserted.length!==1)throw Error('销售草稿创建失败');
+ rows.unshift(inserted[0]);sourceSelected.delete(row.id);
+ return inserted[0];
 }
 $('source-load').onclick=()=>guarded(sourceLoad);
+$('source-to-review').onclick=()=>{$('published-management').open=true;$('status').value='draft';$('month').value='';refreshView();$('published-management').scrollIntoView({behavior:'smooth',block:'start'});};
+$('source-all').onchange=e=>{for(const row of sourceCandidates)if(!sourceExisting(row)){if(e.target.checked)sourceSelected.add(row.id);else sourceSelected.delete(row.id);}sourceRender();};
+$('source-rows').addEventListener('change',e=>{const id=e.target.dataset.sourceSelect;if(!id)return;if(e.target.checked)sourceSelected.add(id);else sourceSelected.delete(id);$('source-summary').textContent='已选 '+sourceSelected.size+' 条，提交前须逐条核实所有另计费用。';});
 $('source-rows').addEventListener('click',event=>{
- const btn=event.target.closest('[data-create]');if(!btn)return;
+ const button=event.target.closest('[data-create]');if(!button)return;
  guarded(async()=>{
-  const row=sourceCandidates.find(x=>x.id===btn.dataset.create);
-  if(!row)throw Error('采购版本已变化，请刷新采购价');
-  if(autoExisting(row))throw Error('这条采购价格已生成过销售草稿，避免重复生成');
-  const balanceInput=$('source-rows').querySelector('[data-fee="'+row.id+'"]');
-  const otherInput=$('source-rows').querySelector('[data-other="'+row.id+'"]');
-  const termsInput=$('source-rows').querySelector('[data-review="'+row.id+'"]');
-  const date=$('source-month').value+'-01',fx=Number($('source-fx').value);
-  if(!Number.isFinite(fx)||fx<=0)throw Error('请检查人民币兑美元汇率');
-  const selectedRate=prepareStationRailQuote(row,{
-   date,fx,reviewed:termsInput?.checked,
-   profitMode:$('profit-mode').value,profit:Number($('profit').value),
-   balanceFee:balanceInput?.value??null,otherFee:otherInput?.value??0,
-   range:5,minimum:0
-  });
-  // Write an immutable cost snapshot before creating a sales quote.
-  const saved=await cloudRequest('freight_cost_snapshots',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({route:selectedRate.inputs.route,inputs:selectedRate.inputs,result:selectedRate.result})});
-  if(saved.length!==1)throw Error('成本快照保存失败');
-  const draft=stationRailSalesDraft(selectedRate,saved[0].id);
-  const inserted=await cloudRequest('freight_public_quotes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(draft)});
-  if(inserted.length!==1)throw Error('销售草稿创建失败');
-  rows.unshift(inserted[0]);notify(row.origin+' → '+row.destination+' 已生成待审核销售草稿，尚未发布到官网。');
-  sourceRender();
+  const row=sourceCandidates.find(r=>r.id===button.dataset.create);
+  if(!row||sourceExisting(row))throw Error('采购价已改变或已有草稿，请刷新');
+  const estimate=prepareSelectedRail(row);
+  if(!confirm('确认生成 '+row.origin+' → '+row.destination+' '+row.quote.container+' '+row.quote.equipment+' 的待审核销售草稿？不会直接发布官网。'))return;
+  await persistDraft(row,estimate);notify('已生成待审核销售草稿；尚未公开。');sourceRender();refreshView();
  });
 });
-
+$('source-batch').onclick=()=>guarded(async()=>{
+ if(sourceBusy)return;
+ const batch=sourceCandidates.filter(r=>sourceSelected.has(r.id)&&!sourceExisting(r));
+ if(!batch.length)throw Error('请选择至少一条尚未生成草稿的采购价格');
+ if(batch.length>100)throw Error('一次最多处理100条，请缩小筛选范围');
+ const ready=[],errors=[];
+ for(const r of batch)try{ready.push({row:r,estimate:prepareSelectedRail(r)});}catch(e){errors.push(r.origin+' → '+r.destination+'：'+e.message);}
+ if(errors.length){notify('有 '+errors.length+' 条尚未完成核实：'+errors.slice(0,3).join('；')+'。请修正后再批量生成。');return;}
+ if(!confirm('将生成 '+ready.length+' 条销售草稿。所有条款及附加费用已逐条核实？本次不会公开销售价。'))return;
+ sourceBusy=true;$('source-batch').disabled=true;
+ let done=0;try{
+  for(const {row,estimate} of ready){
+   try{await persistDraft(row,estimate);done++;}catch(e){errors.push(row.origin+' → '+row.destination+'：'+e.message);}
+  }
+  sourceRender();refreshView();
+  notify('批量生成草稿：成功 '+done+' 条'+(errors.length?'；失败 '+errors.length+' 条：'+errors.slice(0,2).join('；'):'')+'。请在第三步审核发布。');
+ }finally{sourceBusy=false;$('source-batch').disabled=false;}
+});
 if(syncAuthShell()&&currentUser()){$('workspace').hidden=false;load().catch(e=>notify(e.message));}else{$('login-panel').hidden=false;}
