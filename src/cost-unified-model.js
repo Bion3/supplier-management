@@ -4,7 +4,13 @@ export const currentLeaves=rows=>{const old=new Set(rows.map(r=>r.supersedes_id)
 const box=s=>String(s||'').toUpperCase().replace(/40HC/g,'40HQ').replace(/20尺/g,'20GP').replace(/45尺/g,'45HQ');
 const sourceMonthStart=r=>{const m=String(r.quote?.source?.quotationPeriod||'').match(/^(\d{4})年(\d{1,2})月$/);return m?`${m[1]}-${m[2].padStart(2,'0')}-01`:null;};
 const dateOK=(r,d)=>{const start=r.quote.validFrom||sourceMonthStart(r);return !start||start<=d;};
-const usable=(rows,i)=>currentLeaves(rows).filter(r=>(r.status==='confirmed'||i.preview&&r.status==='draft')&&dateOK(r,i.date)&&(!r.quote.validUntil||r.quote.validUntil>=i.date));
+const usable=(rows,i)=>currentLeaves(rows).filter(r=>r.status==='confirmed'||i.preview&&r.status==='draft');
+export function procurementValidity(row,date){
+ const from=row.quote?.validFrom||sourceMonthStart(row)||row.valid_from||'';
+ const until=row.quote?.validUntil||row.valid_until||'';
+ const status=from&&date<from?'尚未生效':until&&date>until?'已过期':!from||!until?'日期未完整':'有效期内';
+ return {from,until,status,needsReview:status!=='有效期内'};
+}
 export function loadingMatches(quoted,requested){const tokens=String(requested||'').split(/[,，/]/).map(x=>x.trim()).filter(Boolean);return tokens.length>0&&placeMatches(quoted,tokens.at(-1));}
 function normalizeFclInput(input,data){
  const i={...input,box:input.box||'40HQ',equipment:input.equipment||'SOC',quantity:input.quantity===null||input.quantity===''||input.quantity===undefined?1:input.quantity};
@@ -46,13 +52,13 @@ export function finish(lines,pending,i){
  return {cost,price,profit:price-cost,lines,pending:[...new Set(pending)],complete:pending.length===0};
 }
 export function estimateFcl(input,data,choices={}){
- const i=validateInput(normalizeFclInput(input,data)),available=candidates(i,data),lines=[],pending=[],sources={};
+ const i=validateInput(normalizeFclInput(input,data)),available=candidates(i,data),lines=[],pending=[],sources={},validity=[];
  const usd=(value,currency,label)=>{if(value===null||value===''||!Number.isFinite(value)||value<0){pending.push(label+'：金额待确认');return null;}if(currency==='USD')return value;if(currency==='CNY')return value/i.fx;if(currency==='EUR'&&Number.isFinite(i.eurFx)&&i.eurFx>0)return value*i.eurFx;pending.push(label+'：币种或EUR汇率待确认');return null;};
  function segment(key,label){
   const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
   sources[key]=structuredClone(r);const q=r.quote;if(!r.supplier_id)pending.push(label+'：供应商待确认');
   if(r.status!=='confirmed')pending.push(label+'：待确认参考报价');
-  if(!(q.validFrom||sourceMonthStart(r))||!q.validUntil)pending.push(label+'：缺少采购价有效期，不能确认销售价');
+  validity.push({name:label,quoteId:r.id,...procurementValidity(r,i.date)});
   if(q.price===0)pending.push(label+'：采购金额为零，需人工确认');
   if(key==='rail'&&box(q.container)!==box(i.box))pending.push(label+'：原价仅注明40尺，需确认适用40HQ');
   if(key==='truck'&&q.priceBasis!=='采购价')pending.push(label+'：采购价口径待确认');
@@ -65,7 +71,7 @@ export function estimateFcl(input,data,choices={}){
  }
  if(i.truck)segment('truck','国内拖车');segment('rail','整箱铁路');if(i.equipment==='SOC'&&i.rent)segment('rent','租箱基础费（不含超期）');
  for(const f of i.extraFees||[]){if(!f.name?.trim())throw Error('请填写补充费用名称');const n=usd(f.amount,f.currency,f.name);if(n!==null)lines.push({name:f.name,value:n*(f.unit==='柜'?i.quantity:1),basis:'本次手工补充 '+f.currency+' '+f.amount+' / '+f.unit});}
- return {id:'fcl',label:`${i.station} → ${i.destination} · ${i.quantity}×${i.box} · ${i.equipment}`,inputs:{...structuredClone(i),route:[i.truck?i.origin:null,i.station,i.destination].filter(Boolean).join(' → '),sources},result:finish(lines,pending,i),available};
+ return {id:'fcl',label:`${i.station} → ${i.destination} · ${i.quantity}×${i.box} · ${i.equipment}`,inputs:{...structuredClone(i),route:[i.truck?i.origin:null,i.station,i.destination].filter(Boolean).join(' → '),sources},result:{...finish(lines,pending,i),validity},available};
 }
 export function estimateLcl(i,data){
  validateInput(i);
@@ -85,7 +91,7 @@ export function diagnoseFclMatches(input,data){
  const station=input.station?destination.filter(r=>placeMatches(r.origin,input.station)):destination;
  const equipmentMatches=station.filter(r=>r.quote.equipment===equipment);
  const compatible=equipmentMatches.filter(r=>box(r.quote.container)===boxWanted||(boxWanted==='40HQ'&&r.quote.container==='40尺'));
- const applicable=compatible.filter(r=>r.status==='confirmed'&&dateOK(r,input.date)&&(!r.quote.validUntil||r.quote.validUntil>=input.date));
+ const applicable=compatible.filter(r=>r.status==='confirmed');
  const reasons=[];
  if(!rail.length)reasons.push('铁路采购价格库暂无记录');
  else if(!destination.length)reasons.push('未找到该境外目的站的铁路报价');
@@ -93,7 +99,6 @@ export function diagnoseFclMatches(input,data){
  else if(!equipmentMatches.length)reasons.push('没有匹配'+equipment+'用箱方式的铁路运价');
  else if(!compatible.length)reasons.push('箱型不匹配；请核对40尺、40HQ或20尺的采购报价');
  else if(!applicable.length){
-  if(compatible.some(r=>r.status==='confirmed'))reasons.push('该线路有采购价，但在所选日期没有已生效且未到期的确认价格');
   if(compatible.some(r=>r.status==='draft'))reasons.push('该线路存在待确认采购报价，可勾选“使用待确认参考价”暂估');
  }
  return {railTotal:rail.length,destinationCount:destination.length,routeCount:station.length,compatibleCount:compatible.length,confirmedApplicable:applicable.length,reasons};
