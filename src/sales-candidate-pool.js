@@ -112,6 +112,8 @@ async function batchPatch(changes,label){
 $('pool-review').onclick=()=>{
  const target=chosen();if(!target.length)return statusNotice('请先选择需要核实的记录。');
  if(target.some(r=>r.source_status!=='confirmed'))return statusNotice('选中记录包含采购待核实项，请先确认原始采购价，再批量核实销售价。');
+ if(target.some(r=>!(Number(r.purchase_price_override??r.purchase_amount)>0)||!r.purchase_currency))return statusNotice('选中记录包含未确定金额或币种的费用，不能批量核实。');
+ if(!confirm('请确认已核对所选 '+target.length+' 条的采购金额、币种、适用线路及所有另计费用。标记已核实不会直接发布官网。'))return;
  batchPatch({review_status:'reviewed',reviewed_at:new Date().toISOString()},'销售价格批量核实');
 };
 $('pool-edit-apply').onclick=()=>{
