@@ -93,7 +93,7 @@ async function persistDraft(row,selectedRate){
 }
 $('source-load').onclick=()=>guarded(sourceLoad);
 $('source-to-review').onclick=()=>{$('published-management').open=true;$('status').value='draft';$('month').value='';refreshView();$('published-management').scrollIntoView({behavior:'smooth',block:'start'});};
-$('source-all').onchange=e=>{for(const row of sourceCandidates)if(!sourceExisting(row)){if(e.target.checked)sourceSelected.add(row.id);else sourceSelected.delete(row.id);}sourceRender();};
+$('source-all').onchange=e=>{for(const row of sourceCandidates)if(!sourceExisting(row)){if(e.target.checked)sourceSelected.add(row.id);else sourceSelected.delete(row.id);}for(const cb of $('source-rows').querySelectorAll('[data-source-select]'))cb.checked=sourceSelected.has(cb.dataset.sourceSelect);$('source-summary').textContent='已选 '+sourceSelected.size+' 条，请逐条核实费用后生成草稿。';};
 $('source-rows').addEventListener('change',e=>{const id=e.target.dataset.sourceSelect;if(!id)return;if(e.target.checked)sourceSelected.add(id);else sourceSelected.delete(id);$('source-summary').textContent='已选 '+sourceSelected.size+' 条，提交前须逐条核实所有另计费用。';});
 $('source-rows').addEventListener('click',event=>{
  const button=event.target.closest('[data-create]');if(!button)return;
