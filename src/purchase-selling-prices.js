@@ -65,9 +65,9 @@ export function mountOperationFees(){
  const message=t=>{notice.querySelector('[data-message]').textContent=t;};
  function ensureHeaders(){
   const head=table.querySelector('thead tr');if(!head)return;
-  for(const key of ['operation-fee','selling-price'])if(!head.querySelector('th[data-col="'+key+'"]')){
+  for(const key of ['operation-fee','selling-price','public-rate'])if(!head.querySelector('th[data-col="'+key+'"]')){
    const th=document.createElement('th');th.dataset.col=key;th.className='sale-col';
-   th.textContent=key==='operation-fee'?'操作费':'卖价';
+   th.textContent=key==='operation-fee'?'操作费':key==='selling-price'?'卖价':'官网';
    head.insertBefore(th,head.lastElementChild);
   }
  }
@@ -79,18 +79,19 @@ export function mountOperationFees(){
    if(tr.querySelector('td[data-col="operation-fee"]'))continue;
    const id=idFor(tr);if(!id)continue;
    const row=sourceRows.get(id),record=saved.get(id),fs=row?purchaseFields(kind,row):[];
-   const op=document.createElement('td'),sale=document.createElement('td');op.className='sale-col';sale.className='sale-col';op.dataset.col='operation-fee';sale.dataset.col='selling-price';
-   if(!row){op.textContent='读取中';sale.textContent='—';}
+   const op=document.createElement('td'),sale=document.createElement('td'),pub=document.createElement('td');op.className='sale-col';sale.className='sale-col';pub.className='sale-col';op.dataset.col='operation-fee';sale.dataset.col='selling-price';pub.dataset.col='public-rate';
+   if(!row){op.textContent='读取中';sale.textContent='—';pub.textContent='—';}
    else{
     const currency=kind==='lcl_plan'?'USD':row.quote?.currency||'';
     op.innerHTML='<div class="sale-cell"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中操作费"><div class="sale-inputs">'+fs.map(f=>'<label>'+escaped(f.label)+' · 固定金额<input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="fixed" value="'+escaped(record?.operation_fees?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label><label>采购价比例 %<input type="number" min="0" max="300" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="percent" value="'+escaped(percentFor(record,f.key))+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label>').join('')+'</div></div>';
+    pub.innerHTML=kind==='fcl_rail'||kind==='lcl_plan'?'<label class="sale-publish"><input type="checkbox" data-public-id="'+escaped(id)+'" '+(record?.public_enabled?'checked':'')+'><span>'+(record?.public_enabled?'已授权公开':'内部使用')+'</span></label>':'<small>组合费用不单独公开</small>';
     sale.innerHTML='<div class="sale-inputs">'+fs.map(f=>{const fixed=Number(record?.operation_fees?.[f.key]??0),percent=Number(record?.operation_percentages?.[f.key]??0),fee=operationFeeTotal(f.purchase,fixed,percent),value=sellingPrice(f.purchase,fee??0);return '<div class="sale-result"><small>'+escaped(f.label)+'</small><strong>'+ (value===null?'采购价待补':escaped(currency)+' '+value.toLocaleString('en-US',{maximumFractionDigits:4}))+'</strong></div>';}).join('')+'</div>';
    }
-   tr.insertBefore(op,tr.lastElementChild);tr.insertBefore(sale,tr.lastElementChild);
+   tr.insertBefore(op,tr.lastElementChild);tr.insertBefore(sale,tr.lastElementChild);tr.insertBefore(pub,tr.lastElementChild);
   }
   updateCount();
  }
- function redraw(){for(const td of body.querySelectorAll('td[data-col="operation-fee"],td[data-col="selling-price"]'))td.remove();renderCells();}
+ function redraw(){for(const td of body.querySelectorAll('td[data-col="operation-fee"],td[data-col="selling-price"],td[data-col="public-rate"]'))td.remove();renderCells();}
  async function refreshSource(){
   const all=[];for(let offset=0;offset<10000;offset+=500){
    const extra=location.pathname==='/pickup-rates.html'?'&kind=eq.pickup':'';
@@ -120,6 +121,22 @@ export function mountOperationFees(){
   saved.set(row.id,result[0]);
  }
  body.addEventListener('change',async e=>{
+  if(e.target.matches('[data-public-id]')){
+   const checkbox=e.target,id=checkbox.dataset.publicId,row=sourceRows.get(id),old=saved.get(id);
+   if(!row){checkbox.checked=false;return message('请刷新后再操作');}
+   if(checkbox.checked&&!confirm('确认已核实该线路的全部成本、用箱、附加费、货物限制及有效期，并允许官网展示站到站参考卖价？该操作会立即对外可见。')){checkbox.checked=false;return;}
+   checkbox.disabled=true;
+   try{
+    const currency=kind==='lcl_plan'?'USD':row.quote?.currency;
+    const changes={source_kind:kind,source_id:id,currency,public_enabled:checkbox.checked,public_checked_at:checkbox.checked?new Date().toISOString():null};
+    const records=await cloudRequest('freight_purchase_selling_prices?on_conflict=source_kind,source_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify(changes)});
+    if(!Array.isArray(records)||records.length!==1)throw Error('官网开关未保存');
+    saved.set(id,records[0]);
+    message(checkbox.checked?'已授权官网参考价；仅符合完整性校验的线路才会对外展示':'已关闭此线路官网参考价');
+   }catch(err){message('官网开关保存失败：'+err.message);checkbox.checked=Boolean(old?.public_enabled);}
+   finally{checkbox.disabled=false;redraw();}
+   return;
+  }
   if(e.target.matches('[data-fee-check]')){const id=e.target.dataset.feeCheck;e.target.checked?selected.add(id):selected.delete(id);updateCount();return;}
   const input=e.target.closest('input[data-fee-id]');if(!input||busy)return;
   const row=sourceRows.get(input.dataset.feeId);if(!row)return;
