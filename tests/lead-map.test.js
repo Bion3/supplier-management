@@ -91,3 +91,14 @@ test('map can dispatch previously queued website research tasks',async()=>{
  assert.match(js,/lead_enrich_jobs\?select=id,lead_id&status=eq\.queued/);
  assert.match(js,/map-dispatch-queued/);
 });
+
+test('simplified map keeps one-click contact enrichment and advanced settings collapsed',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const html=await readFile(new URL('../lead-map.html',import.meta.url),'utf8');
+ const js=await readFile(new URL('../src/lead-map.js',import.meta.url),'utf8');
+ assert.match(html,/id="map-auto-contact"/);
+ assert.match(html,/<details class="map-advanced">/);
+ assert.match(html,/id="map-hide-no-contact"/);
+ assert.match(js,/map-auto-contact/);
+ assert.match(js,/action:'drain'/);
+});
