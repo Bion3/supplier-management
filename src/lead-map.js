@@ -1,6 +1,12 @@
+import {installContactProgress} from './contact-progress.js';
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches,matchesIndustryKeyword} from './lead-map-model.js';
-const $=id=>document.getElementById(id);
+const $=id=>document.getElementById(id);const contactProgress=installContactProgress('map:'+(currentUser()?.id||'guest'));
+const progressNames=new Map();
+const progressName=id=>dbRows.find(r=>r.dbId===id)?.name||progressNames.get(id)||'企业 '+String(id).slice(0,8);
+async function loadProgressNames(jobs){try{const list=await cloudRequest('lead_discovery_leads?select=id,company_name&id=in.'+encodeURIComponent('('+jobs.map(j=>j.lead_id).join(',')+')'));for(const row of list)progressNames.set(row.id,row.company_name);}catch{}}
+function mapProgressBatch(batch){contactProgress.begin('本组：'+batch.map(j=>progressName(j.lead_id)).join('、')+'（依次处理）');}
+function mapProgressResult(result){for(const r of result.results||[])contactProgress.finish({name:progressName(r.lead_id||r.id),added:r.added,pages:r.checked_pages,error:r.status==='failed'?r.error||'官网读取失败':'',skipped:r.status==='skipped'});}
 const CITIES={hamburg:{name:'Hamburg',country:'Germany',center:[53.5511,9.9937]},rotterdam:{name:'Rotterdam',country:'Netherlands',center:[51.9244,4.4777]},duisburg:{name:'Duisburg',country:'Germany',center:[51.4344,6.7623]},warsaw:{name:'Warsaw',country:'Poland',center:[52.2297,21.0122]},budapest:{name:'Budapest',country:'Hungary',center:[47.4979,19.0402]}};
 let center=CITIES.hamburg.center.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
 const chosen=new Set(),selectedVerify=new Set(),PAGE_SIZE=20;
@@ -270,7 +276,7 @@ $('map-file').onchange=async()=>{
 };
 // One clear primary action: reuse outstanding research jobs first; otherwise
 // enqueue a small batch from the current map-filtered region.
-$('map-auto-contact').onclick=async()=>{
+$('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
  const button=$('map-auto-contact'),notice=$('map-contact-status');
  button.disabled=true;
  try{
@@ -290,39 +296,39 @@ $('map-auto-contact').onclick=async()=>{
    jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
   }
   if(!jobs.length){notice.textContent='目前没有可执行的官网核实任务。';return;}
-  let done=0,added=0,failed=0;
+  await loadProgressNames(jobs);contactProgress.start(jobs.length,'地图企业联系方式补全');let done=0,added=0,failed=0;
   for(let i=0;i<jobs.length;i+=2){
-   const batch=jobs.slice(i,i+2);
+   const batch=jobs.slice(i,i+2);mapProgressBatch(batch);
    notice.textContent='官网检查中 '+(i+1)+'–'+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家…';
    const result=await appRequest('/api/lead-enrich',{method:'POST',
       body:JSON.stringify({action:'drain',ids:batch.map(j=>j.id)})});
-   done+=result.completed||0;
+   mapProgressResult(result);done+=result.completed||0;
    added+=result.added||0;
    failed+=(result.results||[]).filter(v=>v.status==='failed').length;
   }
   notice.textContent='本批完成：官网检查成功 '+done+' 家，新增公开联系方式 '+added+' 条，失败 '+failed+' 家。联系方式仍需人工核实。';
   await loadDb();
- }catch(e){notice.textContent='自动补全中断：'+e.message+'；已完成的任务会保留，可再次尝试。';}
- finally{button.disabled=false;}
+ }catch(e){contactProgress.interrupt(e.message);notice.textContent='自动补全中断：'+e.message+'；已完成的任务会保留，可再次尝试。';}
+ finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
-$('map-dispatch-queued').onclick=async()=>{
+$('map-dispatch-queued').onclick=async()=>{if(contactProgress.active)return;
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
  try{
   const jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
   if(!jobs.length){notice.textContent='当前没有排队中的官网核实任务。';return;}
   notice.textContent='开始逐家访问官网，本次最多处理 '+jobs.length+' 家，请保持页面打开…';
-  let completed=0,added=0,failed=0;
+  await loadProgressNames(jobs);contactProgress.start(jobs.length,'地图企业联系方式补全');let completed=0,added=0,failed=0;
   for(let i=0;i<jobs.length;i+=2){
-   const batch=jobs.slice(i,i+2);
+   const batch=jobs.slice(i,i+2);mapProgressBatch(batch);
    const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({action:'drain',ids:batch.map(j=>j.id)})});
-   completed+=result.completed||0;added+=result.added||0;
+   mapProgressResult(result);completed+=result.completed||0;added+=result.added||0;
    failed+=(result.results||[]).filter(x=>x.status==='failed').length;
    notice.textContent='已处理 '+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家：完成 '+completed+'，新增公开联系方式 '+added+'，失败 '+failed+'。';
   }
   notice.textContent+=' 本批已结束；未完成的任务可再次点击。联系方式仍需人工核实。';
   await loadDb();
- }catch(e){notice.textContent='执行中断：'+e.message+'。已经完成的记录会保留，可再次处理剩余任务。';}
- finally{btn.disabled=false;}
+ }catch(e){contactProgress.interrupt(e.message);notice.textContent='执行中断：'+e.message+'。已经完成的记录会保留，可再次处理剩余任务。';}
+ finally{if(contactProgress.active)contactProgress.complete();btn.disabled=false;}
 };
 
 $('map-verify').onclick=async()=>{

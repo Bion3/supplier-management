@@ -1,3 +1,4 @@
+import {installContactProgress} from './contact-progress.js';
 import {transferToCrm} from './crm-acquisition.js';
 import {createListFilters} from './list-filters.js';
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
@@ -31,7 +32,7 @@ async function searchTask(taskId,source,button){
  finally{button.disabled=false;}
 }
 
-const $=id=>document.getElementById(id);
+const $=id=>document.getElementById(id);const directProgress=installContactProgress('discovery:'+(currentUser()?.id||'guest'));
 const el=(tag,text)=>{const node=document.createElement(tag);node.textContent=String(text??'');return node;};
 function cell(tr,content){const td=document.createElement('td');if(content instanceof Node)td.append(content);else td.textContent=String(content??'');tr.append(td);return td;}
 function cleanWebsite(value){try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null;}catch{return null;}}
@@ -72,7 +73,7 @@ async function loadLeads(cached=false){const body=$('leads');body.replaceChildre
  const evidenceBtn=document.createElement('button');evidenceBtn.type='button';evidenceBtn.className='secondary';evidenceBtn.textContent='证据';
  evidenceBtn.onclick=()=>showEvidence(lead);
  qBox.append(evidenceBtn);cell(tr,qBox);
- cell(tr,lead.verification_status||'未验证');const action=document.createElement('div');const stage=el('span',lead.crm?.development_stage||'待开发');action.append(stage);const add=document.createElement('button');add.type='button';add.className='secondary';add.textContent='补充联系';add.onclick=()=>{candidateId=lead.id;$('candidate-contact-form').reset();$('candidate-contact-error').textContent='';$('candidate-contact').showModal();};action.append(add);const enrich=document.createElement('button');enrich.type='button';enrich.className='secondary';enrich.textContent='官网核实';enrich.disabled=!lead.website;enrich.onclick=async()=>{enrich.disabled=true;enrich.textContent='核实中…';try{const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:lead.id})});alert('已检查 '+result.checked_pages+' 页，新增 '+result.added+' 条待核实联系方式。'+(result.errors?.length?' 部分页面失败：'+result.errors.join('；'):''));await loadLeads();}catch(e){alert('官网提取失败：'+e.message);}finally{enrich.textContent='官网提取联系方式';enrich.disabled=false;}};action.append(enrich);const imported=document.createElement('button');imported.type='button';imported.className='secondary';imported.textContent='直接跟进';imported.onclick=()=>transferToCrm('lead',lead,imported);action.append(imported);cell(tr,action);body.append(tr);}syncSelection();}catch(e){$('leads-empty').textContent='无法读取候选企业：'+e.message;}}
+ cell(tr,lead.verification_status||'未验证');const action=document.createElement('div');const stage=el('span',lead.crm?.development_stage||'待开发');action.append(stage);const add=document.createElement('button');add.type='button';add.className='secondary';add.textContent='补充联系';add.onclick=()=>{candidateId=lead.id;$('candidate-contact-form').reset();$('candidate-contact-error').textContent='';$('candidate-contact').showModal();};action.append(add);const enrich=document.createElement('button');enrich.type='button';enrich.className='secondary';enrich.textContent='官网核实';enrich.disabled=!lead.website;enrich.onclick=async()=>{if(directProgress.active)return;directProgress.start(1,'企业联系方式补全');directProgress.begin(lead.company_name);let recorded=false;enrich.disabled=true;enrich.textContent='核实中…';try{const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:lead.id})});directProgress.finish({name:lead.company_name,added:result.added,pages:result.checked_pages});recorded=true;$('enrich-summary').textContent=('已检查 '+result.checked_pages+' 页，新增 '+result.added+' 条待核实联系方式。'+(result.errors?.length?' 部分页面失败：'+result.errors.join('；'):''));await loadLeads();}catch(e){if(!recorded)directProgress.finish({name:lead.company_name,error:e.message});else directProgress.interrupt('结果已保存，但页面刷新失败：'+e.message);$('enrich-summary').textContent='官网提取失败：'+e.message;}finally{if(directProgress.active)directProgress.complete();enrich.textContent='官网提取联系方式';enrich.disabled=false;}};action.append(enrich);const imported=document.createElement('button');imported.type='button';imported.className='secondary';imported.textContent='直接跟进';imported.onclick=()=>transferToCrm('lead',lead,imported);action.append(imported);cell(tr,action);body.append(tr);}syncSelection();}catch(e){$('leads-empty').textContent='无法读取候选企业：'+e.message;}}
 $('discovery-form').addEventListener('submit',async event=>{event.preventDefault();const f=event.currentTarget;const btn=f.querySelector('button[type=submit]');const fd=new FormData(f);const keywords=String(fd.get('keywords')||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!keywords.length){$('task-notice').textContent='请输入关键词';return;}btn.disabled=true;$('task-notice').textContent='保存中…';try{if(!currentUser())throw Error('请先在客户资源页面登录');await cloudRequest('lead_discovery_tasks',{method:'POST',body:JSON.stringify({country:fd.get('country'),city:fd.get('city'),source:fd.get('source'),keywords,target_count:Number(fd.get('target_count')),status:'pending'})});$('task-notice').textContent='任务已保存。点击任务列表中的“实时搜索”查询地图企业。';await loadTasks();}catch(e){$('task-notice').textContent='保存失败：'+e.message;}finally{btn.disabled=false;}});
 $('refresh-tasks').addEventListener('click',()=>{loadTasks();loadLeads();});$('lead-status').addEventListener('change',()=>{leadPage=1;loadLeads();});loadTasks();loadLeads();loadEnrichJobs();
 function showEvidence(lead){
@@ -140,11 +141,13 @@ $('batch-enrich').addEventListener('click',async()=>{
  }catch(e){$('enrich-summary').textContent='批量任务创建失败：'+e.message;}
  finally{syncSelection();}
 });
-async function loadEnrichJobs(){
+let enrichPoll=null;
+function showEnrichProgress(jobs,names){let box=$('enrich-live-progress');if(!box){box=document.createElement('div');box.id='enrich-live-progress';box.className='enrich-live-progress';box.style.cssText='padding:14px 20px;background:#f0f8f5;border-radius:8px;margin:12px 0';const title=document.createElement('strong');title.textContent='后台补全进度 · 每10秒自动刷新';const bar=document.createElement('progress');bar.id='enrich-live-bar';bar.style.cssText='width:100%;height:14px;display:block;margin:10px 0';bar.setAttribute('aria-label','后台任务已处理进度');const text=document.createElement('p');text.id='enrich-live-text';text.setAttribute('role','status');box.append(title,bar,text);$('enrich-summary').after(box);}const done=jobs.filter(x=>['completed','failed'].includes(x.status)).length,active=jobs.filter(x=>x.status==='running'),queued=jobs.filter(x=>x.status==='queued').length;$('enrich-live-bar').max=Math.max(1,jobs.length);$('enrich-live-bar').value=done;$('enrich-live-text').textContent='当前加载 '+jobs.length+' 个任务 · 已处理 '+done+' / '+jobs.length+' · 排队 '+queued+' · 执行中 '+active.length+(active.length?' · 正在处理：'+active.slice(0,3).map(j=>names.get(j.lead_id)||j.lead_id.slice(0,8)).join('、'):'');return queued>0||active.length>0;}
+async function loadEnrichJobs(){clearTimeout(enrichPoll);let needsPoll=false;
  const tbody=$('enrich-jobs');tbody.replaceChildren();
  try{
   const jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id,status,attempts,added_count,checked_pages,error,created_at,finished_at&order=created_at.desc&limit=500');
-  const names=new Map(leadRows.map(l=>[l.id,l.company_name]));
+  const names=new Map(leadRows.map(l=>[l.id,l.company_name]));needsPoll=showEnrichProgress(jobs,names);
   const stats={queued:0,running:0,completed:0,failed:0};
   for(const j of jobs)stats[j.status]=(stats[j.status]||0)+1;
   $('enrich-summary').textContent='任务 '+jobs.length+' 条 · 排队 '+stats.queued+' · 执行中 '+stats.running+' · 成功 '+stats.completed+' · 失败 '+stats.failed+'（任务记录保存在数据库，离开页面不丢失）';
@@ -162,8 +165,9 @@ async function loadEnrichJobs(){
    }
    tbody.append(tr);
   }
- }catch(e){$('enrich-summary').textContent='任务状态读取失败：'+e.message;}
+ }catch(e){$('enrich-summary').textContent='任务状态读取失败：'+e.message;needsPoll=true;}finally{if(needsPoll&&!document.hidden)enrichPoll=setTimeout(()=>loadEnrichJobs(),10000);}
 }
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearTimeout(enrichPoll);else if(currentUser())loadEnrichJobs();});
 $('dispatch-queued-enrich').addEventListener('click',async()=>{
  const button=$('dispatch-queued-enrich');button.disabled=true;
  try{

@@ -1,3 +1,4 @@
+import {installContactProgress} from './contact-progress.js';
 import {transferToCrm,installExhibitorCrm} from './crm-acquisition.js';
 import {mergeExhibitorContacts,exhibitorContactsByType} from './exhibitor-contact-model.js';
 import {exhibitionCategories,exhibitionTypes,exhibitionTiers,exhibitionSources,tierGuide} from './exhibitions-classification.js';
@@ -83,25 +84,26 @@ $('import-confirm').onclick=async()=>{if(busy||!plan?.accepted.length||plan.erro
 $('bulk-type').replaceChildren(option('','不修改'),...companyTypes.map(v=>option(v)));$('bulk-open').onclick=()=>{if(busy||!selected.size)return;$('bulk-form').reset();$('bulk-count').textContent='修改已选 '+selected.size+' 条展商；空白项保持原值。';$('bulk-error').textContent='';$('bulk-dialog').showModal();};
 $('bulk-form').onsubmit=async event=>{event.preventDefault();if(busy)return;const data=Object.fromEntries(new FormData(event.target)),tags=data.tags.split(/[,，;；]/).map(t=>t.trim()).filter(Boolean);if(!data.industry.trim()&&!data.company_type&&!tags.length){$('bulk-error').textContent='请至少填写一个分类项。';return;}const targets=exhibitors.filter(r=>selected.has(r.id));lock(true);let saved=0;try{for(let offset=0;offset<targets.length;offset+=2000){const batch=targets.slice(offset,offset+2000),result=await cloudRequest('rpc/freight_exhibitors_classify',{method:'POST',body:JSON.stringify({p_ids:batch.map(r=>r.id),p_industry:data.industry.trim()||null,p_type:data.company_type||null,p_tags:tags})});const byId=new Map(batch.map(r=>[r.id,r]));for(const row of result){Object.assign(byId.get(row.id),row);selected.delete(row.id);saved++;}if(result.length!==batch.length)throw Error('部分展商未更新，请刷新核对权限。');}$('bulk-dialog').close();fillFilters();$('notice').textContent='已分类 '+saved+' 条展商。';}catch(error){$('bulk-error').textContent='已保存 '+saved+' 条；'+error.message;}finally{lock(false);}};
 for(const [dialog,close] of [['entry-dialog','entry-close'],['import-dialog','import-close'],['bulk-dialog','bulk-close']]){$(close).onclick=()=>{if(!busy)$(dialog).close();};$(dialog).addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
-$('expo-contact-complete').onclick=async()=>{
+const contactProgress=installContactProgress('exhibitions:'+(currentUser()?.id||'guest'));
+$('expo-contact-complete').onclick=async()=>{if(contactProgress.active)return;
  if(kind!=='exhibitors'||busy)return;
  const chosen=exhibitors.filter(r=>selected.has(r.id)&&r.website?.startsWith('https://')).slice(0,10);
  if(!chosen.length){$('notice').textContent='所选展商没有可检查的 HTTPS 官网。';return;}
  if(!confirm('从 '+chosen.length+' 家展商的公开官网补全缺失邮箱/电话？现有联系方式不会被覆盖，也不会自动发送邮件。'))return;
- const button=$('expo-contact-complete');button.disabled=true;
+ const button=$('expo-contact-complete');contactProgress.start(chosen.length,'展商联系方式补全');button.disabled=true;
  let completed=0,added=0,failed=0;
  try{
   for(const row of chosen){
-   try{
+   contactProgress.begin(row.company_name);try{
     const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({action:'enrich-exhibitor',exhibitor_id:row.id})});
     if(result.error)throw Error(result.error);
-    completed++;added+=result.added||0;
-   }catch(e){failed++;}
+    completed++;added+=result.added||0;contactProgress.finish({name:row.company_name,added:result.added,pages:result.checked_pages});
+   }catch(e){failed++;contactProgress.finish({name:row.company_name,error:e.message});}
    $('notice').textContent='展商官网补全进度 '+(completed+failed)+' / '+chosen.length+'；完成 '+completed+'、新增联系方式 '+added+'、失败 '+failed+'。';
   }
   await load();
   $('notice').textContent='本批展商已处理 '+chosen.length+' 家；新增公开联系方式 '+added+' 条，失败 '+failed+' 家。所有联系方式仍需人工核实。';
- }finally{button.disabled=false;}
+ }catch(e){contactProgress.interrupt(e.message);}finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
 $('add-entry').onclick=()=>{if(!busy)openEditor();};$('refresh').onclick=()=>{if(!busy)load();};$('tab-fairs').onclick=()=>switchKind('fairs');$('tab-exhibitors').onclick=()=>switchKind('exhibitors');
 for(const id of ['query','year-filter','category-filter','region-filter','tier-filter','exhibition-type-filter','platform-filter','country-filter','industry-filter','status-filter','type-filter','tag-filter','fair-filter','period-filter'])$(id).addEventListener(id==='query'?'input':'change',()=>{page=1;selected.clear();render();});
