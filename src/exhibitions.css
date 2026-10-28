@@ -3,3 +3,5 @@
 [data-kind=fairs] td:first-child{min-width:230px;width:230px}
 #expo-table{max-height:64vh;overflow:auto}#expo-table th{position:sticky;top:0;z-index:1}[data-kind=exhibitors] table{min-width:1600px}
 .expo-auto-setting{flex-direction:row;align-items:center}.expo-auto-setting input,#auto-detail input[type=checkbox]{width:18px;height:18px}#auto-detail{width:min(900px,calc(100% - 32px))}#auto-history{width:min(800px,calc(100% - 32px))}#auto-error{color:#ae3630}#auto-evidence{padding:12px;background:#f2f6f4;white-space:pre-wrap}#history-list article{border-top:1px solid #e1e9e6;padding:16px 0}#history-list p{margin:6px 0}#history-list pre{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.expo-sources{margin-top:16px}.expo-sources summary{cursor:pointer;font-weight:700}.expo-sources p{line-height:1.7;color:var(--muted,#64748b)}#source-links{display:flex;gap:10px;flex-wrap:wrap}#source-links a{padding:8px 10px;background:#f1f5f9;border-radius:8px}.expo-tier{display:inline-block;padding:4px 8px;border-radius:6px;background:#e2e8f0;color:#334155;white-space:nowrap}.expo-tier.tier-a{background:#dcfce7;color:#166534}.expo-tier.tier-b{background:#dbeafe;color:#1e40af}
