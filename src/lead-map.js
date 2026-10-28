@@ -167,6 +167,43 @@ $('map-file').onchange=async()=>{
  try{const parsed=parseGeoText(await f.text(),f.name);fileRows=parsed.rows;chosen.clear();$('map-save-status').textContent='文件 '+parsed.original+' 条，'+parsed.rows.length+' 条包含有效坐标；'+parsed.missing+' 条缺失地点坐标或格式无效。请核对来源、区域与许可证。';search();}
  catch(e){$('map-save-status').textContent='读取文件失败：'+e.message;}
 };
+// One clear primary action: reuse outstanding research jobs first; otherwise
+// enqueue a small batch from the current map-filtered region.
+$('map-auto-contact').onclick=async()=>{
+ const button=$('map-auto-contact'),notice=$('map-contact-status');
+ button.disabled=true;
+ try{
+  let jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
+  if(!jobs.length){
+   const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&
+      r.website?.startsWith('https://')&&r.reviewStatus==='pending'&&
+      contactPriority(r)===0).slice(0,6);
+   if(!candidates.length){
+    notice.textContent='当前区域没有待补全且支持 HTTPS 的企业。已有联系方式可直接筛选；其他企业需先确认官网。';
+    return;
+   }
+   notice.textContent='正在为本区域 '+candidates.length+' 家企业建立核实任务…';
+   const response=await appRequest('/api/lead-batch',{method:'POST',
+     body:JSON.stringify({ids:candidates.map(r=>r.dbId)})});
+   if(response.error&&!(response.queued>0))throw Error(response.error);
+   jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
+  }
+  if(!jobs.length){notice.textContent='目前没有可执行的官网核实任务。';return;}
+  let done=0,added=0,failed=0;
+  for(let i=0;i<jobs.length;i+=2){
+   const batch=jobs.slice(i,i+2);
+   notice.textContent='官网检查中 '+(i+1)+'–'+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家…';
+   const result=await appRequest('/api/lead-enrich',{method:'POST',
+      body:JSON.stringify({action:'drain',ids:batch.map(j=>j.id)})});
+   done+=result.completed||0;
+   added+=result.added||0;
+   failed+=(result.results||[]).filter(v=>v.status==='failed').length;
+  }
+  notice.textContent='本批完成：官网检查成功 '+done+' 家，新增公开联系方式 '+added+' 条，失败 '+failed+' 家。联系方式仍需人工核实。';
+  await loadDb();
+ }catch(e){notice.textContent='自动补全中断：'+e.message+'；已完成的任务会保留，可再次尝试。';}
+ finally{button.disabled=false;}
+};
 $('map-dispatch-queued').onclick=async()=>{
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
  try{
@@ -212,7 +249,7 @@ async function loadDb(){
    cloudRequest('lead_discovery_leads?select=id,provider_place_id,company_name,website,address,country,city,map_lat,map_lng,map_category,review_status,contacts,verification_status&map_lat=not.is.null&map_lng=not.is.null&order=created_at.desc&limit=1000'),
    cloudRequest('lead_discovery_tasks?select=id,country,city,source&source=eq.overture&order=created_at.desc&limit=100')]);
   dbRows=leads.map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
-  const sel=$('map-task');for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
+  const sel=$('map-task');sel.replaceChildren(new Option('请选择对应城市的 Overture 任务',''));for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
   const match=tasks.find(t=>t.city.toLowerCase()==='hamburg');if(match)sel.value=match.id;
   search();
   await loadMapJobs();
