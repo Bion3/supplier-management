@@ -2,7 +2,7 @@ import math
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
-from scripts.run_map_search_queue import tiles, keyword_matches, current_release
+from scripts.run_map_search_queue import tiles, keyword_matches, current_release, process
 class MapQueueTests(unittest.TestCase):
  def test_hamburg_50km_full_coverage_bounded_boxes(self):
   result=tiles(53.5511,9.9937,50)
@@ -29,4 +29,9 @@ class MapQueueTests(unittest.TestCase):
  def test_latest_release_is_parsed_from_cli(self):
   with patch('scripts.run_map_search_queue.subprocess.run',return_value=SimpleNamespace(stdout='Current release: 2026-10-21.0\\n')):
    self.assertEqual(current_release(),'2026-10-21.0')
+ def test_worker_runs_quality_audit_after_ingest(self):
+  from pathlib import Path
+  source=Path('scripts/run_map_search_queue.py').read_text()
+  self.assertLess(source.index('lead_map_worker_quality_audit',source.index('def process(')),
+                  source.index('lead_map_worker_finish',source.index('def process(')))
 if __name__=='__main__':unittest.main()
