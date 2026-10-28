@@ -56,3 +56,20 @@
 .map-table-wrap td:nth-child(6) div,.map-table-wrap td:nth-child(7) div{line-height:1.5;margin:2px 0}
 .map-table-wrap td:nth-child(8){white-space:nowrap;color:#546b72}
 .map-table-actions button{white-space:nowrap}
+
+
+/* Simplified prospecting flow */
+.map-advanced{margin-top:12px;border:1px solid #e1eaea;border-radius:10px;background:#fbfdfc}
+.map-advanced>summary{cursor:pointer;padding:11px 14px;color:#4c6872;font-size:13px;font-weight:600;list-style-position:inside}
+.map-advanced[open]>summary{border-bottom:1px solid #e4eceb}
+.map-advanced-inner{padding:12px}
+.map-advanced .map-jobs{margin:0;padding:12px;border:0}
+.map-flow-tip{font-size:13px;line-height:1.7;color:#176f66;background:#eff8f5;border-radius:8px;padding:10px 12px;margin:14px 0 10px}
+.map-contact-filters{display:flex;align-items:end;gap:14px;flex-wrap:wrap;margin:12px 0}
+.map-contact-filters label{display:grid;gap:6px;font-size:13px;color:#45616d}
+.map-contact-filters .map-contact-checkbox{display:flex;align-items:center;gap:7px;padding-bottom:8px}
+.map-contact-filters select{min-width:160px}
+.map-contact-summary{color:#607984;font-size:13px;margin-bottom:12px}
+.map-table-actions #map-auto-contact{background:#187a6d;color:#fff;font-weight:650}
+.map-table-actions #map-dispatch-queued[hidden]{display:none!important}
+@media(max-width:850px){.map-table-actions{width:100%}.map-table-actions button{flex:1 1 auto}.map-contact-filters{gap:9px}}
