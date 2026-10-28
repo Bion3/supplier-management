@@ -1,3 +1,4 @@
+import {createExhibitorContactCompletion} from '../server/exhibitor-contact-completion.js';
 import {createMapDispatcher} from '../server/lead-map-dispatch.js';
 import {createContactDrain} from '../server/lead-contact-drain.js';
 import {researchWebsite} from '../server/lead-website-research.js';
@@ -9,6 +10,7 @@ export async function POST(request){
   const probe=await request.clone().json().catch(()=>({}));
   if(probe?.action==='drain')return createContactDrain()(request);
   if(probe?.action==='start-map-job')return createMapDispatcher()(request);
+  if(probe?.action==='enrich-exhibitor')return createExhibitorContactCompletion()(request);
   if(Number(request.headers.get('content-length')||0)>1024)return reply({error:'请求过大'},413);
   const token=(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
   if(!token)return reply({error:'请先登录 CRM'},401);
