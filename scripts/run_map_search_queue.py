@@ -92,7 +92,7 @@ def current_release():
     # The Overture CLI uses latest STAC. Resolve release for truthful provenance.
     result=subprocess.run(["overturemaps","releases","latest"],check=True,
         capture_output=True,text=True,timeout=40)
-    versions=re.findall(r'20\\d{2}-\\d{2}-\\d{2}\\.\\d+',result.stdout)
+    versions=re.findall(r'20\d{2}-\d{2}-\d{2}\.\d+',result.stdout)
     if not versions:
         raise RuntimeError("Unable to determine Overture release used by STAC")
     return versions[-1]
