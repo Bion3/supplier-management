@@ -1,5 +1,10 @@
 name: Process map lead search queue
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/run_map_search_queue.py'
+      - '.github/workflows/map-lead-search-queue.yml'
   workflow_dispatch:
   schedule:
     - cron: '*/10 * * * *'
@@ -23,7 +28,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check overturemaps
       - name: Check geographic tiling before download
         run: python -m unittest discover -s tests -p 'test_map_queue.py' -v && python -m unittest discover -s tests -p 'test_overture_download.py' -v
-      - name: Claim one CRM map search and stage pending candidates
+      - name: Process up to three queued map searches and stage pending candidates
         env:
           OVERTURE_INGEST_SECRET: ${{ secrets.OVERTURE_INGEST_SECRET }}
         run: python -m scripts.run_map_search_queue
