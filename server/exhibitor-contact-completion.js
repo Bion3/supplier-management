@@ -13,7 +13,7 @@ export function createExhibitorContactCompletion({fetcher=fetch,researcher=resea
   if(!UUID.test(id))return json({error:'展商 ID 无效'},400);
   const headers={apikey:PUB,Authorization:'Bearer '+jwt,'Content-Type':'application/json'};
   try{
-   const response=await fetcher(BASE+'freight_exhibitors?id=eq.'+id+'&select=id,company_name,website,email,phone,status,notes&limit=1',{
+   const response=await fetcher(BASE+'freight_exhibitors?id=eq.'+id+'&select=id,company_name,website,email,phone,contacts,status,notes&limit=1',{
     headers,signal:AbortSignal.timeout(12000)});
    if(!response.ok)return json({error:'展商无访问权限'},403);
    const records=await response.json();
@@ -22,23 +22,39 @@ export function createExhibitorContactCompletion({fetcher=fetch,researcher=resea
    if(!company.website?.startsWith('https://'))return json({error:'展商没有 HTTPS 官网，须先核实官网'},422);
    const found=await researcher(company.website);
    if(!found.evidence?.length)return json({error:'官网暂时无法安全访问',details:(found.errors||[]).slice(0,2)},422);
-   const emails=found.contacts.filter(c=>c.type==='email').map(c=>c.value);
-   const phones=found.contacts.filter(c=>c.type==='phone').map(c=>c.value);
-   const result={};
+   const old=Array.isArray(company.contacts)?company.contacts:[];
+   const all=[...old];
+   const seen=new Set(old.map(c=>String(c.type||'')+'|'+String(c.value||'').trim().toLowerCase()));
+   for(const [type,value] of [['email',company.email],['phone',company.phone]]){
+    if(!value)continue;
+    const key=type+'|'+String(value).trim().toLowerCase();
+    if(!seen.has(key)){all.push({type,value:String(value).trim(),source_type:'legacy_exhibitor',verification:'unverified'});seen.add(key);}
+   }
+   let added=0;
+   for(const item of found.contacts||[]){
+    if(!['email','phone'].includes(item.type)||typeof item.value!=='string')continue;
+    const value=item.value.trim(),key=item.type+'|'+value.toLowerCase();
+    if(!value||seen.has(key)||all.length>=100)continue;
+    all.push({type:item.type,value,source_type:item.source_type||'official_website',
+      source_url:item.source_url||company.website,verification:'unverified'});
+    seen.add(key);added++;
+   }
+   const emails=all.filter(c=>c.type==='email').map(c=>c.value);
+   const phones=all.filter(c=>c.type==='phone').map(c=>c.value);
+   const result={contacts:all};
    if(!company.email&&emails.length)result.email=emails[0];
    if(!company.phone&&phones.length)result.phone=phones[0];
    const sources=found.evidence.map(e=>e.url).slice(0,3);
    const existingNotes=String(company.notes||'');
    const sourceLine='官网公开联系方式候选（未核实）：'+sources.join('、');
-   if(sources.length&&!existingNotes.includes(sourceLine))result.notes=(existingNotes+'\n'+sourceLine).trim().slice(0,5000);
-   if(!Object.keys(result).length)return json({added:0,checked_pages:found.checked_pages||0,notice:'已有联系方式，未覆盖。官网仍需人工核实。'});
+   if(sources.length&&!existingNotes.includes(sourceLine))result.notes=(existingNotes+'\\n'+sourceLine).trim().slice(0,5000);
    result.updated_at=new Date().toISOString();
    const updated=await fetcher(BASE+'freight_exhibitors?id=eq.'+id,{
     method:'PATCH',headers:{...headers,Prefer:'return=representation'},body:JSON.stringify(result),signal:AbortSignal.timeout(12000)});
    if(!updated.ok)return json({error:'官网获取成功，但账号无权保存展商更新'},403);
    const changed=await updated.json();
    if(changed.length!==1)return json({error:'展商并发更新或保存失败'},409);
-   return json({added:Number(Boolean(result.email))+Number(Boolean(result.phone)),email_added:Boolean(result.email),phone_added:Boolean(result.phone),checked_pages:found.checked_pages||0,notice:'补全的是官网公开信息，未自动认定邮箱有效，也未发送邮件。'});
+   return json({added,email_added:Boolean(result.email),phone_added:Boolean(result.phone),checked_pages:found.checked_pages||0,notice:'补全的是官网公开信息，未自动认定邮箱有效，也未发送邮件。'});
   }catch(e){return json({error:String(e.message||'展商补全失败').slice(0,220)},500);}
  };
 }
