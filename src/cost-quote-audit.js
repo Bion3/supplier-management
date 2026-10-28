@@ -24,12 +24,12 @@ export function quoteAuditRows(selected){
  ];
  const pending=result.pending||[],out=[];
  for(const [label,key] of segments){
-  const matched=lines.filter(l=>String(l.name||'').includes(label)||(!fcl&&key==='rail'&&/铁路/.test(l.name||'')));
-  const issues=pending.filter(x=>String(x).includes(label)||key==='rail'&&/拼箱铁路|铁路运费/.test(String(x)));
+  const matched=lines.filter(l=>String(l.name||'').includes(label)||(!fcl&&key==='rail'&&/铁路/.test(l.name||''))||(!fcl&&key==='pickup'&&/提货费|国内提货/.test(l.name||'')));
+  const issues=pending.filter(x=>String(x).includes(label)||key==='rail'&&/拼箱铁路|铁路运费/.test(String(x))||key==='pickup'&&/提货费|国内提货/.test(String(x)));
   const source=fcl?input.sources?.[key]:key==='pickup'?input.pickupQuote:key==='linehaul'?input.linehaulQuote:null;
   const amount=matched.reduce((n,l)=>n+Number(l.value||0),0);
-  let status=issues.length?'review':matched.length?'ok':'missing';
-  if(source?.status==='draft')status='review';
+  let status=!matched.length?'missing':issues.length?'review':'ok';
+  if(source?.status==='draft'&&matched.length)status='review';
   out.push({label,key,amount:matched.length?amount:null,source:source?.supplier_id||source?.supplierId||null,issues,status,link:segmentLink(label,input.transport),basis:matched.map(l=>l.basis).filter(Boolean).join('；'),lineCount:matched.length});
  }
  for(const line of lines){
