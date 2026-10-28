@@ -29,9 +29,12 @@ function readHtml(url,address){
 }
 async function fetchSafe(url){
  const records=await lookup(url.hostname,{all:true,verbatim:true});
- const usable=records.filter(r=>publicIPv4(r.address));
- // Fail closed if DNS returns any private/reserved address.
- if(!records.length||usable.length!==records.length)throw Error('网站地址不符合安全访问要求');
+ // Node DNS returns IPv4 and IPv6. The downloader intentionally connects to
+ // a vetted IPv4 address; valid IPv6 answers must not make ordinary sites fail.
+ // Reject all private/reserved IPv4 answers, and require at least one public IPv4.
+ const ipv4=records.filter(r=>isIP(r.address)===4);
+ const usable=ipv4.filter(r=>publicIPv4(r.address));
+ if(!ipv4.length||usable.length!==ipv4.length)throw Error('网站地址不符合安全访问要求');
  return readHtml(url,usable[0].address);
 }
 function decode(s){return s.replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n)).replace(/&commat;/g,'@').replace(/&amp;/g,'&');}
