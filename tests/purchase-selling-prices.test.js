@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {purchaseFields,sellingPrice,operationFeeTotal,changeOperationFee,compatibleFeeBatch} from '../src/purchase-selling-prices.js';
+import {purchaseFields,sellingPrice,operationFeeTotal,changeOperationFee,compatibleFeeBatch,DEFAULT_OPERATION_PERCENT,percentFor} from '../src/purchase-selling-prices.js';
 
 test('purchase cost plus per-unit operations fee determines selling price',()=>{
  assert.equal(sellingPrice(8400,600),9000);
@@ -63,4 +63,16 @@ test('percentage and fixed operation fee combine against purchase price',()=>{
  assert.throws(()=>changeOperationFee(10,'subtract',11),/不能超过/);
  assert.equal(operationFeeTotal(null,200,10),null);
  assert.throws(()=>operationFeeTotal(100,20,-5),/非负/);
+});
+
+test('default surcharge is ten percent on every component while custom percentages remain unchanged',()=>{
+ assert.equal(DEFAULT_OPERATION_PERCENT,10);
+ for(const key of ['price','unit','cbm','ton','fixed','tier_0','tier_1']){
+  assert.equal(percentFor(undefined,key),10);
+  assert.equal(percentFor({operation_percentages:{}},key),10);
+  assert.equal(sellingPrice(8400,operationFeeTotal(8400,0,percentFor(null,key))),9240);
+ }
+ assert.equal(percentFor({operation_percentages:{price:0}},'price'),0);
+ assert.equal(percentFor({operation_percentages:{price:15}},'price'),15);
+ assert.equal(sellingPrice(8400,operationFeeTotal(8400,200,10)),9440);
 });
