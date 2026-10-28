@@ -5,7 +5,8 @@ const respond=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Cont
 export function createMapDispatcher({fetcher=fetch,getToken=()=>process.env.MAP_GITHUB_DISPATCH_TOKEN}={}){
  return async request=>{
   try{
-   const jwt=(request.headers.get('authorization')||'').replace(/^Bearer\\s+/i,'');
+   const authHeader=request.headers.get('authorization')||'';
+   const jwt=authHeader.toLowerCase().startsWith('bearer ')?authHeader.slice(7).trim():'';
    if(!jwt)return respond({error:'请先登录'},401);
    const body=await request.json().catch(()=>({}));
    const id=String(body.job_id||'');
