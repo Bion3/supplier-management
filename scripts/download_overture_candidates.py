@@ -60,8 +60,8 @@ def assess_feature(obj):
     phone_values=x.get('phones') or []
     if not isinstance(email_values,list):email_values=[]
     if not isinstance(phone_values,list):phone_values=[]
-    emails=list(dict.fromkeys(v.lower() for v in (clean(item,150) for item in email_values) if re.fullmatch(r'[^\\s@]+@[^\\s@]+\\.[a-zA-Z]{2,}',v)))[:8]
-    phones=list(dict.fromkeys(v for v in (clean(item,90) for item in phone_values) if len(re.sub(r'\\D','',v))>=6 and len(v)<=40))[:8]
+    emails=list(dict.fromkeys(v.lower() for v in (clean(item,150) for item in email_values) if re.fullmatch(r'[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}',v)))[:8]
+    phones=list(dict.fromkeys(v for v in (clean(item,90) for item in phone_values) if len(re.sub(r'\D','',v))>=6 and len(v)<=40))[:8]
     geom=obj.get('geometry') if isinstance(obj.get('geometry'),dict) else x.get('geometry')
     point=None
     if isinstance(geom,dict):
