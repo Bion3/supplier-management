@@ -107,6 +107,33 @@ function render(){
 function selectionStatus(){$('map-selected').textContent='待保存 '+chosen.size+' 家 · 待官网核实 '+selectedVerify.size+' 家';$('map-save').disabled=!chosen.size;$('map-verify').disabled=!selectedVerify.size;}
 function search(){setViewport();page=1;render();}
 $('map-search-button').onclick=async()=>{search();if(!rows.length&&CITIES[$('map-city').value]){await submitRegionCollection({prompt:false});}else{$('map-search-status').textContent='已找到 '+rows.length+' 家匹配的已采集企业。可按联系方式进一步筛选。';}};
+// Automatically hand completed regional searches to the existing durable website queue.
+// The browser only submits the initial bounded batch; Vercel processes it in the background.
+const AUTO_ENRICH_MAX=25;
+const autoEnrichSeen=new Set();
+async function autoEnrichCompletedJob(job){
+ if(!job||job.status!=='completed'||!job.inserted)return;
+ const storageKey='map-auto-enrich-v1:'+job.id;
+ if(autoEnrichSeen.has(job.id)||localStorage.getItem(storageKey))return;
+ autoEnrichSeen.add(job.id);
+ try{
+  const leadRows=await cloudRequest('lead_discovery_leads?select=id,contacts,website,review_status,crm_company_id&city=eq.'+
+   encodeURIComponent(job.city)+'&review_status=eq.pending&website=ilike.https%3A%2F%2F%25&order=created_at.desc&limit=500');
+  const lacking=leadRows.filter(x=>!x.crm_company_id&&x.website?.startsWith('https://')&&
+    (!contactChannels(x).email||!contactChannels(x).phone)).slice(0,AUTO_ENRICH_MAX);
+  if(!lacking.length){localStorage.setItem(storageKey,'nothing-to-fill');return;}
+  const response=await appRequest('/api/lead-batch',{method:'POST',
+   body:JSON.stringify({ids:lacking.map(x=>x.id)})});
+  if(response.error&&!(response.queued>0))throw Error(response.error);
+  localStorage.setItem(storageKey,String(response.queued||0));
+  const note=$('map-contact-status');
+  if(note)note.textContent='采集完成，自动提交 '+(response.queued||0)+' 家缺失邮箱/电话企业至后台官网补全队列。不会自动发送邮件，结果仍需审核。';
+ }catch(e){
+  autoEnrichSeen.delete(job.id);
+  const note=$('map-contact-status');
+  if(note)note.textContent='自动补全派发未成功：'+e.message+'。可使用「一键补全联系方式」重试。';
+ }
+}
 const MAP_JOB_TASK_CITY='hamburg';
 async function loadMapJobs(){
  const list=$('map-job-list');if(!list)return;
@@ -123,6 +150,7 @@ async function loadMapJobs(){
    const stats=document.createElement('small');
    stats.textContent='扫描入库处理 '+j.processed+' 条 · 新增 '+j.inserted+' · 补坐标 '+j.located_existing+(j.error_message?' · 原因：'+j.error_message:'');
    row.append(details,stats);list.append(row);
+   if(j.status==='completed')void autoEnrichCompletedJob(j);
   }
  }catch(e){list.textContent='读取采集任务失败：'+e.message;}
 }
@@ -210,7 +238,7 @@ $('map-auto-contact').onclick=async()=>{
   if(!jobs.length){
    const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&
       r.website?.startsWith('https://')&&r.reviewStatus==='pending'&&
-      contactPriority(r)===0).slice(0,6);
+      (!contactChannels(r).email||!contactChannels(r).phone)).slice(0,6);
    if(!candidates.length){
     notice.textContent='当前区域没有待补全且支持 HTTPS 的企业。已有联系方式可直接筛选；其他企业需先确认官网。';
     return;
