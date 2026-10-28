@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {purchaseFields,sellingPrice,operationFeeTotal,changeOperationFee,compatibleFeeBatch,DEFAULT_OPERATION_PERCENT,percentFor} from '../src/purchase-selling-prices.js';
+import {purchaseFields,sellingPrice,operationFeeTotal,changeOperationFee,compatibleFeeBatch,DEFAULT_OPERATION_PERCENT,percentFor,websiteRateBlocker} from '../src/purchase-selling-prices.js';
 
 test('purchase cost plus per-unit operations fee determines selling price',()=>{
  assert.equal(sellingPrice(8400,600),9000);
@@ -75,4 +75,12 @@ test('default surcharge is ten percent on every component while custom percentag
  assert.equal(percentFor({operation_percentages:{price:0}},'price'),0);
  assert.equal(percentFor({operation_percentages:{price:15}},'price'),15);
  assert.equal(sellingPrice(8400,operationFeeTotal(8400,200,10)),9440);
+});
+
+test('public listing must reject incomplete or expired procurement quotes',()=>{
+ const r={status:'confirmed',quote:{scope:'站到站',container:'40HQ',equipment:'COC',unit:'40HQ',currency:'USD',price:9400,fees:[]}};
+ assert.equal(websiteRateBlocker('fcl_rail',r,'2026-10-28'),null);
+ assert.match(websiteRateBlocker('fcl_rail',{...r,quote:{...r.quote,fees:[{name:'COC balance'}]}},'2026-10-28'),/另计/);
+ assert.match(websiteRateBlocker('fcl_rail',{...r,quote:{...r.quote,validUntil:'2026-10-01'}},'2026-10-28'),/有效期/);
+ assert.match(websiteRateBlocker('lcl_plan',{status:'confirmed',inputs:{railUnitCost:{complete:false}}},'2026-10-28'),/未核实/);
 });
