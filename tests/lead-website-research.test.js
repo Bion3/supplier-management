@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {extractWebsiteContactsForTest} from '../server/lead-website-research.js';
+import {extractWebsiteContactsForTest,selectPublicIPv4} from '../server/lead-website-research.js';
 
 test('extracts public mailto, tel and schema.org organization contacts with source links',()=>{
  const html=`<html><a href="mailto:sales@freight.example">Email</a><a href="tel:+49401234567">Call</a>
@@ -14,4 +14,13 @@ test('extracts public mailto, tel and schema.org organization contacts with sour
 test('ignores invalid structured contact values',()=>{
  const html='<script type="application/ld+json">{"@type":"Organization","email":"not-an-email","telephone":"123"}</script>';
  assert.deepEqual(extractWebsiteContactsForTest(html,'https://freight.example'),[]);
+});
+
+test('safe DNS selection accepts public IPv4 alongside public IPv6',()=>{
+ assert.equal(selectPublicIPv4([{address:'2606:4700:4700::1111'},{address:'1.1.1.1'}]),'1.1.1.1');
+});
+test('safe DNS rejects private IPv4 and IPv6-only destinations',()=>{
+ assert.throws(()=>selectPublicIPv4([{address:'10.1.2.3'},{address:'1.1.1.1'}]),/安全访问/);
+ assert.throws(()=>selectPublicIPv4([{address:'::1'}]),/安全访问/);
+ assert.throws(()=>selectPublicIPv4([{address:'127.0.0.1'}]),/安全访问/);
 });
