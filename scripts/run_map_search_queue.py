@@ -66,7 +66,7 @@ def download_tile(item):
     subprocess.run(["overturemaps","download",f"--bbox={bbox}","-f","geojsonseq",
         "--type=place","-o",str(raw)],check=True,timeout=900)
     candidates=output/f"candidates-{index}.ndjson"
-    metrics=convert(raw,candidates,1000)
+    metrics=convert(raw,candidates,2500)
     raw.unlink(missing_ok=True)
     return candidates,metrics
 
@@ -99,7 +99,7 @@ def process(job):
             # Sequential to avoid placing high concurrent load on Overture public cloud.
             candidates=[];scanned=0
             # Two downloads maximum, to balance latency and public S3 load.
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 for path,metric in executor.map(download_tile,[(bbox,ix,base) for ix,bbox in enumerate(boxes)]):
                     scanned+=metric["scanned"]
                     for line in path.read_text(encoding="utf8").splitlines():
@@ -121,8 +121,14 @@ def process(job):
                 key=row.get("id")
                 if key and (key not in dedup or row.get("quality_score",0)>dedup[key].get("quality_score",0)):
                     dedup[key]=row
-            selected=sorted(dedup.values(),key=lambda p:(-p.get("quality_score",0),p["name"]))[:500]
-            print(json.dumps({"tiles":len(boxes),"scanned":scanned,"filtered":len(selected),
+            # Prefer actual source-published channels over merely matching a business category.
+            # This sorts the entire extracted region rather than selecting early geographic records.
+            def rank(row):
+                return (0 if row.get("emails") else 1,0 if row.get("phones") else 1,
+                        -row.get("quality_score",0),row["name"])
+            selected=sorted(dedup.values(),key=rank)[:500]
+            print(json.dumps({"tiles":len(boxes),"scanned":scanned,"filtered":len(selected),"with_email":sum(bool(x.get("emails")) for x in selected),
+                              "with_phone":sum(bool(x.get("phones")) for x in selected),
                               "job_id":jobid}),flush=True)
             for i in range(0,len(selected),50):
                 result=rpc("lead_map_worker_ingest",{"p_job_id":jobid,"p_rows":selected[i:i+50]})
