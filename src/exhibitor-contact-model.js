@@ -4,7 +4,7 @@ export function mergeExhibitorContacts(row,extra={}){
  const add=(type,value,details={})=>{
   value=String(value||'').trim();
   if(!value||value.length>180)return;
-  if(type==='email'&&!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(value))return;
+  if(type==='email'&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))return;
   if(type==='phone'&&value.replace(/\D/g,'').length<6)return;
   const key=type+'|'+value.toLowerCase();
   if(seen.has(key)||all.length>=100)return;
