@@ -15,7 +15,9 @@ test('exhibitor contact enrichment fills missing email only and retains phone',a
   contacts:[{type:'email',value:'sales@test.example'},{type:'phone',value:'+49 111'}],
   evidence:[{url:'https://test.example/kontakt'}],checked_pages:2})});
  const res=await fn(req());const data=await res.json();
- assert.equal(res.status,200);assert.equal(data.added,1);
+ assert.equal(res.status,200);assert.equal(data.added,2);
+ assert.equal(patches[0].contacts.length,3);
+ assert.equal(patches[0].contacts.filter(x=>x.type==='phone').length,2);
  assert.equal(patches[0].email,'sales@test.example');
  assert.equal('phone' in patches[0],false);
  assert.match(patches[0].notes,/https:\/\/test.example\/kontakt/);
