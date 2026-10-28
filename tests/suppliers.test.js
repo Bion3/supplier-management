@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateSupplier,decodeSuppliers,encodeSuppliers,filterSuppliers} from '../src/suppliers.js';
+import {validateSupplier,decodeSuppliers,encodeSuppliers,filterSuppliers,sortSuppliers} from '../src/suppliers.js';
 const supplier = {id:'supplier-1',name:'测试物流',category:'铁路运输',contact:'程先生',phone:'',email:'',routes:'中国—伊朗',notes:'',status:'待评估',country:'',region:'',city:'',createdAt:'2026-10-10T08:00:00Z',updatedAt:'2026-10-10T08:00:00Z'};
 test('empty storage and versioned round trip',()=>{assert.deepEqual(decodeSuppliers(null),[]);assert.deepEqual(decodeSuppliers(encodeSuppliers([supplier])),[supplier]);});
 test('validates required fields, email and enums',()=>{assert.throws(()=>validateSupplier({...supplier,name:'  '}));assert.throws(()=>validateSupplier({...supplier,email:'bad'}));assert.throws(()=>validateSupplier({...supplier,status:'unknown'}));assert.equal(validateSupplier({...supplier,name:' 测试物流 '}).name,'测试物流');});
@@ -16,4 +16,10 @@ test('country aliases normalize, region defaults and combined filters preserve c
  assert.equal(filterSuppliers([pl,cn],'','',{region:'东亚',country:'Poland'}).length,0);
  assert.equal(filterSuppliers([pl],'Biała').length,1);
  assert.throws(()=>validateSupplier({...supplier,region:'invalid'}));
+});
+test('category filter composes with geography and supplier sorting is deterministic',()=>{
+ const warehouse={...supplier,id:'supplier-2',name:'Hamburg Warehouse',category:'仓储服务',country:'Germany',region:'欧洲',city:'Hamburg',createdAt:'2026-10-11T08:00:00Z'};
+ assert.deepEqual(filterSuppliers([supplier,warehouse],'','',{category:'仓储服务',region:'欧洲'}),[warehouse]);
+ assert.deepEqual(sortSuppliers([supplier,warehouse],'newest').map(row=>row.id),['supplier-2','supplier-1']);
+ assert.deepEqual(sortSuppliers([warehouse,supplier],'name').map(row=>row.id),['supplier-1','supplier-2']);
 });

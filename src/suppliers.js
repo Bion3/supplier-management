@@ -31,5 +31,13 @@ export function decodeSuppliers(raw) {
 export function encodeSuppliers(suppliers) { return JSON.stringify({version:1,suppliers}); }
 export function filterSuppliers(suppliers, query='', status='', geography={}) {
   const q = query.trim().toLocaleLowerCase();
-  return suppliers.filter(s => (!status || s.status === status) && (!geography.region || supplierRegion(s)===geography.region) && (!geography.country || normalizeCountry(s.country)===normalizeCountry(geography.country)) && [s.name,s.contact,s.routes,s.category,s.phone,s.email,countryLabel(s.country),s.city,supplierRegion(s)].some(v => String(v||'').toLocaleLowerCase().includes(q)));
+  return suppliers.filter(s => (!status || s.status === status) && (!geography.category || s.category===geography.category) && (!geography.region || supplierRegion(s)===geography.region) && (!geography.country || normalizeCountry(s.country)===normalizeCountry(geography.country)) && [s.name,s.contact,s.routes,s.category,s.phone,s.email,countryLabel(s.country),s.city,supplierRegion(s)].some(v => String(v||'').toLocaleLowerCase().includes(q)));
+}
+export function sortSuppliers(suppliers,sort='newest') {
+ const rows=[...suppliers],collator=new Intl.Collator('zh-CN',{numeric:true,sensitivity:'base'});
+ const text=value=>String(value||'');
+ if(sort==='name') return rows.sort((a,b)=>collator.compare(text(a.name),text(b.name)));
+ if(sort==='country') return rows.sort((a,b)=>collator.compare(`${countryLabel(a.country)} ${a.city||''}`,`${countryLabel(b.country)} ${b.city||''}`));
+ if(sort==='category') return rows.sort((a,b)=>collator.compare(`${a.category} ${a.name}`,`${b.category} ${b.name}`));
+ return rows.sort((a,b)=>Date.parse(b.createdAt||0)-Date.parse(a.createdAt||0));
 }
