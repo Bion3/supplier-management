@@ -161,6 +161,8 @@ def process(job):
             for i in range(0,len(selected),50):
                 result=rpc("lead_map_worker_ingest",{"p_job_id":jobid,"p_rows":selected[i:i+50]})
                 print(json.dumps({"chunk":i//50,**result}),flush=True)
+        quality=rpc("lead_map_worker_quality_audit",{"p_job_id":jobid})
+        print("QUALITY_AUDIT "+json.dumps(quality,ensure_ascii=False),flush=True)
         outcome=rpc("lead_map_worker_finish",{"p_job_id":jobid})
         print(json.dumps(outcome),flush=True)
     except Exception as error:
