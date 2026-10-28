@@ -88,9 +88,21 @@ def keyword_matches(row,keyword):
     words=KEYWORD_ALIASES.get(term,(term,))
     return any(word in text for word in words)
 
+def current_release():
+    # The Overture CLI uses latest STAC. Resolve release for truthful provenance.
+    result=subprocess.run(["overturemaps","releases","latest"],check=True,
+        capture_output=True,text=True,timeout=40)
+    versions=re.findall(r'20\\d{2}-\\d{2}-\\d{2}\\.\\d+',result.stdout)
+    if not versions:
+        raise RuntimeError("Unable to determine Overture release used by STAC")
+    return versions[-1]
+
 def process(job):
     jobid=job["id"]
     try:
+        release=current_release()
+        rpc('lead_map_worker_set_release',{'p_job_id':jobid,'p_release':release})
+        job['release']=release
         r=int(job["radius_km"])
         if r>50:raise ValueError("自动采集目前支持10/25/50公里，100公里可筛选已保存的企业")
         with tempfile.TemporaryDirectory() as tmp:
