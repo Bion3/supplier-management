@@ -172,11 +172,26 @@ def process(job):
         raise
 
 def main():
-    job=rpc("lead_map_worker_claim",{})
-    if not job or not job.get("id"):
-        print("No queued map searches.")
-        return
-    process(job)
+    # Batch a few queued regions per invocation; each one is independently
+    # claimed and committed. Bound total runtime under GitHub's 55 min limit.
+    deadline=time.monotonic()+45*60
+    completed=0
+    failed=0
+    for _ in range(3):
+        if time.monotonic()>=deadline:
+            break
+        job=rpc("lead_map_worker_claim",{})
+        if not job or not job.get("id"):
+            if not completed and not failed:print("No queued map searches.",flush=True)
+            break
+        try:
+            process(job)
+            completed+=1
+        except Exception as error:
+            failed+=1
+            print("Job failed, will check remaining queued regions: "+str(error)[:180],flush=True)
+    print(json.dumps({"region_jobs_completed":completed,"region_jobs_failed":failed}),flush=True)
+    if failed:raise RuntimeError(str(failed)+" map region job(s) failed")
 
 if __name__=="__main__":
     main()
