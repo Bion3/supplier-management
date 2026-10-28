@@ -1,5 +1,5 @@
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
-import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches} from './lead-map-model.js';
+import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches,matchesIndustryKeyword} from './lead-map-model.js';
 const $=id=>document.getElementById(id);
 const CITIES={hamburg:{name:'Hamburg',country:'Germany',center:[53.5511,9.9937]},rotterdam:{name:'Rotterdam',country:'Netherlands',center:[51.9244,4.4777]},duisburg:{name:'Duisburg',country:'Germany',center:[51.4344,6.7623]},warsaw:{name:'Warsaw',country:'Poland',center:[52.2297,21.0122]},budapest:{name:'Budapest',country:'Hungary',center:[47.4979,19.0402]}};
 let center=CITIES.hamburg.center.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
@@ -54,7 +54,7 @@ function render(){
  const query=$('map-keyword').value.toLowerCase().trim(),type=$('map-type').value;
  const combined=new Map([...dbRows,...fileRows].map(r=>[r.id,r]));
  const inRadius=[...combined.values()].map(r=>({...r,km:distance(center[0],center[1],r.lat,r.lng)}))
-  .filter(r=>r.km<=radius&&(!type||r.type===type)&&(!query||[r.name,r.category,r.address].join(' ').toLowerCase().includes(query)));
+  .filter(r=>r.km<=radius&&(!type||r.type===type)&&matchesIndustryKeyword(r,query));
  const channel=$('map-contact-filter').value,hideEmpty=$('map-hide-no-contact').checked,sort=$('map-sort').value;
  const counts={total:inRadius.length,email:0,phone:0,both:0,contactable:0};
  for(const r of inRadius){const c=contactChannels(r);if(c.email)counts.email++;if(c.phone)counts.phone++;if(c.email&&c.phone)counts.both++;if(c.email||c.phone)counts.contactable++;}
