@@ -76,16 +76,16 @@ export function mountOperationFees(){
  const configuration=config[location.pathname];if(!configuration)return;
  const [kind,selector,sourceTable]=configuration;
  const body=document.querySelector(selector),table=body?.closest('table');if(!body||!table)return;
- let saved=new Map(),sourceRows=new Map(),selected=new Set(),busy=false,booted=false,loading=false;
- const notice=document.createElement('div');notice.className='toolbar sale-toolbar';
- notice.innerHTML='<button type="button" class="secondary" data-select>选中本页操作费</button><button type="button" class="secondary" data-clear>清除</button><span data-count>已选0条</span><button type="button" data-bulk>批量增减操作费</button><span data-message role="status"></span>';
+ let saved=new Map(),sourceRows=new Map(),selected=new Set(),busy=false,booted=false,loading=false,viewMode='all';
+ const notice=document.createElement('div');notice.className='sale-toolbar';
+ notice.innerHTML='<div class="sale-guide"><strong>报价维护 · 3步</strong><span>① 按线路筛选、确认采购价</span><span>② 修改操作费，卖价自动计算</span><span>③ 核实条款后决定是否展示官网</span><small>默认加价10%；固定操作费额外累加。仅已确认且费用完整的铁路运价可以公开。</small></div><div class="sale-actions"><label class="sale-view-label">查看状态<select data-view><option value="all">当前全部</option><option value="review">需要核实</option><option value="ready">可申请官网展示</option><option value="published">已开启官网展示</option></select></label><button type="button" class="secondary" data-select>选中本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量调整操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
  table.closest('.panel').insertBefore(notice,table.closest('.table-wrap'));
  const message=t=>{notice.querySelector('[data-message]').textContent=t;};
  function ensureHeaders(){
   const head=table.querySelector('thead tr');if(!head)return;
   for(const key of ['operation-fee','selling-price','public-rate'])if(!head.querySelector('th[data-col="'+key+'"]')){
    const th=document.createElement('th');th.dataset.col=key;th.className='sale-col';
-   th.textContent=key==='operation-fee'?'操作费':key==='selling-price'?'卖价':'官网';
+   th.textContent=key==='operation-fee'?'操作费（加价）':key==='selling-price'?'自动卖价':'官网展示';
    head.insertBefore(th,head.lastElementChild);
   }
  }
@@ -97,13 +97,16 @@ export function mountOperationFees(){
    if(tr.querySelector('td[data-col="operation-fee"]'))continue;
    const id=idFor(tr);if(!id)continue;
    const row=sourceRows.get(id),record=saved.get(id),fs=row?purchaseFields(kind,row):[];
+   const blocker=row&&['fcl_rail','lcl_plan'].includes(kind)?websiteRateBlocker(kind,row):'不可单独发布';
+   const show=viewMode==='all'||viewMode==='published'&&record?.public_enabled||viewMode==='ready'&&blocker===null&&!record?.public_enabled||viewMode==='review'&&blocker!==null;
+   tr.hidden=!show;
    const op=document.createElement('td'),sale=document.createElement('td'),pub=document.createElement('td');op.className='sale-col';sale.className='sale-col';pub.className='sale-col';op.dataset.col='operation-fee';sale.dataset.col='selling-price';pub.dataset.col='public-rate';
    if(!row){op.textContent='读取中';sale.textContent='—';pub.textContent='—';}
    else{
     const currency=kind==='lcl_plan'?'USD':row.quote?.currency||'';
     op.innerHTML='<div class="sale-cell"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中操作费"><div class="sale-inputs">'+fs.map(f=>'<label>'+escaped(f.label)+' · 固定金额<input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="fixed" value="'+escaped(record?.operation_fees?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label><label>采购价比例 %<input type="number" min="0" max="300" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="percent" value="'+escaped(percentFor(record,f.key))+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label>').join('')+'</div></div>';
-    pub.innerHTML=kind==='fcl_rail'||kind==='lcl_plan'?'<label class="sale-publish"><input type="checkbox" data-public-id="'+escaped(id)+'" '+(record?.public_enabled?'checked':'')+'><span>'+(record?.public_enabled?'已授权公开':'内部使用')+'</span></label>':'<small>组合费用不单独公开</small>';
-    sale.innerHTML='<div class="sale-inputs">'+fs.map(f=>{const fixed=Number(record?.operation_fees?.[f.key]??0),percent=Number(record?.operation_percentages?.[f.key]??0),fee=operationFeeTotal(f.purchase,fixed,percent),value=sellingPrice(f.purchase,fee??0);return '<div class="sale-result"><small>'+escaped(f.label)+'</small><strong>'+ (value===null?'采购价待补':escaped(currency)+' '+value.toLocaleString('en-US',{maximumFractionDigits:4}))+'</strong></div>';}).join('')+'</div>';
+    pub.innerHTML=kind==='fcl_rail'||kind==='lcl_plan'?'<div class="sale-public-state"><span class="sale-pill '+(record?.public_enabled?'sale-pill-online':blocker?'sale-pill-warning':'sale-pill-ready')+'">'+(record?.public_enabled?'已开启':blocker?'待核实':'可审核')+'</span><label class="sale-publish"><input type="checkbox" data-public-id="'+escaped(id)+'" '+(record?.public_enabled?'checked':'')+'><span>官网展示</span></label><small title="'+escaped(blocker||'已满足基本自动校验，仍需人工核实全部费用及条款')+'">'+escaped(blocker||'请核实后再开启')+'</small></div>':'<small>用于组合成本测算，不单独公开</small>';
+    sale.innerHTML='<div class="sale-inputs">'+fs.map(f=>{const fixed=Number(record?.operation_fees?.[f.key]??0),percent=Number(percentFor(record,f.key)),fee=operationFeeTotal(f.purchase,fixed,percent),value=sellingPrice(f.purchase,fee??0);return '<div class="sale-result"><small>'+escaped(f.label)+'</small><strong>'+ (value===null?'采购价待补':escaped(currency)+' '+value.toLocaleString('en-US',{maximumFractionDigits:4}))+'</strong><small>'+(value===null?'需先填写采购价':escaped(currency)+' '+Number(f.purchase).toLocaleString('en-US',{maximumFractionDigits:2})+' + '+escaped(currency)+' '+Number(fee).toLocaleString('en-US',{maximumFractionDigits:2}))+'</small></div>';}).join('')+'</div>';
    }
    tr.insertBefore(op,tr.lastElementChild);tr.insertBefore(sale,tr.lastElementChild);tr.insertBefore(pub,tr.lastElementChild);
   }
@@ -169,7 +172,8 @@ export function mountOperationFees(){
   catch(err){message('保存失败：'+err.message);input.value=saved.get(row.id)?.[savedField]?.[input.dataset.feeKey]??0;}
   finally{busy=false;redraw();}
  });
- notice.querySelector('[data-select]').onclick=()=>{for(const el of body.querySelectorAll('[data-fee-check]')){el.checked=true;selected.add(el.dataset.feeCheck);}updateCount();};
+ notice.querySelector('[data-view]').onchange=e=>{viewMode=e.target.value;redraw();};
+ notice.querySelector('[data-select]').onclick=()=>{for(const el of body.querySelectorAll('tr:not([hidden]) [data-fee-check]')){el.checked=true;selected.add(el.dataset.feeCheck);}updateCount();};
  notice.querySelector('[data-clear]').onclick=()=>{selected.clear();for(const el of body.querySelectorAll('[data-fee-check]'))el.checked=false;updateCount();};
  notice.querySelector('[data-bulk]').onclick=()=>{
   const ids=[...selected].filter(id=>sourceRows.has(id));if(!ids.length)return message('先在操作费列勾选记录');
