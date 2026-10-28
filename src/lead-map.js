@@ -337,3 +337,6 @@ $('map-save').onclick=async()=>{
  }catch(e){$('map-save-status').textContent='入库失败：'+e.message;}finally{selectionStatus();}
 };
 loadDb();
+// Poll while the operator is on the map page. Once a region finishes,
+// enqueue the limited website-completion batch without another click.
+setInterval(()=>{if(!document.hidden&&currentUser())void loadMapJobs();},60000);
