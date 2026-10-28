@@ -55,6 +55,13 @@ def assess_feature(obj):
     if not isinstance(sites,list):sites=[]
     raw=next((clean(v,500) for v in sites if isinstance(v,str) and host_of(v)),'')
     host=host_of(raw);website=raw if not is_platform(host) else ''
+    # Preserve provider-published contact channels. These remain unverified leads, not validated mailboxes.
+    email_values=x.get('emails') or []
+    phone_values=x.get('phones') or []
+    if not isinstance(email_values,list):email_values=[]
+    if not isinstance(phone_values,list):phone_values=[]
+    emails=list(dict.fromkeys(v.lower() for v in (clean(item,150) for item in email_values) if re.fullmatch(r'[^\\s@]+@[^\\s@]+\\.[a-zA-Z]{2,}',v)))[:8]
+    phones=list(dict.fromkeys(v for v in (clean(item,90) for item in phone_values) if len(re.sub(r'\\D','',v))>=6 and len(v)<=40))[:8]
     geom=obj.get('geometry') if isinstance(obj.get('geometry'),dict) else x.get('geometry')
     point=None
     if isinstance(geom,dict):
@@ -75,16 +82,20 @@ def assess_feature(obj):
     score=42 if ('freight_forwarding' in category or 'import_export' in category) else 32 if high else 18 if medium else 10
     score+=22 if strong else 10 if moderate else 0
     score+=18 if website else 0
+    score+=15 if emails else 0
+    score+=8 if phones else 0
     score+=6 if address else 0
     score+=4 if len(sources)>=2 else 0
     score=min(100,score)
     reasons=[]
     if strong:reasons.append('企业名称与目标业务强匹配')
     if website:reasons.append('存在疑似独立企业官网，尚未核实')
+    if emails:reasons.append('原始地图数据提供公开邮箱，尚未核实有效性')
+    if phones:reasons.append('原始地图数据提供公开电话，尚未核实有效性')
     if host and is_platform(host):reasons.append('第三方目录链接，未认定为官网')
     if not website:reasons.append('缺少独立官网，需人工核实')
     return {'id':oid,'name':name,'category':category,'website':website,'address':address,
-        'lat':lat,'lng':lng,'emails':[],'phones':[],
+        'lat':lat,'lng':lng,'emails':emails,'phones':phones,
         'sources':[{'dataset':clean(v.get('dataset'),100),'license':clean(v.get('license'),80)}
             for v in sources[:8] if isinstance(v,dict)],
         'quality_score':score,'lead_tier':'high' if score>=65 else 'review' if score>=37 else 'low',
