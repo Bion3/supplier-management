@@ -156,11 +156,27 @@ async function submitRegionCollection({prompt=true}={}){
   const recent=await cloudRequest('lead_map_search_jobs?select=id,status,city,radius_km,keyword,customer_type,created_at&city=eq.'+encodeURIComponent(city.name)+'&order=created_at.desc&limit=10');
   const type=$('map-type').value||'all';
   const duplicate=recent.find(j=>j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
-  if(duplicate){status.textContent='同条件采集任务已在执行，无需重复提交。可以展开「采集任务与高级设置」查看状态。';return true;}
-  await cloudRequest('lead_map_search_jobs',{method:'POST',body:JSON.stringify({
-   task_id:task.id,city:city.name,center_lat:center[0],center_lng:center[1],
-   radius_km:km,keyword:term,customer_type:type,status:'queued'})});
-  status.textContent='已提交 '+city.name+' · '+km+' 公里 · '+term+' 采集任务。后台定时运行，完成后刷新结果。';
+  let jobId=duplicate?.id;
+  if(!duplicate){
+   const created=await cloudRequest('lead_map_search_jobs',{method:'POST',
+     headers:{Prefer:'return=representation'},body:JSON.stringify({
+     task_id:task.id,city:city.name,center_lat:center[0],center_lng:center[1],
+     radius_km:km,keyword:term,customer_type:type,status:'queued'})});
+   jobId=(Array.isArray(created)?created[0]:created)?.id;
+   if(!jobId)throw Error('任务保存成功状态未知，请刷新采集任务后重试');
+  }
+  if(duplicate?.status==='running'){
+   status.textContent='同条件采集已经运行中。请刷新查看进度。';
+  }else{
+   status.textContent='采集任务已保存，正在请求即时启动…';
+   try{
+    const result=await appRequest('/api/lead-enrich',{method:'POST',
+      body:JSON.stringify({action:'start-map-job',job_id:jobId})});
+    status.textContent=result.notice||'采集任务已保存，等待执行器。';
+   }catch(error){
+    status.textContent='即时启动异常：'+error.message+'。任务仍已保存，将由定时任务处理。';
+   }
+  }
   await loadMapJobs();return true;
  }catch(e){status.textContent='提交采集失败：'+e.message;return false;}
  finally{button.disabled=false;}
