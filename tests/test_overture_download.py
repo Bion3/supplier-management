@@ -6,11 +6,12 @@ from scripts.download_overture_candidates import select_feature, validate_bbox, 
 
 ID="11111111-2222-4333-8444-555555555555"
 class ExportTests(unittest.TestCase):
- def test_selects_logistics_and_strips_contact_data(self):
-  feature={"type":"Feature","properties":{"id":ID,"names":{"primary":"Hamburg Freight Forwarder GmbH"},"taxonomy":{"primary":"freight_forwarder","hierarchy":["business","logistics","freight_forwarder"]},"websites":["https://freight.example"],"emails":["ceo@example.com"],"sources":[{"dataset":"test","license":"ODbL"}]}}
+ def test_preserves_public_dataset_contacts_with_provenance(self):
+  feature={"type":"Feature","properties":{"id":ID,"names":{"primary":"Hamburg Freight Forwarder GmbH"},"taxonomy":{"primary":"freight_forwarder","hierarchy":["business","logistics","freight_forwarder"]},"websites":["https://freight.example"],"emails":["Sales@Example.com","invalid-email"],"phones":["+49 40 1234567"],"sources":[{"dataset":"test","license":"ODbL"}]}}
   row=select_feature(feature)
   self.assertEqual(row["id"],ID)
-  self.assertEqual(row["emails"],[])
+  self.assertEqual(row["emails"],["sales@example.com"])
+  self.assertEqual(row["phones"],["+49 40 1234567"])
   self.assertEqual(row["website"],"https://freight.example")
  def test_rejects_irrelevant_place(self):
   self.assertIsNone(select_feature({"id":ID,"names":{"primary":"Cafe Sunshine"},"taxonomy":{"primary":"coffee_shop"}}))
