@@ -158,7 +158,7 @@ async function autoEnrichCompletedJob(job){
  try{
   const leadRows=await cloudRequest('lead_discovery_leads?select=id,contacts,website,review_status,crm_company_id&city=eq.'+
    encodeURIComponent(job.city)+'&review_status=eq.pending&website=ilike.https%3A%2F%2F%25&order=created_at.desc&limit=500');
-  const lacking=leadRows.filter(x=>!x.crm_company_id&&x.website?.startsWith('https://')&&
+  const lacking=leadRows.filter(x=>x.website?.startsWith('https://')&&
     (!contactChannels(x).email||!contactChannels(x).phone)).slice(0,AUTO_ENRICH_MAX);
   if(!lacking.length){localStorage.setItem(storageKey,'nothing-to-fill');return;}
   const response=await appRequest('/api/lead-batch',{method:'POST',
@@ -166,7 +166,7 @@ async function autoEnrichCompletedJob(job){
   if(response.error&&!(response.queued>0))throw Error(response.error);
   localStorage.setItem(storageKey,String(response.queued||0));
   const note=$('map-contact-status');
-  if(note)note.textContent='采集完成，自动提交 '+(response.queued||0)+' 家缺失邮箱/电话企业至后台官网补全队列。不会自动发送邮件，结果仍需审核。';
+  if(note)note.textContent='采集完成，自动提交 '+(response.queued||0)+' 家缺失邮箱/电话企业至后台官网补全队列。不会自动发送邮件，结果仍标记来源与质量状态。';
  }catch(e){
   autoEnrichSeen.delete(job.id);
   const note=$('map-contact-status');
@@ -339,7 +339,7 @@ $('map-verify').onclick=async()=>{
    queued+=response.queued||0;published+=response.published||0;
    if(response.error)notice.textContent='部分任务派发失败：'+response.error;
   }
-  notice.textContent='已选择 '+selected.length+' 家，符合 HTTPS 条件 '+eligible.length+' 家；新增核实任务 '+queued+'，已派发 '+published+'。请在候选审核的官网补全队列检查结果。';
+  notice.textContent='已选择 '+selected.length+' 家，符合 HTTPS 条件 '+eligible.length+' 家；新增核实任务 '+queued+'，已派发 '+published+'。请在线索的官网补全队列检查结果。';
   selectedVerify.clear();await loadDb();
  }catch(e){notice.textContent='官网核实启动失败：'+e.message;}
  finally{selectionStatus();}

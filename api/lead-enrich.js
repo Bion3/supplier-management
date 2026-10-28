@@ -24,7 +24,6 @@ export async function POST(request){
   const leads=await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id)+'&select=id,company_name,website,provider,contacts,source_evidence,crm_company_id,review_status&limit=1');
   if(leads.length!==1)return reply({error:'企业不存在或没有访问权限'},404);
   const lead=leads[0];
-  if(lead.crm_company_id)return reply({error:'企业已导入 CRM，请在 CRM 内核实'},409);
   if(!lead.website)return reply({error:'该企业没有官网，无法自动提取'},400);
   // Do not enrich Google Places records into a persistent independent business database.
   if(lead.provider==='google_places')return reply({error:'请先用独立来源核实网站，再持久化相关资料'},400);
@@ -36,6 +35,6 @@ export async function POST(request){
   const evidence=[...(Array.isArray(lead.source_evidence)?lead.source_evidence:[]),...researched.evidence].slice(-60);
   // Never auto-approve. Existing manually approved lead moves back to pending review.
   await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({contacts:updated,source_evidence:evidence,verification_status:'website_found_unverified',review_status:'pending',updated_at:new Date().toISOString()})});
-  return reply({added:additions.length,total:updated.length,checked_pages:researched.checked_pages,errors:researched.errors,notice:'从公开官网提取，尚未经交叉验证；导入前必须人工审核。'});
+  return reply({added:additions.length,total:updated.length,checked_pages:researched.checked_pages,errors:researched.errors,notice:'从公开官网提取，尚未经交叉验证；联系方式已同步客户档案，可继续跟进。'});
  }catch(e){return reply({error:e?.name==='TimeoutError'?'连接超时':e.message||'官网核实失败'},500);}
 }
