@@ -1,9 +1,10 @@
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches} from './lead-map-model.js';
 const $=id=>document.getElementById(id);
-const CITIES={hamburg:[53.5511,9.9937],rotterdam:[51.9244,4.4777],duisburg:[51.4344,6.7623],warsaw:[52.2297,21.0122],budapest:[47.4979,19.0402]};
-let center=CITIES.hamburg.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
+const CITIES={hamburg:{name:'Hamburg',country:'Germany',center:[53.5511,9.9937]},rotterdam:{name:'Rotterdam',country:'Netherlands',center:[51.9244,4.4777]},duisburg:{name:'Duisburg',country:'Germany',center:[51.4344,6.7623]},warsaw:{name:'Warsaw',country:'Poland',center:[52.2297,21.0122]},budapest:{name:'Budapest',country:'Hungary',center:[47.4979,19.0402]}};
+let center=CITIES.hamburg.center.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
 const chosen=new Set(),selectedVerify=new Set(),PAGE_SIZE=20;
+let knownTasks=[];
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function ensureMap(){
@@ -105,7 +106,7 @@ function render(){
 }
 function selectionStatus(){$('map-selected').textContent='待保存 '+chosen.size+' 家 · 待官网核实 '+selectedVerify.size+' 家';$('map-save').disabled=!chosen.size;$('map-verify').disabled=!selectedVerify.size;}
 function search(){setViewport();page=1;render();}
-$('map-search-button').onclick=search;
+$('map-search-button').onclick=()=>{search();if(!rows.length&&CITIES[$('map-city').value]){$('map-search-status').textContent='本地区暂无匹配的已采集企业。可点击「采集新企业」创建后台任务。';}};
 const MAP_JOB_TASK_CITY='hamburg';
 async function loadMapJobs(){
  const list=$('map-job-list');if(!list)return;
@@ -124,31 +125,45 @@ async function loadMapJobs(){
  }catch(e){list.textContent='读取采集任务失败：'+e.message;}
 }
 $('map-refresh-jobs').onclick=async()=>{await loadMapJobs();await loadDb();};
-$('map-collect').onclick=async()=>{
+const normalizeSearchTerm=term=>term.trim().toLowerCase();
+async function submitRegionCollection({prompt=true}={}){
  const status=$('map-search-status'),button=$('map-collect');
- const city=$('map-city').value,km=Number($('map-radius').value);
- const term=$('map-keyword').value.trim();
- if(city!=='hamburg'&&city!=='custom'){status.textContent='自动采集试点仅支持 Hamburg，其他城市目前可筛选已保存数据。';return;}
- if(distance(center[0],center[1],CITIES.hamburg[0],CITIES.hamburg[1])>50){
-  status.textContent='中心点距离 Hamburg 过远，请重新选择 Hamburg 附近的位置。';return;
+ const cityKey=$('map-city').value,km=Number($('map-radius').value),term=normalizeSearchTerm($('map-keyword').value);
+ const city=CITIES[cityKey];
+ if(!city){
+   status.textContent='请先选择列表中的城市；地图选点可筛选已有企业，跨城市采集需要选择城市。';return false;
  }
- if(km>50){status.textContent='100 公里暂不支持自动采集；请选 10、25 或 50 公里。';return;}
- if(term.length<2||term.length>80){status.textContent='请填写 2–80 字的行业关键词（例如 freight、import）。';return;}
- const jobsCountry=$('map-task');
- let id=jobsCountry.value;
- if(!id){status.textContent='尚无 Hamburg 的 Overture 任务，请先在候选审核页创建对应任务。';return;}
- if(!confirm('将 Hamburg 周边 '+km+' 公里的「'+term+'」采集任务加入后台队列？采集后自动进入待审核候选池，不会发送邮件。'))return;
+ if(distance(center[0],center[1],city.center[0],city.center[1])>50){
+  status.textContent='中心点已离开所选城市，请重新选择该城市后采集。';return false;
+ }
+ if(km>50){status.textContent='100 公里自动采集尚未开放，请先选择 10、25 或 50 公里。';return false;}
+ if(term.length<2||term.length>80){status.textContent='请输入 2–80 字的行业关键词，例如 logistics、import、wholesale。';return false;}
+ if(prompt&&!confirm('为 '+city.name+' 周边 '+km+' 公里采集「'+term+'」企业？后台异步处理，结果进入待核实候选池。'))return false;
  button.disabled=true;
  try{
+  // Reuse a same-city Overture task when one exists; create it when exploring a new city.
+  let task=knownTasks.find(t=>t.source==='overture'&&t.city.toLowerCase()===city.name.toLowerCase()&&t.country.toLowerCase()===city.country.toLowerCase());
+  if(!task){
+   const created=await cloudRequest('lead_discovery_tasks',{method:'POST',
+    headers:{Prefer:'return=representation'},body:JSON.stringify({
+    country:city.country,city:city.name,source:'overture',keywords:[term],target_count:500,status:'pending'})});
+   task=Array.isArray(created)?created[0]:created;
+   if(!task?.id)throw Error('城市任务创建失败');
+   knownTasks.push(task);
+  }
+  const recent=await cloudRequest('lead_map_search_jobs?select=id,status,city,radius_km,keyword,customer_type,created_at&city=eq.'+encodeURIComponent(city.name)+'&order=created_at.desc&limit=10');
   const type=$('map-type').value||'all';
+  const duplicate=recent.find(j=>j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
+  if(duplicate){status.textContent='同条件采集任务已在执行，无需重复提交。可以展开「采集任务与高级设置」查看状态。';return true;}
   await cloudRequest('lead_map_search_jobs',{method:'POST',body:JSON.stringify({
-   task_id:id,city:'Hamburg',center_lat:center[0],center_lng:center[1],
+   task_id:task.id,city:city.name,center_lat:center[0],center_lng:center[1],
    radius_km:km,keyword:term,customer_type:type,status:'queued'})});
-  status.textContent='已加入后台队列。GitHub Actions 约每30分钟检查一次任务，执行时间取决于地区数据量；可在下方刷新状态。';
-  await loadMapJobs();
- }catch(e){status.textContent='提交采集任务失败：'+e.message;}
+  status.textContent='已提交 '+city.name+' · '+km+' 公里 · '+term+' 采集任务。后台定时运行，完成后刷新结果。';
+  await loadMapJobs();return true;
+ }catch(e){status.textContent='提交采集失败：'+e.message;return false;}
  finally{button.disabled=false;}
-};
+}
+$('map-collect').onclick=()=>submitRegionCollection();
 
 $('map-contact-filter').onchange=search;
 $('map-hide-no-contact').onchange=search;
@@ -156,8 +171,8 @@ $('map-sort').onchange=search;
 $('map-radius').onchange=search;
 $('map-type').onchange=search;
 $('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter')search();});
-$('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].slice();search();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
-$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';search();};
+$('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].center.slice();search();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
+$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.center.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';search();};
 $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
 $('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
@@ -250,7 +265,7 @@ async function loadDb(){
    cloudRequest('lead_discovery_tasks?select=id,country,city,source&source=eq.overture&order=created_at.desc&limit=100')]);
   dbRows=leads.map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
   const sel=$('map-task');sel.replaceChildren(new Option('请选择对应城市的 Overture 任务',''));for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
-  const match=tasks.find(t=>t.city.toLowerCase()==='hamburg');if(match)sel.value=match.id;
+  knownTasks=tasks;const active=CITIES[$('map-city').value];const match=tasks.find(t=>t.city.toLowerCase()===active?.name.toLowerCase());if(match)sel.value=match.id;
   search();
   await loadMapJobs();
   if(!dbRows.length)$('map-save-status').textContent='现有候选记录暂无地理坐标。请上传新版 Overture 地区文件生成点位并保存，之后地图会自动从数据库读取。';
