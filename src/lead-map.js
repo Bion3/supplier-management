@@ -281,7 +281,7 @@ async function loadDb(){
   const [leads,tasks]=await Promise.all([
    cloudRequest('lead_discovery_leads?select=id,provider_place_id,company_name,website,address,country,city,map_lat,map_lng,map_category,review_status,contacts,verification_status&map_lat=not.is.null&map_lng=not.is.null&order=created_at.desc&limit=1000'),
    cloudRequest('lead_discovery_tasks?select=id,country,city,source&source=eq.overture&order=created_at.desc&limit=100')]);
-  dbRows=leads.map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
+  dbRows=leads.filter(x=>x.review_status!=='rejected').map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
   const sel=$('map-task');sel.replaceChildren(new Option('请选择对应城市的 Overture 任务',''));for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
   knownTasks=tasks;const active=CITIES[$('map-city').value];const match=tasks.find(t=>t.city.toLowerCase()===active?.name.toLowerCase());if(match)sel.value=match.id;
   search();
