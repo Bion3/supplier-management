@@ -54,6 +54,24 @@ const config={
  '/pickup-rates.html':['domestic','#rows','freight_domestic_rates'],
  '/rail-rates.html':['lcl_plan','#history','freight_rail_plans']
 };
+export function websiteRateBlocker(kind,row,today=new Date().toISOString().slice(0,10)){
+ if(!row||row.status!=='confirmed')return '采购价格未确认';
+ if(kind==='lcl_plan'){
+  if(row.inputs?.railUnitCost?.complete!==true)return '拼箱费用未核实完整，不能对外发布';
+  if(!(Number(row.inputs.railUnitCost.unit)>0&&Number(row.inputs.railUnitCost.ratio)>0))return '铁路单价或重抛比无效';
+  if(Number(row.inputs.railUnitCost.fees||0)!==0)return '仍有另计票费，不能只展示单位费';
+  if(row.valid_from&&row.valid_from>today||row.valid_until&&row.valid_until<today)return '采购价不在有效期内';
+  return null;
+ }
+ if(kind!=='fcl_rail')return '此采购费用不能单独发布为铁路运费';
+ const q=row.quote||{};
+ if(q.scope!=='站到站'||!['20尺','20GP','40HQ','45HQ'].includes(q.container)||!['SOC','COC'].includes(q.equipment))return '计价范围、箱型或SOC/COC尚不符合官网规则';
+ if(q.unit!=='柜'&&q.unit!==q.container)return '计价单位与箱型不匹配';
+ if(q.currency!=='USD'||!(Number(q.price)>0))return '采购价必须是正数美元运费';
+ if((q.fees||[]).length)return '存在另计费用，须先完成成本核实';
+ if(q.validFrom&&q.validFrom>today||q.validUntil&&q.validUntil<today)return '采购价不在有效期内';
+ return null;
+}
 export function mountOperationFees(){
  const configuration=config[location.pathname];if(!configuration)return;
  const [kind,selector,sourceTable]=configuration;
@@ -124,6 +142,8 @@ export function mountOperationFees(){
   if(e.target.matches('[data-public-id]')){
    const checkbox=e.target,id=checkbox.dataset.publicId,row=sourceRows.get(id),old=saved.get(id);
    if(!row){checkbox.checked=false;return message('请刷新后再操作');}
+   const blocker=checkbox.checked?websiteRateBlocker(kind,row):null;
+   if(blocker){checkbox.checked=false;return message('不能公开：'+blocker);}
    if(checkbox.checked&&!confirm('确认已核实该线路的全部成本、用箱、附加费、货物限制及有效期，并允许官网展示站到站参考卖价？该操作会立即对外可见。')){checkbox.checked=false;return;}
    checkbox.disabled=true;
    try{
