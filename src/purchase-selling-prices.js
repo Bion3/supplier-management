@@ -2,6 +2,8 @@ import {cloudRequest,currentUser} from './cloud.js';
 import {railUnit} from './rail-unit.js';
 
 // All surcharges use the same currency AND billing unit as their purchase-rate component.
+export const DEFAULT_OPERATION_PERCENT=10;
+export const percentFor=(record,key)=>record?.operation_percentages?.[key]??DEFAULT_OPERATION_PERCENT;
 export function purchaseFields(kind,row){
  const q=row?.quote||{};
  if(kind==='lcl_plan'){
@@ -81,7 +83,7 @@ export function mountOperationFees(){
    if(!row){op.textContent='读取中';sale.textContent='—';}
    else{
     const currency=kind==='lcl_plan'?'USD':row.quote?.currency||'';
-    op.innerHTML='<div class="sale-cell"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中操作费"><div class="sale-inputs">'+fs.map(f=>'<label>'+escaped(f.label)+' · 固定金额<input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="fixed" value="'+escaped(record?.operation_fees?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label><label>采购价比例 %<input type="number" min="0" max="300" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="percent" value="'+escaped(record?.operation_percentages?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label>').join('')+'</div></div>';
+    op.innerHTML='<div class="sale-cell"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中操作费"><div class="sale-inputs">'+fs.map(f=>'<label>'+escaped(f.label)+' · 固定金额<input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="fixed" value="'+escaped(record?.operation_fees?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label><label>采购价比例 %<input type="number" min="0" max="300" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="percent" value="'+escaped(percentFor(record,f.key))+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label>').join('')+'</div></div>';
     sale.innerHTML='<div class="sale-inputs">'+fs.map(f=>{const fixed=Number(record?.operation_fees?.[f.key]??0),percent=Number(record?.operation_percentages?.[f.key]??0),fee=operationFeeTotal(f.purchase,fixed,percent),value=sellingPrice(f.purchase,fee??0);return '<div class="sale-result"><small>'+escaped(f.label)+'</small><strong>'+ (value===null?'采购价待补':escaped(currency)+' '+value.toLocaleString('en-US',{maximumFractionDigits:4}))+'</strong></div>';}).join('')+'</div>';
    }
    tr.insertBefore(op,tr.lastElementChild);tr.insertBefore(sale,tr.lastElementChild);
@@ -124,7 +126,7 @@ export function mountOperationFees(){
   const amount=Number(input.value);
   const feeType=input.dataset.feeType||'fixed';
   const savedField=feeType==='percent'?'operation_percentages':'operation_fees';
-  if(input.value.trim()===''||!Number.isFinite(amount)||amount<0||feeType==='percent'&&amount>300){message('操作费不能为负；比例范围0–300%，0表示不加价');input.value=saved.get(row.id)?.[savedField]?.[input.dataset.feeKey]??0;return;}
+  if(input.value.trim()===''||!Number.isFinite(amount)||amount<0||feeType==='percent'&&amount>300){message('操作费不能为负；比例范围0–300%，0表示不加价');input.value=(feeType==='percent'?percentFor(saved.get(row.id),input.dataset.feeKey):(saved.get(row.id)?.operation_fees?.[input.dataset.feeKey]??0));return;}
   busy=true;input.disabled=true;
   try{await persist(row,input.dataset.feeKey,amount,feeType);message('固定金额和采购价比例已保存；卖价已自动更新');}
   catch(err){message('保存失败：'+err.message);input.value=saved.get(row.id)?.[savedField]?.[input.dataset.feeKey]??0;}
@@ -148,7 +150,7 @@ export function mountOperationFees(){
     compatibleFeeBatch(kind,rows,v.field);
     if(v.feeType==='percent'&&amount>300)throw Error('百分比范围0–300%');
     const fieldName=v.feeType==='percent'?'operation_percentages':'operation_fees';
-    const updates=rows.map(row=>({row,value:changeOperationFee(Number(saved.get(row.id)?.[fieldName]?.[v.field]??0),v.mode,amount)}));
+    const updates=rows.map(row=>({row,value:changeOperationFee(Number(v.feeType==='percent'?percentFor(saved.get(row.id),v.field):(saved.get(row.id)?.operation_fees?.[v.field]??0)),v.mode,amount)}));
     if(v.feeType==='percent'&&updates.some(x=>x.value>300))throw Error('调整后比例超过300%');
     if(!confirm('确认对 '+rows.length+' 条记录'+({set:'统一设置为',add:'增加',subtract:'减少'}[v.mode]||'修改')+' '+amount+(v.feeType==='percent'?'%':' 原币种金额')+' 操作费？各行卖价自动重新计算，采购价不变。'))return;
     busy=true;let done=0,failed='';
