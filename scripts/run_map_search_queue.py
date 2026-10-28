@@ -70,6 +70,24 @@ def download_tile(item):
     raw.unlink(missing_ok=True)
     return candidates,metrics
 
+# Common trade terms are multilingual; the UI should not require users to know Overture taxonomy.
+KEYWORD_ALIASES = {
+    "logistics": ("logistics", "logistik", "spedition", "spediteur", "freight", "cargo", "transport", "supply_chain"),
+    "logistic": ("logistics", "logistik", "spedition", "freight", "cargo", "transport"),
+    "freight": ("freight", "forwarding", "spedition", "spediteur", "cargo", "transport"),
+    "warehouse": ("warehouse", "storage_facility", "lager", "logistikzentrum", "fulfillment"),
+    "import": ("import", "import_export", "einfuhr", "importeur"),
+    "export": ("export", "import_export", "ausfuhr"),
+    "wholesale": ("wholesale", "wholesaler", "grosshandel", "großhandel", "distribut"),
+    "distributor": ("distribut", "wholesale", "grosshandel", "großhandel"),
+}
+def keyword_matches(row,keyword):
+    text=(row.get("name","")+" "+row.get("category","")).casefold()
+    term=keyword.casefold().strip()
+    if not term:return True
+    words=KEYWORD_ALIASES.get(term,(term,))
+    return any(word in text for word in words)
+
 def process(job):
     jobid=job["id"]
     try:
@@ -93,14 +111,12 @@ def process(job):
                 "wholesale":("wholesal","distribut","großhandel","grosshandel")
             }
             customer_type=job["customer_type"]
-            query=job["keyword"].casefold()
             for row in candidates:
                 text=(row.get("name","")+" "+row.get("category","")).casefold()
                 if customer_type!="all" and not any(w in text for w in type_keywords.get(customer_type,())):
                     continue
-                # Keyword search intentionally ANDs the user phrase as one normalized substring,
-                # to avoid broad "any token" matching from unrelated POIs.
-                if query not in text:continue
+                # Exact terms stay exact; common logistics terms also match local language labels.
+                if not keyword_matches(row,job["keyword"]):continue
                 if not isinstance(row.get("lat"),(int,float)) or not isinstance(row.get("lng"),(int,float)):continue
                 key=row.get("id")
                 if key and (key not in dedup or row.get("quality_score",0)>dedup[key].get("quality_score",0)):
