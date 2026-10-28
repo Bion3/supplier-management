@@ -122,8 +122,21 @@ def process(job):
                 "trade":("import","export","trading","handel"),
                 "wholesale":("wholesal","distribut","großhandel","grosshandel")
             }
+            irrelevant_categories={
+                'travel_service','garbage_collection_service','auto_parts_store',
+                'party_and_event_planning','clothing_store','art_gallery',
+                'adult_education_center','food_and_drink','labor_union',
+                'electrician','recycling_center','employment_agency',
+                'civic_organization','social_or_community_service',
+                'home_improvement_store','automotive_service'
+            }
+            strong_freight=('freight_forwarding','import_export','motor_freight','freight_and_cargo')
             customer_type=job["customer_type"]
+            excluded_mismatch=0
             for row in candidates:
+                if (row.get('category') or '').casefold() in irrelevant_categories:
+                    excluded_mismatch+=1
+                    continue
                 text=(row.get("name","")+" "+row.get("category","")).casefold()
                 if customer_type!="all" and not any(w in text for w in type_keywords.get(customer_type,())):
                     continue
@@ -136,11 +149,14 @@ def process(job):
             # Prefer actual source-published channels over merely matching a business category.
             # This sorts the entire extracted region rather than selecting early geographic records.
             def rank(row):
-                return (0 if row.get("emails") else 1,0 if row.get("phones") else 1,
-                        -row.get("quality_score",0),row["name"])
+                category=(row.get('category') or '').casefold()
+                relevance=0 if any(word in category for word in strong_freight) else 1
+                return (relevance,0 if row.get("emails") else 1,
+                        0 if row.get("phones") else 1,-row.get("quality_score",0),row["name"])
             selected=sorted(dedup.values(),key=rank)[:500]
             print(json.dumps({"tiles":len(boxes),"scanned":scanned,"filtered":len(selected),"with_email":sum(bool(x.get("emails")) for x in selected),
                               "with_phone":sum(bool(x.get("phones")) for x in selected),
+                              "excluded_unrelated_category":excluded_mismatch,
                               "job_id":jobid}),flush=True)
             for i in range(0,len(selected),50):
                 result=rpc("lead_map_worker_ingest",{"p_job_id":jobid,"p_rows":selected[i:i+50]})
