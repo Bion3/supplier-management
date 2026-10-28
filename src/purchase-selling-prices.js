@@ -1,135 +1,165 @@
 import {cloudRequest,currentUser} from './cloud.js';
+import {railUnit} from './rail-unit.js';
 
-export const SALE_FIELDS={
- fcl_rail:[['price','卖价 / 原计价单位']],
- trucking:[['price','卖价 / 原计价单位']],
- rental:[['price','卖价 / 原计价单位']],
- domestic:[['cbm','方卖价'],['ton','吨卖价'],['fixed','固定卖价']],
- lcl_plan:[['unit','USD/计费方']]
-};
-export function saleFields(kind,row){
- if(kind!=='domestic')return SALE_FIELDS[kind];
+// All surcharges use the same currency AND billing unit as their purchase-rate component.
+export function purchaseFields(kind,row){
  const q=row?.quote||{};
- if(q.sharedPickup)return (q.tiers||[]).map((t,i)=>['tier_'+i, (t.minVolume??0)+'–'+(t.maxVolume??0)+'方 / '+(t.minWeight??0)+'–'+(t.maxWeight??0)+'kg']);
- if(q.rule==='fixed')return [['fixed','卖价/票']];
- if(q.rule==='tier')return [['fixed','阶梯卖价参考/票']];
- return [['cbm','方卖价'],['ton','吨卖价']];
-}
-export function validSellingFields(kind,fields,currency){
- if(!['USD','CNY','EUR'].includes(currency))throw Error('请先确定币种');
- const allowed=new Set(SALE_FIELDS[kind].map(x=>x[0]));
- if(!allowed.size)throw Error('未知价格类别');
- for(const [k,v] of Object.entries(fields)){
-  if(!allowed.has(k)&&!(kind==='domestic'&&/^tier_\d+$/.test(k)))throw Error('非法卖价字段');
-  if(v!==null&&(!Number.isFinite(v)||v<=0))throw Error('卖价必须大于零；清空表示未设置');
+ if(kind==='lcl_plan'){
+  try{return [{key:'unit',label:'铁路计费方',purchase:railUnit(row.inputs).unit,unit:'计费方'}];}
+  catch{return [{key:'unit',label:'铁路计费方',purchase:null,unit:'计费方'}];}
  }
+ if(kind!=='domestic')return [{key:'price',label:'每'+(q.unit||'单位'),purchase:q.price,unit:q.unit||''}];
+ if(q.sharedPickup||q.rule==='tier')return (q.tiers||[]).map((t,i)=>({key:'tier_'+i,label:(t.minVolume??0)+'–'+(t.maxVolume??'∞')+'方 / '+(t.minWeight??0)+'–'+(t.maxWeight??'∞')+'kg',purchase:t.amount,unit:t.unit==='cbm'?'CBM':t.unit==='billable'?'计费方':'票'}));
+ if(q.rule==='fixed')return [{key:'fixed',label:'每票',purchase:q.fixed,unit:'票'}];
+ return [{key:'cbm',label:'每方',purchase:q.cbm,unit:'CBM'},{key:'ton',label:'每吨',purchase:q.ton,unit:'吨'}];
+}
+export function sellingPrice(purchase,fee=0){
+ if(purchase===null||purchase===undefined||purchase===''||!Number.isFinite(Number(purchase))||Number(purchase)<0)return null;
+ if(!Number.isFinite(fee)||fee<0)throw Error('操作费必须为非负数');
+ return Math.round((Number(purchase)+fee)*10000)/10000;
+}
+export function changeOperationFee(current,mode,amount){
+ if(!Number.isFinite(amount)||amount<0)throw Error('操作费变更必须为非负金额');
+ if(!Number.isFinite(current)||current<0)throw Error('原操作费无效');
+ const next=mode==='set'?amount:mode==='add'?current+amount:mode==='subtract'?current-amount:NaN;
+ if(!Number.isFinite(next)||next<0)throw Error('减少金额不能超过现有操作费');
+ return Math.round(next*10000)/10000;
+}
+export function compatibleFeeBatch(kind,items,key){
+ if(!items.length)throw Error('没有选中的采购价格');
+ const dimensions=new Set();
+ for(const row of items){
+  const field=purchaseFields(kind,row).find(f=>f.key===key);
+  if(!field||field.purchase===null||!Number.isFinite(Number(field.purchase)))throw Error('部分记录缺少同类采购价，不能批量加费');
+  const currency=kind==='lcl_plan'?'USD':row.quote?.currency;
+  if(!currency||!['USD','CNY','EUR'].includes(currency))throw Error('请先确定所有记录的币种');
+  dimensions.add(currency+'|'+field.unit+'|'+(key.startsWith('tier_')?field.label:''));
+ }
+ if(dimensions.size!==1)throw Error('所选价格币种、计价单位或阶梯条件不一致，请缩小筛选范围');
  return true;
 }
-const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const escaped=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const config={
- '/fcl-rail.html':['fcl_rail','#fcl-rows'],
- '/trucking.html':['trucking','#trucking-rows'],
- '/container-rental.html':['rental','#rental-rows'],
- '/rates.html':['domestic','#rows'],
- '/rail-rates.html':['lcl_plan','#history'],
- '/pickup-rates.html':['domestic','#rows']
+ '/fcl-rail.html':['fcl_rail','#fcl-rows','freight_fcl_rail_rates'],
+ '/trucking.html':['trucking','#trucking-rows','freight_trucking_rates'],
+ '/container-rental.html':['rental','#rental-rows','freight_container_rental_rates'],
+ '/rates.html':['domestic','#rows','freight_domestic_rates'],
+ '/pickup-rates.html':['domestic','#rows','freight_domestic_rates'],
+ '/rail-rates.html':['lcl_plan','#history','freight_rail_plans']
 };
-export function mountPurchaseSellingPrices(){
- const [kind,selector]=config[location.pathname]||[];
- if(!kind)return;
- const body=document.querySelector(selector),table=body?.closest('table');
- if(!body||!table)return;
- let saved=new Map(),selection=new Set(),busy=false,sourceRows=new Map(),loadingRows=false,booted=false;
- const head=table.querySelector('thead tr');
- if(!head.querySelector('th.sale-col')){const th=document.createElement('th');th.textContent='卖价（内部）';th.className='sale-col';head.insertBefore(th,head.lastElementChild);}
- const actions=document.createElement('div');actions.className='toolbar sale-toolbar';
- actions.innerHTML='<button type="button" class="secondary" data-sel-visible>选中本页</button><button type="button" class="secondary" data-clear>清除选择</button><span data-count>卖价已选0条</span><button type="button" data-bulk>批量修改卖价</button><span data-message role="status"></span>';
- table.closest('.panel').insertBefore(actions,table.closest('.table-wrap'));
- const message=t=>{actions.querySelector('[data-message]').textContent=t;};
- async function loadRows(){
-  if(!currentUser())return;
-  const data=[];
-  for(let offset=0;offset<10000;offset+=500){
-   const chunk=await cloudRequest('freight_'+(kind==='fcl_rail'?'fcl_rail_rates':kind==='trucking'?'trucking_rates':kind==='rental'?'container_rental_rates':kind==='domestic'?'domestic_rates':'rail_plans')+'?select=*&order=created_at.desc,id.asc&limit=500&offset='+offset);
-   data.push(...chunk);if(chunk.length<500)break;
+export function mountOperationFees(){
+ const configuration=config[location.pathname];if(!configuration)return;
+ const [kind,selector,sourceTable]=configuration;
+ const body=document.querySelector(selector),table=body?.closest('table');if(!body||!table)return;
+ let saved=new Map(),sourceRows=new Map(),selected=new Set(),busy=false,booted=false,loading=false;
+ const notice=document.createElement('div');notice.className='toolbar sale-toolbar';
+ notice.innerHTML='<button type="button" class="secondary" data-select>选中本页操作费</button><button type="button" class="secondary" data-clear>清除</button><span data-count>已选0条</span><button type="button" data-bulk>批量增减操作费</button><span data-message role="status"></span>';
+ table.closest('.panel').insertBefore(notice,table.closest('.table-wrap'));
+ const message=t=>{notice.querySelector('[data-message]').textContent=t;};
+ function ensureHeaders(){
+  const head=table.querySelector('thead tr');if(!head)return;
+  for(const key of ['operation-fee','selling-price'])if(!head.querySelector('th[data-col="'+key+'"]')){
+   const th=document.createElement('th');th.dataset.col=key;th.className='sale-col';
+   th.textContent=key==='operation-fee'?'操作费':'卖价';
+   head.insertBefore(th,head.lastElementChild);
   }
-  sourceRows=new Map(data.map(r=>[r.id,r]));
  }
- const currency=(row)=>kind==='lcl_plan'?'USD':(row?.quote?.currency||'');
- const fieldsFor=row=>saleFields(kind,row);
- function updateCount(){actions.querySelector('[data-count]').textContent='卖价已选 '+selection.size+' 条';}
+ const idFor=tr=>tr.dataset.saleRow||tr.querySelector('[data-select]')?.dataset.select||tr.querySelector('[data-rail-select]')?.dataset.railSelect;
+ function updateCount(){notice.querySelector('[data-count]').textContent='已选 '+selected.size+' 条';}
  function renderCells(){
+  ensureHeaders();
   for(const tr of body.querySelectorAll(':scope > tr')){
-   const id=tr.dataset.saleRow||tr.querySelector('input[data-select]')?.dataset.select||tr.querySelector('input[data-rail-select]')?.dataset.railSelect;
-   if(!id||tr.querySelector('td.sale-col'))continue;
-   const row=sourceRows.get(id),value=saved.get(id);
-   const td=document.createElement('td');td.className='sale-col';
-   if(!row){td.textContent='读取新版本…';tr.insertBefore(td,tr.lastElementChild);if(!loadingRows&&currentUser()){loadingRows=true;queueMicrotask(async()=>{try{await loadRows();rerender();}catch(e){message('采购版本读取失败：'+e.message);}finally{loadingRows=false;}});}continue;}
-   const fs=fieldsFor(row),unit=kind==='lcl_plan'?'USD':currency(row);
-   td.innerHTML='<div class="sale-cell"><label class="sale-select"><input type="checkbox" data-sale-select="'+esc(id)+'" '+(selection.has(id)?'checked':'')+' aria-label="选择卖价修改"></label><div class="sale-inputs">'+fs.map(([k,label])=>'<label>'+esc(label)+'<input type="number" min="0.01" step="any" data-sale-id="'+esc(id)+'" data-sale-field="'+esc(k)+'" value="'+esc(value?.selling_values?.[k]??'')+'" placeholder="未设置" title="'+esc(label)+'"></label>').join('')+'<small>'+esc(unit||'币种未定')+' · '+(kind==='domestic'?'按原计价规则':'按采购计价单位')+'</small></div></div>';
-   tr.insertBefore(td,tr.lastElementChild);
+   if(tr.querySelector('td[data-col="operation-fee"]'))continue;
+   const id=idFor(tr);if(!id)continue;
+   const row=sourceRows.get(id),record=saved.get(id),fs=row?purchaseFields(kind,row):[];
+   const op=document.createElement('td'),sale=document.createElement('td');op.className='sale-col';sale.className='sale-col';op.dataset.col='operation-fee';sale.dataset.col='selling-price';
+   if(!row){op.textContent='读取中';sale.textContent='—';}
+   else{
+    const currency=kind==='lcl_plan'?'USD':row.quote?.currency||'';
+    op.innerHTML='<div class="sale-cell"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中操作费"><div class="sale-inputs">'+fs.map(f=>'<label>'+escaped(f.label)+'<input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" value="'+escaped(record?.operation_fees?.[f.key]??0)+'" '+(f.purchase===null||f.purchase===undefined?'disabled title="请先补采购价"':'')+'></label>').join('')+'</div></div>';
+    sale.innerHTML='<div class="sale-inputs">'+fs.map(f=>{const fee=Number(record?.operation_fees?.[f.key]??0),value=sellingPrice(f.purchase,fee);return '<div class="sale-result"><small>'+escaped(f.label)+'</small><strong>'+ (value===null?'采购价待补':escaped(currency)+' '+value.toLocaleString('en-US',{maximumFractionDigits:4}))+'</strong></div>';}).join('')+'</div>';
+   }
+   tr.insertBefore(op,tr.lastElementChild);tr.insertBefore(sale,tr.lastElementChild);
   }
   updateCount();
  }
- const observer=new MutationObserver(()=>renderCells());observer.observe(body,{childList:true});
- function rerender(){for(const td of body.querySelectorAll('td.sale-col'))td.remove();renderCells();}
- async function fetchValues(){
-  const all=[];for(let offset=0;offset<10000;offset+=500){const b=await cloudRequest('freight_purchase_selling_prices?select=*&source_kind=eq.'+encodeURIComponent(kind)+'&limit=500&offset='+offset);all.push(...b);if(b.length<500)break;}
-  saved=new Map(all.map(r=>[r.source_id,r]));rerender();
+ function redraw(){for(const td of body.querySelectorAll('td[data-col="operation-fee"],td[data-col="selling-price"]'))td.remove();renderCells();}
+ async function refreshSource(){
+  const all=[];for(let offset=0;offset<10000;offset+=500){
+   const extra=location.pathname==='/pickup-rates.html'?'&kind=eq.pickup':'';
+   const b=await cloudRequest(sourceTable+'?select=*&order=created_at.desc,id.asc&limit=500&offset='+offset+extra);all.push(...b);if(b.length<500)break;
+  }
+  sourceRows=new Map(all.map(r=>[r.id,r]));
  }
- async function persist(id,fields){
-  const row=sourceRows.get(id);if(!row)throw Error('采购价格已更新，请刷新重试');
-  const cur=currency(row);validSellingFields(kind,fields,cur);
-  const existing=saved.get(id)?.selling_values||{};
-  const combined={...existing,...fields};for(const k of Object.keys(combined))if(combined[k]===null)delete combined[k];
+ async function refreshSaved(){
+  const all=[];for(let offset=0;offset<10000;offset+=500){
+   const b=await cloudRequest('freight_purchase_selling_prices?select=*&source_kind=eq.'+kind+'&limit=500&offset='+offset);all.push(...b);if(b.length<500)break;
+  }
+  saved=new Map(all.map(r=>[r.source_id,r]));
+ }
+ async function persist(row,key,fee){
+  const field=purchaseFields(kind,row).find(f=>f.key===key);
+  if(!field||field.purchase===null||field.purchase===undefined)throw Error('采购价不存在，不能设置操作费');
+  if(!Number.isFinite(fee)||fee<0)throw Error('操作费必须为非负金额');
+  const currency=kind==='lcl_plan'?'USD':row.quote?.currency;
+  if(!['USD','CNY','EUR'].includes(currency))throw Error('采购价币种待确认');
+  const old=saved.get(row.id),next={...(old?.operation_fees||{}),[key]:fee};
   const result=await cloudRequest('freight_purchase_selling_prices?on_conflict=source_kind,source_id',{
-   method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify({source_kind:kind,source_id:id,currency:cur,selling_values:combined,updated_at:new Date().toISOString()})
+   method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},
+   body:JSON.stringify({source_kind:kind,source_id:row.id,currency,operation_fees:next,updated_at:new Date().toISOString()})
   });
-  if(!Array.isArray(result)||result.length!==1)throw Error('保存失败，检查权限');
-  saved.set(id,result[0]);
+  if(!Array.isArray(result)||result.length!==1)throw Error('保存未成功，请检查权限');
+  saved.set(row.id,result[0]);
  }
  body.addEventListener('change',async e=>{
-  const cb=e.target.closest('[data-sale-select]');if(cb){cb.checked?selection.add(cb.dataset.saleSelect):selection.delete(cb.dataset.saleSelect);updateCount();return;}
-  const input=e.target.closest('input[data-sale-id]');if(!input||busy)return;
-  const raw=input.value.trim(),num=raw?Number(raw):null;
-  if(raw&&(!Number.isFinite(num)||num<=0)){message('请输入大于零的卖价，或清空');input.focus();return;}
+  if(e.target.matches('[data-fee-check]')){const id=e.target.dataset.feeCheck;e.target.checked?selected.add(id):selected.delete(id);updateCount();return;}
+  const input=e.target.closest('input[data-fee-id]');if(!input||busy)return;
+  const row=sourceRows.get(input.dataset.feeId);if(!row)return;
+  const amount=Number(input.value);
+  if(input.value.trim()===''||!Number.isFinite(amount)||amount<0){message('操作费不能为负或留空，填写0表示无操作费');input.value=saved.get(row.id)?.operation_fees?.[input.dataset.feeKey]??0;return;}
   busy=true;input.disabled=true;
-  try{await persist(input.dataset.saleId,{[input.dataset.saleField]:num});message('卖价已保存，不影响采购价，也不会自动发布官网');}
-  catch(err){message('保存失败：'+err.message);input.value=saved.get(input.dataset.saleId)?.selling_values?.[input.dataset.saleField]??'';}
-  finally{input.disabled=false;busy=false;}
+  try{await persist(row,input.dataset.feeKey,amount);message('操作费已保存；卖价已自动更新');}
+  catch(err){message('保存失败：'+err.message);input.value=saved.get(row.id)?.operation_fees?.[input.dataset.feeKey]??0;}
+  finally{busy=false;redraw();}
  });
- actions.querySelector('[data-sel-visible]').onclick=()=>{for(const input of body.querySelectorAll('input[data-sale-select]')){input.checked=true;selection.add(input.dataset.saleSelect);}updateCount();};
- actions.querySelector('[data-clear]').onclick=()=>{selection.clear();for(const input of body.querySelectorAll('input[data-sale-select]'))input.checked=false;updateCount();};
- actions.querySelector('[data-bulk]').onclick=async()=>{
-  if(busy)return;
-  if(!selection.size)return message('请先勾选卖价列中的记录');
-  const ids=[...selection].filter(id=>sourceRows.has(id));
-  if(!ids.length)return message('未找到选中采购版本，请刷新');
+ notice.querySelector('[data-select]').onclick=()=>{for(const el of body.querySelectorAll('[data-fee-check]')){el.checked=true;selected.add(el.dataset.feeCheck);}updateCount();};
+ notice.querySelector('[data-clear]').onclick=()=>{selected.clear();for(const el of body.querySelectorAll('[data-fee-check]'))el.checked=false;updateCount();};
+ notice.querySelector('[data-bulk]').onclick=()=>{
+  const ids=[...selected].filter(id=>sourceRows.has(id));if(!ids.length)return message('先在操作费列勾选记录');
   if(ids.length>500)return message('单次最多修改500条');
-  const field=kind==='domestic'?window.prompt('选择修改字段：cbm（方卖价）/ ton（吨卖价）/ fixed（固定卖价）；提货模板请输入 tier_0、tier_1 等档位','cbm'):kind==='lcl_plan'?'unit':'price';
-  if(field===null)return;
-  if(!SALE_FIELDS[kind].some(([key])=>key===field)&&!(kind==='domestic'&&/^tier_\d+$/.test(field)))return message('字段不正确');
-  const raw=window.prompt('输入统一卖价（按原币种与计价单位；不能用空值批量覆盖）');
-  if(raw===null)return;
-  const amount=Number(raw);
-  if(!raw.trim()||!Number.isFinite(amount)||amount<=0)return message('卖价必须大于零');
-  const curr=new Set(ids.map(id=>currency(sourceRows.get(id))));
-  if(curr.size!==1||![...curr][0])return message('所选记录币种不一致或未确认，请先按币种筛选');
-  if(kind==='domestic'&&ids.some(id=>!fieldsFor(sourceRows.get(id)).some(([k])=>k===field)))return message('所选记录计价规则不同，请分类后批量修改');
-  if(kind!=='domestic'&&kind!=='lcl_plan'&&new Set(ids.map(id=>sourceRows.get(id)?.quote?.unit)).size!==1)return message('所选记录计价单位不同，请先筛选');
-  if(!confirm('确定批量修改 '+ids.length+' 条卖价？采购价不变，官网不会自动公开。'))return;
-  busy=true;let done=0;
-  try{for(const id of ids){try{await persist(id,{[field]:amount});done++;}catch(e){message('完成 '+done+' 条，失败记录：'+e.message);break;}}}
-  finally{busy=false;selection.clear();rerender();message('已保存 '+done+' / '+ids.length+' 条卖价；采购价未修改');}
+  const rows=ids.map(id=>sourceRows.get(id));
+  const choices=purchaseFields(kind,rows[0]);if(!choices.length)return message('采购价格暂未录入');
+  const dialog=document.createElement('dialog');dialog.className='supplier-quote-dialog fee-dialog';
+  dialog.innerHTML='<form><div class="dialog-heading"><h2>批量操作费 · '+ids.length+'条</h2><button type="button" class="secondary" data-close>关闭</button></div><div class="fields"><label>费用项目<select name="field">'+choices.map(f=>'<option value="'+escaped(f.key)+'">'+escaped(f.label)+'</option>').join('')+'</select></label><label>调整方式<select name="mode"><option value="set">统一设置</option><option value="add">每条增加</option><option value="subtract">每条减少</option></select></label><label>操作金额（采购原币种/计价单位）<input name="amount" type="number" min="0" step="any" required></label></div><p class="subtle">只改变操作费；卖价自动按采购价加操作费计算，不覆盖采购价。同一批需币种、单位、阶梯范围一致。</p><p data-error role="alert"></p><footer><button type="submit">预览并确认</button></footer></form>';
+  document.body.append(dialog);dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.onclose=()=>dialog.remove();
+  dialog.querySelector('form').onsubmit=async e=>{
+   e.preventDefault();if(busy)return;
+   const v=Object.fromEntries(new FormData(e.target)),amount=Number(v.amount);
+   try{
+    if(v.amount.trim()==='')throw Error('请输入操作金额');
+    compatibleFeeBatch(kind,rows,v.field);
+    const updates=rows.map(row=>({row,value:changeOperationFee(Number(saved.get(row.id)?.operation_fees?.[v.field]??0),v.mode,amount)}));
+    if(!confirm('确认对 '+rows.length+' 条记录'+({set:'统一设置为',add:'增加',subtract:'减少'}[v.mode]||'修改')+' '+amount+' 操作费？各行卖价自动重新计算，采购价不变。'))return;
+    busy=true;let done=0,failed='';
+    for(const x of updates){try{await persist(x.row,v.field,x.value);done++;}catch(err){failed=err.message;break;}}
+    selected.clear();redraw();dialog.close();
+    message('成功 '+done+'/'+updates.length+' 条'+(failed?'，中断原因：'+failed:'')+'；卖价已自动重算');
+   }catch(err){dialog.querySelector('[data-error]').textContent=err.message;}
+   finally{busy=false;}
+  };
+  dialog.showModal();
  };
+ // Dynamic source tables re-render on page and filter changes.
+ const observer=new MutationObserver(()=>{renderCells();if(!loading&&currentUser()&&[...body.querySelectorAll(':scope > tr')].some(tr=>{const id=idFor(tr);return id&&!sourceRows.has(id);})){
+  loading=true;queueMicrotask(async()=>{try{await refreshSource();await refreshSaved();redraw();}catch(e){message(e.message);}finally{loading=false;}});}});
+ observer.observe(body,{childList:true});
  async function boot(){
-  if(booted||!currentUser())return;
-  booted=true;
-  try{await loadRows();renderCells();await fetchValues();}
-  catch(e){booted=false;message('卖价加载失败：'+e.message);}
+  if(booted||!currentUser())return;booted=true;
+  try{await refreshSource();await refreshSaved();redraw();}
+  catch(e){booted=false;message('操作费加载失败：'+e.message);}
  }
  void boot();
  const authObserver=new MutationObserver(()=>{if(currentUser())void boot();});
  authObserver.observe(document.documentElement,{attributes:true,attributeFilter:['class']});
 }
-if(typeof document!=='undefined')mountPurchaseSellingPrices();
+if(typeof document!=='undefined')mountOperationFees();
