@@ -5,7 +5,7 @@ test('FCL audit shows missing rail and links to its procurement price library',(
  const a=quoteAuditRows({inputs:{transport:'fcl',truck:true,rent:true,equipment:'SOC'},result:{lines:[{name:'国内拖车',value:200,basis:'CNY 1400'},{name:'租箱基础费（不含超期）',value:600,basis:'USD 600'}],pending:['整箱铁路：未匹配适用报价'],complete:false}});
  assert.equal(a.segments.length,3);assert.equal(a.missing,1);
  assert.equal(a.segments.find(x=>x.key==='rail').link,'/fcl-rail.html');
- assert.equal(a.segments.find(x=>x.key==='rail').status,'review');
+ assert.equal(a.segments.find(x=>x.key==='rail').status,'missing');
 });
 test('FCL audit lists present railway costs and unmatched conditions',()=>{
  const a=quoteAuditRows({inputs:{transport:'fcl',equipment:'COC',sources:{rail:{supplier_id:'abc'}}},result:{lines:[{name:'整箱铁路',value:8400,basis:'USD 8400/柜'}],pending:['整箱铁路：请核对条款','COC平衡费另询'],complete:false}});
