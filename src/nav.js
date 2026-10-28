@@ -3,7 +3,7 @@ const pages=[
  {group:'首页',items:[['/hub.html','系统首页']]},
  {group:'基础资料',items:[['/','供应商档案']]},
  {group:'成本中心',items:[['/cost.html','成本测算'],['/pricing.html','采购价格中心']]},
- {group:'客户开发',items:[['/crm.html','客户资源'],['/lead-map.html','地图获客'],['/discovery.html','候选审核'],['/inbox.html','收件箱'],['/mail.html','邮件发送']]},
+ {group:'客户开发',items:[['/crm.html','客户资源'],['/exhibitions.html','展会与展商'],['/lead-map.html','地图获客'],['/discovery.html','候选审核'],['/inbox.html','收件箱'],['/mail.html','邮件发送']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/index.html'?'/':location.pathname;
