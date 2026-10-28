@@ -96,3 +96,50 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 #result .stats strong{margin-top:4px}
 @media(max-width:1050px){#goods>.fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){#goods>.fields{grid-template-columns:1fr}.cost-compare-title{display:block}}
+
+
+/* Quotation audit: clear missing-cost diagnosis and consistent supplier comparison columns. */
+.cost-output{min-width:0}
+.cost-output-title{align-items:center}
+.cost-output-title h2{font-size:20px}
+#result .audit-route{font-size:13px;color:#475569;margin:10px 0!important}
+#result .audit-route strong{font-size:15px;color:#183c42}
+.audit-overview{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;border-radius:10px;margin:12px 0;border:1px solid #cfdfe4;background:#f8fafc}
+.audit-overview strong{color:#214754;font-size:14px}
+.audit-overview span{font-size:12px;color:#576b75}
+.audit-incomplete{background:#fffaf1;border-color:#f2ddaf}
+.audit-incomplete strong{color:#87551b}
+.audit-complete{background:#f2fbf6;border-color:#bfe6d0}
+.cost-audit{margin:16px 0;border:1px solid #d9e6e8;border-radius:11px;overflow:hidden;background:white}
+.cost-audit-heading{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:12px 14px;background:#f5f9fa}
+.cost-audit-heading h3{margin:0;font-size:15px;color:#153c47}
+.cost-audit-heading span{font-size:12px;color:#617481}
+.cost-audit .table-wrap{max-width:100%;overflow-x:auto}
+.cost-audit-table{width:100%;min-width:760px;border-collapse:collapse;table-layout:auto;font-size:12px}
+.cost-audit-table th{text-align:left;font-size:12px;color:#486675;padding:11px 12px;border-bottom:1px solid #dce6e9;background:#eef5f7;white-space:nowrap}
+.cost-audit-table td{vertical-align:top;padding:12px;border-bottom:1px solid #e6edef;line-height:1.5;overflow-wrap:break-word;word-break:normal}
+.cost-audit-table td:first-child{min-width:110px;max-width:155px}
+.cost-audit-table td:nth-child(2){min-width:175px;max-width:280px}
+.cost-audit-table td:nth-child(3){min-width:120px;white-space:nowrap;font-weight:700;color:#193e4b;font-variant-numeric:tabular-nums}
+.cost-audit-table td:nth-child(4){min-width:190px;max-width:330px}
+.cost-audit-table td:last-child{min-width:116px;white-space:nowrap}
+.cost-audit-table td small{display:block;margin-top:5px;color:#667d86;font-size:11px;line-height:1.5}
+.cost-audit-table tr.audit-missing{background:#fff9f3}
+.cost-audit-table tr.audit-review{background:#fffdf7}
+.cost-audit-table tr.audit-ok{background:#fff}
+.audit-pill{display:inline-block;font-weight:650;font-size:11px;padding:3px 8px;border-radius:20px}
+.audit-pill-ok{background:#e5f6ed;color:#167046}
+.audit-pill-review{background:#fff0ca;color:#8a5800}
+.audit-pill-missing{background:#ffebe7;color:#a43e2c}
+.audit-link{display:inline-flex;border:1px solid #b6d6ce;background:#f6fcf9;border-radius:7px;padding:6px 10px;color:#176f60;text-decoration:none;font-weight:600;font-size:12px}
+.audit-link:hover{background:#e7f7ef}
+.audit-unmatched{padding:12px 14px;border-top:1px solid #f0dfbc;background:#fffbf3;color:#855822;font-size:12px}
+.audit-unmatched ul{margin:6px 0 0;padding-left:20px}
+.audit-footnote{padding:10px 14px;margin:0!important;color:#607782;font-size:11px;background:#fbfdfe}
+.cost-compare-group .table-wrap{overflow-x:auto;max-width:100%}
+.cost-compare-group table{min-width:920px!important;table-layout:auto}
+.cost-compare-group th,.cost-compare-group td{min-width:105px;max-width:340px;white-space:normal;word-break:normal;overflow-wrap:break-word;vertical-align:top}
+.cost-compare-group th:first-child,.cost-compare-group td:first-child{min-width:175px}
+.cost-compare-group th:last-child,.cost-compare-group td:last-child{min-width:78px;white-space:nowrap}
+.cost-compare-group td small{display:block;line-height:1.5;margin-top:4px}
+@media(max-width:700px){.cost-audit-heading{display:block}.cost-audit-table{min-width:720px}.audit-overview{align-items:flex-start}}
