@@ -2,3 +2,4 @@
 
 [data-kind=fairs] td:first-child{min-width:230px;width:230px}
 #expo-table{max-height:64vh;overflow:auto}#expo-table th{position:sticky;top:0;z-index:1}[data-kind=exhibitors] table{min-width:1600px}
+.expo-auto-setting{flex-direction:row;align-items:center}.expo-auto-setting input,#auto-detail input[type=checkbox]{width:18px;height:18px}#auto-detail{width:min(900px,calc(100% - 32px))}#auto-history{width:min(800px,calc(100% - 32px))}#auto-error{color:#ae3630}#auto-evidence{padding:12px;background:#f2f6f4;white-space:pre-wrap}#history-list article{border-top:1px solid #e1e9e6;padding:16px 0}#history-list p{margin:6px 0}#history-list pre{white-space:pre-wrap;overflow-wrap:anywhere}
