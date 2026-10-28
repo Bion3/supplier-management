@@ -43,6 +43,12 @@ def assess_feature(obj):
     taxonomy=x.get('taxonomy') or {}
     category=clean((taxonomy.get('primary') if isinstance(taxonomy,dict) else '') or x.get('basic_category') or x.get('category'),120).lower()
     if not UUID.fullmatch(oid) or not name: return None,'invalid'
+    # A clearly closed facility is not a useful prospect; confidence is existence,
+    # never proof of buyer intent or business contact validity.
+    if x.get('operating_status')=='permanently_closed':return None,'permanently_closed'
+    confidence=x.get('confidence')
+    if isinstance(confidence,(int,float)) and not isinstance(confidence,bool) and confidence<0.3:
+        return None,'low_existence_confidence'
     if EXCLUDED_CATEGORIES.search(category) or EXCLUDED_NAMES.search(name): return None,'non_b2b_retail_or_infrastructure'
     high=any(v in category for v in HIGH_CATEGORIES)
     medium=any(v in category for v in MEDIUM_CATEGORIES)
@@ -86,6 +92,7 @@ def assess_feature(obj):
     score+=8 if phones else 0
     score+=6 if address else 0
     score+=4 if len(sources)>=2 else 0
+    if isinstance(confidence,(int,float)) and not isinstance(confidence,bool):score+=round(max(0,min(1,confidence))*6)
     score=min(100,score)
     reasons=[]
     if strong:reasons.append('企业名称与目标业务强匹配')
