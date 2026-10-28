@@ -59,3 +59,20 @@ export function contactPriority(row){
  const c=contactChannels(row);
  return (c.email?2:0)+(c.phone?1:0);
 }
+
+const TERM_ALIASES={
+ logistics:['logistics','logistik','spedition','spediteur','freight','cargo','transport','supply_chain'],
+ logistic:['logistics','logistik','spedition','freight','cargo','transport'],
+ freight:['freight','forwarding','spedition','spediteur','cargo','transport'],
+ warehouse:['warehouse','storage_facility','lager','fulfillment'],
+ import:['import','import_export','einfuhr','importeur'],
+ export:['export','import_export','ausfuhr'],
+ wholesale:['wholesale','wholesaler','grosshandel','großhandel','distribut'],
+ distributor:['distribut','wholesale','grosshandel','großhandel']
+};
+export function matchesIndustryKeyword(row,term){
+ const q=String(term||'').trim().toLowerCase();
+ if(!q)return true;
+ const field=[row.name,row.category,row.address].join(' ').toLowerCase();
+ return (TERM_ALIASES[q]||[q]).some(word=>field.includes(word));
+}
