@@ -67,8 +67,8 @@ $('bulk-form').onsubmit=async event=>{event.preventDefault();if(busy)return;cons
 for(const [dialog,close] of [['entry-dialog','entry-close'],['import-dialog','import-close'],['bulk-dialog','bulk-close']]){$(close).onclick=()=>{if(!busy)$(dialog).close();};$(dialog).addEventListener('cancel',e=>{if(busy)e.preventDefault();});}
 $('expo-contact-complete').onclick=async()=>{
  if(kind!=='exhibitors'||busy)return;
- const chosen=exhibitors.filter(r=>selected.has(r.id)&&r.website?.startsWith('https://')&&(!r.email||!r.phone)).slice(0,10);
- if(!chosen.length){$('notice').textContent='所选展商没有可补全的 HTTPS 官网，或已拥有邮箱和电话。';return;}
+ const chosen=exhibitors.filter(r=>selected.has(r.id)&&r.website?.startsWith('https://')).slice(0,10);
+ if(!chosen.length){$('notice').textContent='所选展商没有可检查的 HTTPS 官网。';return;}
  if(!confirm('从 '+chosen.length+' 家展商的公开官网补全缺失邮箱/电话？现有联系方式不会被覆盖，也不会自动发送邮件。'))return;
  const button=$('expo-contact-complete');button.disabled=true;
  let completed=0,added=0,failed=0;
