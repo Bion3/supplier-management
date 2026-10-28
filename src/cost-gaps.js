@@ -11,7 +11,7 @@ export function installCostGaps({kind,table,getRows,getFiltered,reload}){
  function refresh(){
   const rows=current(),count=rows.filter(r=>costGaps(r,kind).some(i=>i.level==='block')).length;
   button.textContent=`报价待补全 ${count} 条`;
-  for(const r of rows){const action=document.querySelector(`[data-edit="${r.id}"]`),tr=action?.closest('tr');if(!tr)continue;
+  for(const r of rows){const action=document.querySelector(`[data-edit="${r.id}"]`)||(kind==='rail'?document.querySelector(`[data-history="${getRows().indexOf(r)}"]`):null),tr=action?.closest('tr');if(!tr)continue;
    tr.querySelector('[data-cost-gap]')?.remove();
    const issues=costGaps(r,kind);if(!issues.length)continue;
    const badge=document.createElement('button');badge.type='button';badge.dataset.costGap='';badge.className='secondary';
