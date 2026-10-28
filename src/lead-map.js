@@ -59,7 +59,7 @@ function render(){
  const counts={total:inRadius.length,email:0,phone:0,both:0,contactable:0};
  for(const r of inRadius){const c=contactChannels(r);if(c.email)counts.email++;if(c.phone)counts.phone++;if(c.email&&c.phone)counts.both++;if(c.email||c.phone)counts.contactable++;}
  $('map-contact-summary').textContent='区域内 '+counts.total+' 家 · 有邮箱 '+counts.email+' 家 · 有电话 '+counts.phone+' 家 · 两者都有 '+counts.both+' 家 · 暂无联系方式 '+(counts.total-counts.contactable)+' 家。无联系方式企业可隐藏，但不会删除。';
- rows=inRadius.filter(r=>contactFilterMatches(r,channel)&&(!hideEmpty||contactPriority(r)>0))
+ rows=inRadius.filter(r=>(channel==='missing_email'?!contactChannels(r).email:channel==='missing_phone'?!contactChannels(r).phone:contactFilterMatches(r,channel))&&(!hideEmpty||contactPriority(r)>0))
   .sort((a,b)=>sort==='distance'?a.km-b.km:sort==='email'?
     (Number(contactChannels(b).email)-Number(contactChannels(a).email)||contactPriority(b)-contactPriority(a)||a.km-b.km):
     (contactPriority(b)-contactPriority(a)||a.km-b.km));
@@ -71,7 +71,7 @@ function render(){
  if(markers)markers.clearLayers();
  for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE)){
   const tr=document.createElement('tr');tr.dataset.id=r.id;if(r.id===activeId)tr.classList.add('active');
-  const td=document.createElement('td');const check=document.createElement('input');check.type='checkbox';const stored=r.source==='database';check.checked=stored?selectedVerify.has(r.dbId):chosen.has(r.id);check.title=stored?'选择官网核实':'选择保存到候选池';check.onchange=()=>{const collection=stored?selectedVerify:chosen,key=stored?r.dbId:r.id;if(check.checked)collection.add(key);else collection.delete(key);selectionStatus();};td.append(check);tr.append(td);
+  const td=document.createElement('td');const check=document.createElement('input');check.type='checkbox';const stored=r.source==='database';check.checked=stored?selectedVerify.has(r.dbId):chosen.has(r.id);check.title=stored?'添加到名单 / 批量核实':'选择导入文件';check.onchange=()=>{const collection=stored?selectedVerify:chosen,key=stored?r.dbId:r.id;if(check.checked)collection.add(key);else collection.delete(key);selectionStatus();tr.classList.toggle('map-selected-row',check.checked);};td.append(check);tr.append(td);if(check.checked)tr.classList.add('map-selected-row');
   for(const value of [r.name,r.category||'待分类',r.km.toFixed(1)+' km']){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
@@ -104,7 +104,46 @@ function render(){
  $('map-search-status').textContent=rows.length+' 家命中半径 '+radius+' 公里，当前显示 '+Math.min(PAGE_SIZE,rows.length)+' 家。';
  selectionStatus();
 }
-function selectionStatus(){$('map-selected').textContent='待保存 '+chosen.size+' 家 · 待官网核实 '+selectedVerify.size+' 家';$('map-save').disabled=!chosen.size;$('map-verify').disabled=!selectedVerify.size;}
+function selectionStatus(){
+ const count=selectedVerify.size+chosen.size;
+ $('map-selected').textContent='已选 '+count+' 家 · 数据库候选 '+selectedVerify.size+' 家 · 待导入文件 '+chosen.size+' 家';
+ $('map-save').disabled=!chosen.size;
+ $('map-verify').disabled=!selectedVerify.size;
+ $('map-save-list').disabled=!selectedVerify.size;
+}
+async function loadSavedLists(){
+ const panel=$('map-saved-list-entries');
+ const lists=await cloudRequest('lead_saved_lists?select=id,name,lead_ids,city,updated_at&order=updated_at.desc&limit=100');
+ panel.replaceChildren();
+ if(!lists.length){panel.textContent='尚无已保存名单。先勾选企业，点击「保存已选名单」。';return;}
+ for(const list of lists){
+  const line=document.createElement('div');line.className='map-saved-row';
+  const title=document.createElement('span');title.textContent=list.name+' · '+(list.lead_ids?.length||0)+' 家 · '+(list.city||'多个地区');
+  const restore=document.createElement('button');restore.type='button';restore.className='secondary';restore.textContent='恢复选择';
+  restore.onclick=()=>{selectedVerify.clear();for(const id of list.lead_ids||[])selectedVerify.add(id);render();$('map-saved-panel').hidden=true;$('map-contact-status').textContent='已恢复「'+list.name+'」名单 '+selectedVerify.size+' 家；跨区域名单需切换城市后查看具体企业。';};
+  const remove=document.createElement('button');remove.type='button';remove.className='secondary';remove.textContent='删除';
+  remove.onclick=async()=>{if(!confirm('确定删除保存的名单「'+list.name+'」？企业候选本身不会删除。'))return;await cloudRequest('lead_saved_lists?id=eq.'+list.id,{method:'DELETE'});await loadSavedLists();};
+  line.append(title,restore,remove);panel.append(line);
+ }
+}
+$('map-save-list').onclick=async()=>{
+ const ids=[...selectedVerify];
+ if(!ids.length)return;
+ const initial=(CITIES[$('map-city').value]?.name||'多区域')+'-'+new Date().toISOString().slice(0,10);
+ const name=prompt('给这 '+ids.length+' 家企业命名并保存到 CRM 名单：',initial);
+ if(!name)return;
+ const normalized=name.trim();if(normalized.length<2||normalized.length>100){$('map-contact-status').textContent='名单名称需要 2–100 个字符。';return;}
+ const button=$('map-save-list');button.disabled=true;
+ try{
+  await cloudRequest('lead_saved_lists',{method:'POST',body:JSON.stringify({name:normalized,lead_ids:ids,city:CITIES[$('map-city').value]?.name||'Multiple'})});
+  $('map-contact-status').textContent='已保存名单「'+normalized+'」：'+ids.length+' 家。点击「已保存名单」可恢复或删除名单。';
+  $('map-saved-panel').hidden=false;await loadSavedLists();
+ }catch(e){$('map-contact-status').textContent='保存名单失败：'+e.message;}
+ finally{selectionStatus();}
+};
+$('map-show-lists').onclick=async()=>{$('map-saved-panel').hidden=false;try{await loadSavedLists();}catch(e){$('map-saved-list-entries').textContent='读取名单失败：'+e.message;}};
+$('map-saved-close').onclick=()=>{$('map-saved-panel').hidden=true;};
+
 function search(){setViewport();page=1;render();}
 $('map-search-button').onclick=async()=>{search();if(!rows.length&&CITIES[$('map-city').value]){await submitRegionCollection({prompt:false});}else{$('map-search-status').textContent='已找到 '+rows.length+' 家匹配的已采集企业。可按联系方式进一步筛选。';}};
 // Automatically hand completed regional searches to the existing durable website queue.
@@ -223,6 +262,7 @@ $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
 $('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
 $('map-clear').onclick=()=>{chosen.clear();selectedVerify.clear();render();};
+$('map-select-filtered').onclick=()=>{for(const r of rows){if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);}render();};
 $('map-file').onchange=async()=>{
  const f=$('map-file').files?.[0];if(!f)return;
  try{const parsed=parseGeoText(await f.text(),f.name);fileRows=parsed.rows;chosen.clear();$('map-save-status').textContent='文件 '+parsed.original+' 条，'+parsed.rows.length+' 条包含有效坐标；'+parsed.missing+' 条缺失地点坐标或格式无效。请核对来源、区域与许可证。';search();}
