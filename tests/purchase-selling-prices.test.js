@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {purchaseFields,sellingPrice,changeOperationFee,compatibleFeeBatch} from '../src/purchase-selling-prices.js';
+import {purchaseFields,sellingPrice,operationFeeTotal,changeOperationFee,compatibleFeeBatch} from '../src/purchase-selling-prices.js';
 
 test('purchase cost plus per-unit operations fee determines selling price',()=>{
  assert.equal(sellingPrice(8400,600),9000);
@@ -52,4 +52,15 @@ test('LCL rail external plan uses USD unit procurement rate',()=>{
  assert.equal(field.purchase,190);
  assert.equal(field.unit,'计费方');
  assert.equal(sellingPrice(field.purchase,30),220);
+});
+
+test('percentage and fixed operation fee combine against purchase price',()=>{
+ assert.equal(operationFeeTotal(8400,200,10),1040);
+ assert.equal(sellingPrice(8400,operationFeeTotal(8400,200,10)),9440);
+ assert.equal(operationFeeTotal(9000,0,15),1350);
+ assert.equal(changeOperationFee(10,'add',5),15);
+ assert.equal(changeOperationFee(15,'subtract',5),10);
+ assert.throws(()=>changeOperationFee(10,'subtract',11),/不能超过/);
+ assert.equal(operationFeeTotal(null,200,10),null);
+ assert.throws(()=>operationFeeTotal(100,20,-5),/非负/);
 });
