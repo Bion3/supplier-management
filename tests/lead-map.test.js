@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {distance,normalize,parseGeoText,classify,contactChannels,contactFilterMatches,contactPriority} from '../src/lead-map-model.js';
+import {distance,normalize,parseGeoText,classify,contactChannels,contactFilterMatches,contactPriority,matchesIndustryKeyword} from '../src/lead-map-model.js';
 const id='11111111-2222-4333-8444-555555555555';
 test('Haversine returns zero at center and realistic 50 km distances',()=>{
  assert.equal(distance(53.5511,9.9937,53.5511,9.9937),0);
@@ -101,4 +101,17 @@ test('simplified map keeps one-click contact enrichment and advanced settings co
  assert.match(html,/id="map-hide-no-contact"/);
  assert.match(js,/map-auto-contact/);
  assert.match(js,/action:'drain'/);
+});
+
+test('Duisburg logistics query matches German Spedition and Logistik names',()=>{
+ assert.equal(matchesIndustryKeyword({name:'Rhein Spedition GmbH',category:'freight_forwarding_agency'},'logistics'),true);
+ assert.equal(matchesIndustryKeyword({name:'Rhein Logistik',category:''},'logistics'),true);
+ assert.equal(matchesIndustryKeyword({name:'Restaurant Berlin',category:'restaurant'},'logistics'),false);
+});
+test('mapped acquisition can create regional tasks outside Hamburg',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const js=await readFile(new URL('../src/lead-map.js',import.meta.url),'utf8');
+ assert.match(js,/city:city.name,source:'overture'/);
+ assert.match(js,/task_id:task.id,city:city.name/);
+ assert.doesNotMatch(js,/自动采集试点仅支持 Hamburg/);
 });
