@@ -73,3 +73,15 @@
 .map-table-actions #map-auto-contact{background:#187a6d;color:#fff;font-weight:650}
 .map-table-actions #map-dispatch-queued[hidden]{display:none!important}
 @media(max-width:850px){.map-table-actions{width:100%}.map-table-actions button{flex:1 1 auto}.map-contact-filters{gap:9px}}
+
+/* Persistent selections and saved CRM lists */
+#map-results tr.map-selected-row{background:#edf8f5}
+#map-results tr.map-selected-row:hover{background:#e3f4ee}
+.map-saved-panel{margin:12px 0;padding:14px;border:1px solid #c9ddd8;border-radius:10px;background:#f8fcfa}
+.map-saved-panel[hidden]{display:none}
+.map-saved-heading,.map-saved-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.map-saved-heading{justify-content:space-between;margin-bottom:8px}
+.map-saved-row{border-top:1px solid #e2eae7;padding:9px 0}
+.map-saved-row span{flex:1;min-width:200px;font-weight:600}
+.map-table-actions{display:flex;gap:7px;flex-wrap:wrap}
+.map-table-actions button{white-space:nowrap}
