@@ -13,6 +13,11 @@ class ExportTests(unittest.TestCase):
   self.assertEqual(row["emails"],["sales@example.com"])
   self.assertEqual(row["phones"],["+49 40 1234567"])
   self.assertEqual(row["website"],"https://freight.example")
+ def test_filters_closed_and_low_existence_confidence(self):
+  base={"id":ID,"names":{"primary":"Duisburg Freight GmbH"},"taxonomy":{"primary":"freight_forwarding_agency"}}
+  self.assertIsNone(select_feature({**base,"operating_status":"permanently_closed"}))
+  self.assertIsNone(select_feature({**base,"confidence":0.1}))
+  self.assertIsNotNone(select_feature({**base,"confidence":0.8}))
  def test_rejects_irrelevant_place(self):
   self.assertIsNone(select_feature({"id":ID,"names":{"primary":"Cafe Sunshine"},"taxonomy":{"primary":"coffee_shop"}}))
  def test_false_positive_categories_not_exported(self):
