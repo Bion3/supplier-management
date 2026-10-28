@@ -106,12 +106,14 @@ function render(){
 }
 function selectionStatus(){$('map-selected').textContent='待保存 '+chosen.size+' 家 · 待官网核实 '+selectedVerify.size+' 家';$('map-save').disabled=!chosen.size;$('map-verify').disabled=!selectedVerify.size;}
 function search(){setViewport();page=1;render();}
-$('map-search-button').onclick=()=>{search();if(!rows.length&&CITIES[$('map-city').value]){$('map-search-status').textContent='本地区暂无匹配的已采集企业。可点击「采集新企业」创建后台任务。';}};
+$('map-search-button').onclick=async()=>{search();if(!rows.length&&CITIES[$('map-city').value]){await submitRegionCollection({prompt:false});}else{$('map-search-status').textContent='已找到 '+rows.length+' 家匹配的已采集企业。可按联系方式进一步筛选。';}};
 const MAP_JOB_TASK_CITY='hamburg';
 async function loadMapJobs(){
  const list=$('map-job-list');if(!list)return;
  try{
-  const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12');
+  const activeCity=CITIES[$('map-city').value];
+  const cityQuery=activeCity?'&city=eq.'+encodeURIComponent(activeCity.name):'';
+  const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12'+cityQuery);
   list.replaceChildren();
   if(!jobs.length){list.textContent='尚无后台采集任务。输入 Hamburg 区域、半径和关键词，点击「采集本区域新企业」。';return;}
   const statuses={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'失败'};
