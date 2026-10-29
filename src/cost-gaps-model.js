@@ -71,3 +71,13 @@ export function repairCost(row,kind,field,value){
  if(kind==='domestic')out.quote.status='draft';
  return out;
 }
+
+
+// One primary state per record; activation remains a separate action.
+export function costReadiness(row,kind){
+ const issues=costGaps(row,kind).filter(i=>i.level==='block');
+ if(row.status==='inactive')return {state:'inactive',label:'已停用',issues:[]};
+ const priceKeys=new Set(['price','cbm','ton','fixed','tiers','additionalFees']);
+ const priceMissing=issues.some(i=>priceKeys.has(i.key));
+ return {state:priceMissing?'price':issues.length?'review':'ready',label:priceMissing?'缺价格':issues.length?'待确认':'可用',issues};
+}
