@@ -13,7 +13,8 @@ export function costGaps(row,kind,today=new Date().toISOString().slice(0,10)){
  const issues=[],add=(key,label,level='block')=>issues.push({key,label,level});
  const q=row.quote||{};
  if(!row.origin?.trim())add('origin','缺起始地');if(!row.destination?.trim())add('destination','缺目的地');
- if(row.status!=='confirmed')add('status',row.status==='inactive'?'已停用':'待确认');
+ // Activation is handled by the status column and batch enable, not missing data.
+ if(row.status==='inactive')return issues;
  if(kind==='rail'){
   try{const unit=railUnit(row.inputs);for(const item of unit.pending||[])add('railFees',item,/过期/.test(item)?'warning':'block');}catch(e){add('railFees',e.message);}
  }else{
@@ -41,7 +42,7 @@ export function costGaps(row,kind,today=new Date().toISOString().slice(0,10)){
   }
  }
  // Reuse enable validation as a final guard; do not pretend a confirmed row is valid.
- try{enableCost({...row,status:'draft'},kind);}catch(e){if(!issues.some(i=>i.label===e.message))add('validation',e.message);}
+ try{enableCost({...row,status:'draft'},kind);}catch(e){if(!issues.some(i=>i.level==='block'))add('validation',e.message);}
  const from=q.validFrom||row.valid_from,until=q.validUntil||row.valid_until;
  if(!from||!until)add('validity','有效期未完整','warning');
  else if(until<today)add('validity','有效期已过','warning');else if(from>today)add('validity','尚未到生效期','warning');
