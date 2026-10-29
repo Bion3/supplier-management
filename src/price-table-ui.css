@@ -37,3 +37,40 @@ td[data-col="public-rate"]{max-width:200px}
 .sale-pill-online{background:#d9f7e8;color:#126d45}
 .data-columns tr[hidden]{display:none!important}
 @media(max-width:760px){.sale-guide span{font-size:11px}.sale-actions [data-count]{margin-left:0}.sale-toolbar{padding:10px}.sale-col{min-width:145px}}
+
+
+/* Compact shared pickup pricing: one template row and one editable selling-price cell. */
+.pickup-panel{padding:16px 18px}
+.pickup-table{width:100%;min-width:850px;table-layout:auto}
+.pickup-table th,.pickup-table td{padding:13px 12px!important;line-height:1.45;vertical-align:middle!important;min-width:0;word-break:normal;overflow-wrap:break-word}
+.pickup-table th{white-space:normal;font-size:12px;color:#566b75;background:#f5f9fa}
+.pickup-table td:first-child{min-width:178px;max-width:240px}
+.pickup-table td:first-child strong{display:block;color:#184b55}
+.pickup-table td small{display:block;margin-top:4px;font-size:11px;color:#74838b}
+.pickup-table .pickup-price{min-width:105px;text-align:left}
+.pickup-table .pickup-price strong{font-size:18px;color:#173b47;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pickup-table td:nth-child(5){min-width:112px}
+.pickup-table td:last-child{min-width:108px;white-space:normal}
+.pickup-status{border-radius:20px;background:#eef1f4;color:#56616e;font-size:11px;padding:4px 8px;display:inline-block}
+.pickup-status.is-active{background:#e4f6ee;color:#136645}
+.pickup-missing{font-size:12px;color:#a66217}
+.pickup-compact-toolbar{background:#f7fbfa;border:1px solid #dde8e4;padding:9px 12px;margin:0 0 12px}
+.pickup-compact-toolbar .pickup-toolbar-inner{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.pickup-toolbar-inner>strong{font-size:13px;color:#175d52}
+.pickup-toolbar-inner>span:not([data-count]){font-size:11px;color:#60746e}
+.pickup-compact-toolbar .sale-view-label{margin-left:auto}
+.pickup-compact-toolbar .sale-view-label select{max-width:130px}
+.pickup-compact-toolbar button{padding:7px 10px;font-size:12px;white-space:nowrap}
+.pickup-compact-toolbar [data-count]{font-size:11px;color:#66777b}
+.pickup-table .pickup-sale{min-width:190px;max-width:270px;white-space:normal}
+.pickup-row-select{font-size:11px;color:#6b7b7e;display:flex;align-items:center;gap:5px;margin-bottom:5px}
+.pickup-sale-details>summary{cursor:pointer;font-size:12px;color:#177262;font-weight:600;white-space:nowrap}
+.pickup-sale-details[open]>summary{margin-bottom:8px}
+.pickup-sale-band{border-top:1px solid #e2eeea;padding:9px 0;display:grid;gap:5px}
+.pickup-sale-band>div:first-child{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pickup-sale-band small{font-size:10px;color:#6b7d80}
+.pickup-sale-band strong{font-size:13px;color:#126d5a;white-space:nowrap}
+.pickup-adjust-inputs{display:flex;gap:6px}
+.pickup-adjust-inputs label{font-size:10px;color:#677779;display:grid;gap:2px;flex:1;min-width:0}
+.pickup-adjust-inputs input{font-size:12px;width:100%;max-width:100px;padding:5px 6px;border:1px solid #cdded7;border-radius:5px}
+@media(max-width:900px){.pickup-panel{padding:9px}.pickup-table{min-width:850px}.pickup-toolbar-inner .sale-view-label{margin-left:0}}
