@@ -82,7 +82,7 @@ export function mountOperationFees(){
  notice.innerHTML='<div class="sale-guide"><strong>报价维护 · 3步</strong><span>① 按线路筛选、确认采购价</span><span>② 修改操作费，卖价自动计算</span><span>③ 核实条款后决定是否展示官网</span><small>默认加价10%；固定操作费额外累加。仅已确认且费用完整的铁路运价可以公开。</small></div><div class="sale-actions"><label class="sale-view-label">查看状态<select data-view><option value="all">当前全部</option><option value="review">需要核实</option><option value="ready">可申请官网展示</option><option value="published">已开启官网展示</option></select></label><button type="button" class="secondary" data-select>选中本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量调整操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
  if(isPickup){
    notice.classList.add('pickup-compact-toolbar');
-   notice.innerHTML='<div class="pickup-toolbar-inner"><strong>提货报价维护</strong><span>采购阶梯价 → 默认10%操作费 → 卖价自动计算</span><label class="sale-view-label">筛选 <select data-view><option value="all">全部</option><option value="review">待确认</option><option value="ready">可审核</option><option value="published">官网已展示</option></select></label><button type="button" class="secondary" data-select>选择本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量修改操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
+   notice.innerHTML='<div class="pickup-toolbar-inner"><strong>提货报价维护</strong><span>采购阶梯价 → 默认10%操作费 → 卖价自动计算</span><label class="sale-view-label">筛选 <select data-view><option value="all">全部</option><option value="review">待确认</option><option value="ready">已确认</option></select></label><button type="button" class="secondary" data-select>选择本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量修改操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
  }
  table.closest('.panel').insertBefore(notice,table.closest('.table-wrap'));
  const message=t=>{notice.querySelector('[data-message]').textContent=t;};
@@ -103,7 +103,7 @@ export function mountOperationFees(){
    const id=idFor(tr);if(!id)continue;
    const row=sourceRows.get(id),record=saved.get(id),fs=row?purchaseFields(kind,row):[];
    const blocker=row&&['fcl_rail','lcl_plan'].includes(kind)?websiteRateBlocker(kind,row):'不可单独发布';
-   const show=viewMode==='all'||viewMode==='published'&&record?.public_enabled||viewMode==='ready'&&blocker===null&&!record?.public_enabled||viewMode==='review'&&blocker!==null;
+   const show=isPickup?(viewMode==='all'||viewMode==='ready'&&row?.status==='confirmed'||viewMode==='review'&&row?.status!=='confirmed'):(viewMode==='all'||viewMode==='published'&&record?.public_enabled||viewMode==='ready'&&blocker===null&&!record?.public_enabled||viewMode==='review'&&blocker!==null);
    tr.hidden=!show;
    if(isPickup){
     const td=document.createElement('td');td.className='pickup-sale';td.dataset.col='operation-fee';
