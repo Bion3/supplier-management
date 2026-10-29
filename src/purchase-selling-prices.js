@@ -75,17 +75,22 @@ export function websiteRateBlocker(kind,row,today=new Date().toISOString().slice
 export function mountOperationFees(){
  const configuration=config[location.pathname];if(!configuration)return;
  const [kind,selector,sourceTable]=configuration;
+ const isPickup=location.pathname==='/pickup-rates.html';
  const body=document.querySelector(selector),table=body?.closest('table');if(!body||!table)return;
  let saved=new Map(),sourceRows=new Map(),selected=new Set(),busy=false,booted=false,loading=false,viewMode='all';
  const notice=document.createElement('div');notice.className='sale-toolbar';
  notice.innerHTML='<div class="sale-guide"><strong>报价维护 · 3步</strong><span>① 按线路筛选、确认采购价</span><span>② 修改操作费，卖价自动计算</span><span>③ 核实条款后决定是否展示官网</span><small>默认加价10%；固定操作费额外累加。仅已确认且费用完整的铁路运价可以公开。</small></div><div class="sale-actions"><label class="sale-view-label">查看状态<select data-view><option value="all">当前全部</option><option value="review">需要核实</option><option value="ready">可申请官网展示</option><option value="published">已开启官网展示</option></select></label><button type="button" class="secondary" data-select>选中本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量调整操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
+ if(isPickup){
+   notice.classList.add('pickup-compact-toolbar');
+   notice.innerHTML='<div class="pickup-toolbar-inner"><strong>提货报价维护</strong><span>采购阶梯价 → 默认10%操作费 → 卖价自动计算</span><label class="sale-view-label">筛选 <select data-view><option value="all">全部</option><option value="review">待确认</option><option value="ready">可审核</option><option value="published">官网已展示</option></select></label><button type="button" class="secondary" data-select>选择本页</button><button type="button" class="secondary" data-clear>取消选择</button><span data-count>已选0条</span><button type="button" data-bulk>批量修改操作费</button></div><p class="sale-status" data-message role="status" aria-live="polite"></p>';
+ }
  table.closest('.panel').insertBefore(notice,table.closest('.table-wrap'));
  const message=t=>{notice.querySelector('[data-message]').textContent=t;};
  function ensureHeaders(){
   const head=table.querySelector('thead tr');if(!head)return;
-  for(const key of ['operation-fee','selling-price','public-rate'])if(!head.querySelector('th[data-col="'+key+'"]')){
+  for(const key of (isPickup?['operation-fee']:['operation-fee','selling-price','public-rate']))if(!head.querySelector('th[data-col="'+key+'"]')){
    const th=document.createElement('th');th.dataset.col=key;th.className='sale-col';
-   th.textContent=key==='operation-fee'?'操作费（加价）':key==='selling-price'?'自动卖价':'官网展示';
+   th.textContent=key==='operation-fee'?(isPickup?'卖价 / 操作费':'操作费（加价）'):key==='selling-price'?'自动卖价':'官网展示';
    head.insertBefore(th,head.lastElementChild);
   }
  }
@@ -100,6 +105,22 @@ export function mountOperationFees(){
    const blocker=row&&['fcl_rail','lcl_plan'].includes(kind)?websiteRateBlocker(kind,row):'不可单独发布';
    const show=viewMode==='all'||viewMode==='published'&&record?.public_enabled||viewMode==='ready'&&blocker===null&&!record?.public_enabled||viewMode==='review'&&blocker!==null;
    tr.hidden=!show;
+   if(isPickup){
+    const td=document.createElement('td');td.className='pickup-sale';td.dataset.col='operation-fee';
+    if(!row){td.textContent='读取中';}
+    else{
+     const currency=row.quote?.currency||'USD';
+     const prices=fs.map(f=>{
+      const pct=Number(percentFor(record,f.key)),fixed=Number(record?.operation_fees?.[f.key]??0);
+      const fee=operationFeeTotal(f.purchase,fixed,pct);
+      const sell=sellingPrice(f.purchase,fee??0);
+      return '<div class="pickup-sale-band"><div><small>'+escaped(f.label)+'</small><strong>'+escaped(currency)+' '+(sell===null?'—':sell.toLocaleString('en-US',{maximumFractionDigits:2}))+'</strong></div><div class="pickup-adjust-inputs"><label>加价 % <input type="number" min="0" max="300" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="percent" value="'+escaped(pct)+'"></label><label>固定加价 <input type="number" min="0" step="any" data-fee-id="'+escaped(id)+'" data-fee-key="'+escaped(f.key)+'" data-fee-type="fixed" value="'+escaped(fixed)+'"></label></div></div>';
+     }).join('');
+     td.innerHTML='<label class="pickup-row-select"><input type="checkbox" data-fee-check="'+escaped(id)+'" '+(selected.has(id)?'checked':'')+' aria-label="选中此模板用于批量调整操作费">批量</label><details class="pickup-sale-details"><summary>查看3档卖价 / 修改操作费</summary>'+prices+'</details>';
+    }
+    tr.insertBefore(td,tr.lastElementChild);
+    continue;
+   }
    const op=document.createElement('td'),sale=document.createElement('td'),pub=document.createElement('td');op.className='sale-col';sale.className='sale-col';pub.className='sale-col';op.dataset.col='operation-fee';sale.dataset.col='selling-price';pub.dataset.col='public-rate';
    if(!row){op.textContent='读取中';sale.textContent='—';pub.textContent='—';}
    else{
