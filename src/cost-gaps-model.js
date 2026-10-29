@@ -4,7 +4,7 @@ export const missing=v=>v===null||v===undefined||v==='';
 export const gapFields={
  common:[['supplier_id','供应商','supplier'],['currency','币种','currency']],
  fcl:[['price','单价','number'],['container','箱型','container'],['equipment','用箱方式','equipment'],['scope','计价范围','text'],['unit','计价单位','text']],
- trucking:[['price','单价','number'],['container','箱型','container'],['loadingPlace','装箱地','text'],['unit','计价单位','text'],['priceBasis','价格口径','text']],
+ trucking:[['price','单价','number'],['container','箱型','container'],['loadingPlace','装箱地','text'],['unit','计价单位','text'],['priceBasis','是否为供应商成本价','text']],
  rental:[['price','单价','number'],['container','箱型','container'],['unit','计价单位','text']],
  domestic:[['rule','计价规则','rule'],['cbm','轻货方价','number'],['ton','重货吨价','number'],['ratio','重泡比','positive'],['minimum','最低收费','number'],['delivery','送货费','number'],['deliveryIncluded','送货已含','boolean'],['fixed','固定金额','number']],
  rail:[['rate','外采铁路单价','number'],['ratio','铁路重泡比','positive'],['minimum','最低收费','number'],['fees','外采杂费合计','number']]
@@ -37,7 +37,7 @@ export function costGaps(row,kind,today=new Date().toISOString().slice(0,10)){
    if(!q.container||q.container.includes('待确认'))add('container','缺箱型');
    if(!q.unit)add('unit','缺计价单位');
    if(kind==='fcl'){if(!['SOC','COC'].includes(q.equipment))add('equipment','SOC/COC未确认');if(!q.scope||q.scope.includes('待确认'))add('scope','计价范围未确认');}
-   if(kind==='trucking'){if(!q.loadingPlace)add('loadingPlace','缺装箱地');if(q.priceBasis!=='采购价')add('priceBasis','采购价口径未确认');}
+   if(kind==='trucking'){if(!q.loadingPlace)add('loadingPlace','缺装箱地');if(q.priceBasis!=='采购价')add('priceBasis','供应商成本价待确认');}
    if((q.fees||[]).some(f=>missing(f.amount)))add('additionalFees','单项附加费缺价');
   }
  }
