@@ -32,7 +32,7 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    // escaped Unicode, or the complete form payload into customer email.
    let details={};
    try{const value=JSON.parse(l.message||'{}');if(value&&typeof value==='object'&&!Array.isArray(value))details=value;}catch{}
-   const safe=(value,max=180)=>String(value??'-').replace(/[\\r\\n\\t]+/g,' ').trim().slice(0,max)||'-';
+   const safe=(value,max=180)=>String(value??'-').replace(/[\r\n\t]+/g,' ').trim().slice(0,max)||'-';
    const scope=safe(details.scope||'-',50);
    const shipment=safe(details.service||'-',20);
    const quantity=safe(details.quantity||'-',20);
