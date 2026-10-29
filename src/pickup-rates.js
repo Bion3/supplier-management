@@ -14,15 +14,26 @@ const extraFilters=createListFilters('rows',[
 async function load(){rows=[];for(let offset=0;;offset+=500){const r=await cloudRequest(`freight_domestic_rates?kind=eq.pickup&select=*&order=created_at.desc,id.asc&limit=500&offset=${offset}`);rows.push(...r);if(r.length<500)break;}renderTemplates();}
 const tierKey=t=>JSON.stringify([t.minVolume,t.maxVolume,t.minWeight,t.maxWeight,t.unit||'fixed']);
 function renderTemplates(){
- const old=new Set(rows.map(r=>r.supersedes_id).filter(Boolean)),current=rows.filter(r=>r.quote.sharedPickup&&!old.has(r.id));
- // Match columns by actual ranges, so different templates never align unrelated tiers.
- const bands=[...new Map(current.flatMap(r=>(r.quote.tiers||[]).map(t=>[tierKey(t),t]))).values()].sort((a,b)=>a.minVolume-b.minVolume||a.maxVolume-b.maxVolume||a.minWeight-b.minWeight||a.maxWeight-b.maxWeight);
- const headers=['模板名称','适用区域','供应商','币种'].map(label=>`<th>${label}</th>`).join('');
- const bandHeaders=bands.map(t=>`<th>${esc(t.minVolume)}–${esc(t.maxVolume)} CBM<br>${esc(t.minWeight)}–${esc(t.maxWeight)} kg<br>${t.unit==='cbm'?'金额/CBM':t.unit==='billable'?'金额/计费方':'金额/票'}</th>`).join('');
- $('rows').closest('table').querySelector('thead tr').innerHTML=headers+bandHeaders+['生效日期','有效期至','状态','操作'].map(label=>`<th>${label}</th>`).join('');
- const list=extraFilters.apply(current);filteredCosts=list;const paging=pager.update(list.length,page);page=paging.page;
- $('rows').innerHTML=list.slice(paging.start,paging.end).map(r=>`<tr data-sale-row="${r.id}"><td>${esc(r.quote.templateName)}</td><td>${esc(r.quote.areas?.join('、')||'全部始发地')}</td><td>${esc(suppliers.find(s=>s.id===r.supplier_id)?.name||'通用模板')}</td><td>${esc(r.quote.currency)}</td>${bands.map(band=>{const matches=(r.quote.tiers||[]).filter(t=>tierKey(t)===tierKey(band));return `<td>${matches.length?matches.map(t=>t.amount===null||t.amount===undefined?'待确认':esc(t.amount)).join(' / '):'—'}</td>`;}).join('')}<td>${esc(r.quote.validFrom||'未设')}</td><td>${esc(r.quote.validUntil||'未设')}</td><td>${r.status==='confirmed'?'启用':r.status==='inactive'?'停用':'待确认'}</td><td><button data-edit="${r.id}" class="secondary">查看 / 更新</button></td></tr>`).join('')||`<tr><td colspan="${9+bands.length}">暂无共享模板</td></tr>`;bulkEnable.refresh();
+ const old=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));
+ const current=rows.filter(r=>r.quote.sharedPickup&&!old.has(r.id));
+ const list=extraFilters.apply(current);filteredCosts=list;
+ const paging=pager.update(list.length,page);page=paging.page;
+ const head=$('rows').closest('table').querySelector('thead tr');
+ head.innerHTML=['模板 / 使用范围','第1档 · ≤5 CBM / ≤2500kg','第2档 · ≤10 CBM / ≤5000kg','第3档 · ≤15 CBM / ≤7500kg','有效期 / 状态','操作'].map(x=>'<th>'+x+'</th>').join('');
+ $('rows').innerHTML=list.slice(paging.start,paging.end).map(r=>{
+  const q=r.quote||{},tiers=[...(q.tiers||[])].sort((a,b)=>a.maxVolume-b.maxVolume||a.maxWeight-b.maxWeight);
+  const points=[{volume:5,weight:2500},{volume:10,weight:5000},{volume:15,weight:7500}];
+  const price=point=>{const band=tiers.find(t=>point.volume<=t.maxVolume&&point.weight<=t.maxWeight);
+    return band&&Number.isFinite(Number(band.amount))?esc(band.amount):'<span class="pickup-missing">未设置</span>';};
+  const scope=q.areas?.length?q.areas.join('、'):'全部提货地 · 收货仓100公里内';
+  return '<tr data-sale-row="'+esc(r.id)+'"><td><strong>'+esc(q.templateName||'通用提货价')+'</strong><small>'+esc(scope)+'</small></td>'+
+  points.map(p=>'<td class="pickup-price"><strong>'+price(p)+'</strong><small>'+esc(q.currency||'USD')+' / 票</small></td>').join('')+
+  '<td><span class="pickup-status '+(r.status==='confirmed'?'is-active':'')+'">'+(r.status==='confirmed'?'已确认':r.status==='inactive'?'停用':'待确认')+'</span><small>'+esc(q.validUntil||'长期有效（待核实）')+'</small></td>'+
+  '<td><button type="button" data-edit="'+esc(r.id)+'" class="secondary">修改模板</button></td></tr>';
+ }).join('')||'<tr><td colspan="6">暂无有效的提货价格模板</td></tr>';
+ bulkEnable.refresh();
 }
+
 function tier(t={minVolume:1,maxVolume:5,minWeight:0,maxWeight:2500,amount:80}){const div=document.createElement('div');div.className='tier fields';div.innerHTML=[['minVolume','最小CBM'],['maxVolume','最大CBM'],['minWeight','最小kg'],['maxWeight','最大kg'],['amount','每票金额']].map(([key,label])=>`<label>${label}<input name="${key}" type="number" min="0" step="any" required value="${t[key]}"></label>`).join('')+'<button type="button" class="secondary" data-remove>移除此档</button>';$('tiers').append(div);}
 function edit(row){prior=row?.id||null;const q=row?.quote,f=$('template-form');f.reset();f.elements.supplier_id.innerHTML='<option value="">通用模板（未关联供应商）</option>'+suppliers.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join('');for(const [name,value] of Object.entries({tierMode:q?.tierMode||(q?'strict':'ceil'),name:q?.templateName||'本地提货通用价',currency:q?.currency||'USD',areas:q?.areas?.join(',')||'',status:row?.status||'draft',validFrom:q?.validFrom||'',validUntil:q?.validUntil||'',supplier_id:row?.supplier_id||'',source:q?.source||''}))f.elements[name].value=value;$('tiers').innerHTML='';(q?.tiers||[{minVolume:1,maxVolume:5,minWeight:0,maxWeight:2500,amount:80},{minVolume:6,maxVolume:10,minWeight:2500,maxWeight:5000,amount:80}]).forEach(tier);$('error').textContent='';$('editor').showModal();}
 document.addEventListener('click',e=>{if(e.target.dataset.edit)edit(rows.find(r=>r.id===e.target.dataset.edit));if(e.target.hasAttribute('data-remove'))e.target.closest('.tier').remove();});$('add').onclick=()=>edit();$('close').onclick=()=>$('editor').close();$('add-tier').onclick=()=>tier();
