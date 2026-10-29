@@ -1,3 +1,4 @@
+import {openAcquisitionMail} from './mail-acquisition.js';
 import {installContactProgress} from './contact-progress.js';
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
 import {distance,normalize,parseGeoText,classify,contactChannels,contactPriority,contactFilterMatches,matchesIndustryKeyword} from './lead-map-model.js';
@@ -115,7 +116,7 @@ function selectionStatus(){
  $('map-selected').textContent='已选 '+count+' 家 · 数据库候选 '+selectedVerify.size+' 家 · 待导入文件 '+chosen.size+' 家';
  $('map-save').disabled=!chosen.size;
  $('map-verify').disabled=!selectedVerify.size;
- $('map-save-list').disabled=!selectedVerify.size;
+ $('map-save-list').disabled=!selectedVerify.size;$('map-mail-selected').disabled=!selectedVerify.size||chosen.size>0;
 }
 async function loadSavedLists(){
  const panel=$('map-saved-list-entries');
@@ -365,3 +366,4 @@ loadDb();
 // Poll while the operator is on the map page. Once a region finishes,
 // enqueue the limited website-completion batch without another click.
 setInterval(()=>{if(!document.hidden&&currentUser())void loadMapJobs();},60000);
+$('map-mail-selected').onclick=()=>openAcquisitionMail('lead',[...selectedVerify].map(id=>({id})),$('map-mail-selected')).catch(e=>{$('map-contact-status').textContent=e.message;});
