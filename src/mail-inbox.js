@@ -36,7 +36,7 @@ function render(){
  for(const m of visible.slice(paging.start,paging.end)){
   const tr=document.createElement('tr');
   for(const value of [new Date(m.received_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}),m.from_name||'—',m.from_email||'—',m.subject||'无主题',m.mail_kind?.startsWith('bounce_')?({bounce_invalid:'无效地址 · 已停发',bounce_policy:'策略拦截 · 已停发',bounce_dns:'域名异常 · 已停发',bounce_temporary:'临时退信 · 已暂停',bounce_review:'退信待核实 · 已暂停'}[m.mail_kind]):'普通邮件',m.reply_message_id?'已匹配原邮件':m.company_id?'已关联公司':'待归档']){const td=document.createElement('td');td.textContent=value;tr.append(td);}
-  const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='查看';b.addEventListener('click',()=>openMessage(m));td.append(b);tr.append(td);$('inbox-rows').append(tr);
+  const td=document.createElement('td'),b=document.createElement('button');b.type='button';b.className='secondary';b.textContent='查看';b.addEventListener('click',()=>openMessage(m));td.append(b);if(m.company_id){const link=document.createElement('a');link.href='/crm.html?company='+encodeURIComponent(m.company_id);link.textContent='客户 / 跟进';link.className='mail-page-link';td.append(link);}tr.append(td);$('inbox-rows').append(tr);
  }
  $('inbox-count').textContent=`已加载最近 ${rows.length} 封 · 筛选 ${visible.length} 封`;$('inbox-empty').hidden=visible.length>0;$('inbox-empty').textContent=rows.length?'没有符合搜索条件的来信。':'暂无来信，可点击“立即同步”。';
 }

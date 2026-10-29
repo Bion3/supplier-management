@@ -1,3 +1,4 @@
+import {companyStage,companySourceTypes,companyGroups} from './crm-model.js';
 import {mailContent} from './mail-content.js';
 export function validEmail(value){return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(String(value))&&String(value).length<=254;}
 export function eligibleContacts(contacts){const seen=new Set(),blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>{const e=c.value?.trim().toLowerCase();if(c.channel!=='邮箱'||c.status!=='有效'||blocked.has(e)||!validEmail(e)||seen.has(e))return false;seen.add(e);return true;});}
@@ -13,10 +14,12 @@ export function regionInfo(company){
  return {value:'未填写',inferred:false};
 }
 export function filterRecipients(contacts,companies,filters={}){
+ const byCompany=new Map();for(const c of contacts){if(!byCompany.has(c.company_id))byCompany.set(c.company_id,[]);byCompany.get(c.company_id).push(c);}const groupMap=new Map(companies.map(c=>[c.id,companyGroups(c,byCompany.get(c.id)||[])]));
  const map=new Map(companies.map(c=>[c.id,c])),q=(filters.query||'').trim().toLowerCase();
  const eligible=new Set(eligibleContacts(contacts).map(c=>c.value.trim().toLowerCase()));
- return contacts.filter(c=>{const co=map.get(c.company_id),groups=c.mail_groups||[];
+ return contacts.filter(c=>{const co=map.get(c.company_id),groups=groupMap.get(c.company_id)||[];
  return c.channel==='邮箱'&&(!q||[c.value,c.name,co?.company_name,co?.current_routes,JSON.stringify(co?.historical_routes),groups.join(' ')].join(' ').toLowerCase().includes(q))
+ &&(!filters.stage||companyStage(co||{})===filters.stage)&&(!filters.focus||co?.is_key_customer===true)&&(!filters.source||companySourceTypes(co||{}).includes(filters.source))
  &&(!filters.status||co?.status===filters.status)&&(!filters.role||(co?.role||'待核实')===filters.role)
  &&(!filters.region||regionInfo(co).value===filters.region)&&(!filters.verification||c.status===filters.verification)
  &&(!filters.allowed||(filters.allowed==='yes'?c.email_allowed!==false:c.email_allowed===false))

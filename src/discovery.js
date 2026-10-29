@@ -1,3 +1,4 @@
+import {openAcquisitionMail} from './mail-acquisition.js';
 import {installContactProgress} from './contact-progress.js';
 import {transferToCrm} from './crm-acquisition.js';
 import {createListFilters} from './list-filters.js';
@@ -6,10 +7,11 @@ import {assessLead} from './lead-quality.js';
 import {parseOvertureText} from './overture-import.js';
 let liveRows=[],liveTaskId=null,liveSource='',candidateId=null,leadPage=1,leadRows=[],leadFilter='',failedOsmTask=null;
 const selectedLeadIds=new Set();
+let enrichPoll=null;
 const LEADS_PAGE_SIZE=15;
 function syncSelection(){
  const count=selectedLeadIds.size;
- $('lead-selection').textContent='已选 '+count+' 家';$('batch-enrich').disabled=count===0;
+ $('mail-selected').disabled=count===0;$('lead-selection').textContent='已选 '+count+' 家';$('batch-enrich').disabled=count===0;
 }
 function selectCurrentPage(){for(const checkbox of document.querySelectorAll('.lead-choose:not(:disabled)')){selectedLeadIds.add(checkbox.dataset.id);checkbox.checked=true;}syncSelection();}
 
@@ -65,7 +67,7 @@ async function loadLeads(cached=false){const body=$('leads');body.replaceChildre
   const reviewed=all.filter(l=>l.review_status==='reviewed').length;
   summary.textContent='当前加载 '+all.length+' 家线索 · 有 HTTPS 官网 '+eligible+' 家。所有已保存线索可直接跟进；完整客户目录支持统一查询与批量修改阶段。';
  }
- const qualityFilter=$('lead-quality-filter').value;const leads=candidateFilters.apply(fetched.filter(r=>!status||(r.crm?.development_stage||'待开发')===status).map(lead=>({...lead,_quality:assessLead(lead)})).filter(lead=>!qualityFilter||lead._quality.level===qualityFilter));leads.sort((a,b)=>a._quality.email_count+a._quality.phone_count-b._quality.email_count-b._quality.phone_count||a._quality.score-b._quality.score);leadRows=leads;const totalPages=Math.max(1,Math.ceil(leads.length/LEADS_PAGE_SIZE));leadPage=Math.min(leadPage,totalPages);$('leads-page').textContent='第 '+leadPage+' / '+totalPages+' 页 · '+leads.length+' 条（单次加载最多500条）';$('leads-prev').disabled=leadPage===1;$('leads-next').disabled=leadPage>=totalPages;$('leads-empty').textContent=leads.length?'':'暂无企业候选。';for(const lead of leads.slice((leadPage-1)*LEADS_PAGE_SIZE,leadPage*LEADS_PAGE_SIZE)){const tr=document.createElement('tr');const choose=document.createElement('input');choose.type='checkbox';choose.className='lead-choose';choose.dataset.id=lead.id;choose.disabled=!lead.website||!lead.website.startsWith('https://')||lead.provider==='google_places';choose.checked=selectedLeadIds.has(lead.id);choose.addEventListener('change',()=>{choose.checked?selectedLeadIds.add(lead.id):selectedLeadIds.delete(lead.id);syncSelection();});cell(tr,choose);cell(tr,lead.company_name);const u=cleanWebsite(lead.website);cell(tr,u?externalLink(u,u):'—');cell(tr,lead.country||'—');cell(tr,lead.city||'—');cell(tr,leadContactCell(lead,['email','邮箱']));cell(tr,leadContactCell(lead,['phone','电话']));
+ const qualityFilter=$('lead-quality-filter').value;const leads=candidateFilters.apply(fetched.filter(r=>!status||(r.crm?.development_stage||'待开发')===status).map(lead=>({...lead,_quality:assessLead(lead)})).filter(lead=>!qualityFilter||lead._quality.level===qualityFilter));leads.sort((a,b)=>a._quality.email_count+a._quality.phone_count-b._quality.email_count-b._quality.phone_count||a._quality.score-b._quality.score);leadRows=leads;const totalPages=Math.max(1,Math.ceil(leads.length/LEADS_PAGE_SIZE));leadPage=Math.min(leadPage,totalPages);$('leads-page').textContent='第 '+leadPage+' / '+totalPages+' 页 · '+leads.length+' 条（单次加载最多500条）';$('leads-prev').disabled=leadPage===1;$('leads-next').disabled=leadPage>=totalPages;$('leads-empty').textContent=leads.length?'':'暂无企业候选。';for(const lead of leads.slice((leadPage-1)*LEADS_PAGE_SIZE,leadPage*LEADS_PAGE_SIZE)){const tr=document.createElement('tr');const choose=document.createElement('input');choose.type='checkbox';choose.className='lead-choose';choose.dataset.id=lead.id;choose.disabled=false;choose.checked=selectedLeadIds.has(lead.id);choose.addEventListener('change',()=>{choose.checked?selectedLeadIds.add(lead.id):selectedLeadIds.delete(lead.id);syncSelection();});cell(tr,choose);cell(tr,lead.company_name);const u=cleanWebsite(lead.website);cell(tr,u?externalLink(u,u):'—');cell(tr,lead.country||'—');cell(tr,lead.city||'—');cell(tr,leadContactCell(lead,['email','邮箱']));cell(tr,leadContactCell(lead,['phone','电话']));
 
  const quality=lead._quality;const qBox=document.createElement('div');
  qBox.append(el('strong',quality.score+'分'));
@@ -131,8 +133,8 @@ $('clear-leads').addEventListener('click',()=>{selectedLeadIds.clear();for(const
 $('leads-prev').addEventListener('click',()=>{leadPage=Math.max(1,leadPage-1);loadLeads(true);});
 $('leads-next').addEventListener('click',()=>{leadPage++;loadLeads(true);});
 $('batch-enrich').addEventListener('click',async()=>{
- const ids=[...selectedLeadIds];
- if(!ids.length)return;
+ const ids=leadRows.filter(r=>selectedLeadIds.has(r.id)&&r.website?.startsWith('https://')&&r.provider!=='google_places').map(r=>r.id);
+ if(!ids.length){$('enrich-summary').textContent='所选企业没有可核实的 HTTPS 官网。';return;}
  const button=$('batch-enrich');button.disabled=true;
  try{
   const data=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids})});
@@ -141,7 +143,6 @@ $('batch-enrich').addEventListener('click',async()=>{
  }catch(e){$('enrich-summary').textContent='批量任务创建失败：'+e.message;}
  finally{syncSelection();}
 });
-let enrichPoll=null;
 function showEnrichProgress(jobs,names){let box=$('enrich-live-progress');if(!box){box=document.createElement('div');box.id='enrich-live-progress';box.className='enrich-live-progress';box.style.cssText='padding:14px 20px;background:#f0f8f5;border-radius:8px;margin:12px 0';const title=document.createElement('strong');title.textContent='后台补全进度 · 每10秒自动刷新';const bar=document.createElement('progress');bar.id='enrich-live-bar';bar.style.cssText='width:100%;height:14px;display:block;margin:10px 0';bar.setAttribute('aria-label','后台任务已处理进度');const text=document.createElement('p');text.id='enrich-live-text';text.setAttribute('role','status');box.append(title,bar,text);$('enrich-summary').after(box);}const done=jobs.filter(x=>['completed','failed'].includes(x.status)).length,active=jobs.filter(x=>x.status==='running'),queued=jobs.filter(x=>x.status==='queued').length;$('enrich-live-bar').max=Math.max(1,jobs.length);$('enrich-live-bar').value=done;$('enrich-live-text').textContent='当前加载 '+jobs.length+' 个任务 · 已处理 '+done+' / '+jobs.length+' · 排队 '+queued+' · 执行中 '+active.length+(active.length?' · 正在处理：'+active.slice(0,3).map(j=>names.get(j.lead_id)||j.lead_id.slice(0,8)).join('、'):'');return queued>0||active.length>0;}
 async function loadEnrichJobs(){clearTimeout(enrichPoll);let needsPoll=false;
  const tbody=$('enrich-jobs');tbody.replaceChildren();
@@ -275,3 +276,5 @@ $('close-overture-token').addEventListener('click',()=>{
  $('overture-token-notice').textContent='密钥已从当前页面清除。';
 });
 loadOvertureBatches();
+
+$('mail-selected').onclick=()=>openAcquisitionMail('lead',leadRows.filter(r=>selectedLeadIds.has(r.id)),$('mail-selected')).catch(e=>{$('leads-empty').textContent=e.message;});
