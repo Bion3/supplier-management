@@ -13,22 +13,22 @@ export function installCostGaps({kind,table,getRows,getFiltered,reload}){
   button.textContent=`报价待补全 ${count} 条`;
   for(const r of rows){const action=document.querySelector(`[data-edit="${r.id}"]`)||(kind==='rail'?document.querySelector(`[data-history="${getRows().indexOf(r)}"]`):null),tr=action?.closest('tr');if(!tr)continue;
    tr.querySelector('[data-cost-gap]')?.remove();
-   const issues=costGaps(r,kind);if(!issues.length)continue;
+   const issues=costGaps(r,kind).filter(i=>i.level==='block');if(!issues.length)continue;
    const badge=document.createElement('button');badge.type='button';badge.dataset.costGap='';badge.className='secondary';
    badge.textContent=issues.some(i=>i.level==='block')?'⚠ 影响报价':'有效期提示';badge.title=issues.map(i=>i.label).join('；');badge.onclick=()=>open(r.id);action.parentElement.append(badge);
   }
  }
  async function open(focusId){
   const dialog=document.createElement('dialog');dialog.style.width='min(920px,95vw)';
-  dialog.innerHTML=`<form><h2>报价缺失检查与批量补全</h2><p>按当前列表筛选范围检查。有效期仅提示，不阻止成本取价；轻货缺方价、重货缺吨价分别提示。</p><label>缺失项筛选<select data-filter></select></label><button type="button" data-all class="secondary">选择全部筛选结果</button> <button type="button" data-clear class="secondary">清空选择</button><span data-count></span><div data-list style="max-height:280px;overflow:auto"></div><div class="fields"><label>批量修改字段<select name="field"></select></label><label>修改值<span data-value></span></label><label><input type="checkbox" name="onlyMissing" checked>仅补空值</label></div><p>只修改所选字段，保存为待确认的新版本。阶梯明细、自营铁路分摊及单项附加费请在原记录编辑。</p><p data-error role="alert"></p><button type="submit">保存所选修改</button> <button type="button" data-close class="secondary">关闭</button></form>`;
+  dialog.innerHTML=`<form><h2>报价待补全</h2><p>只列影响计价的缺失项。待启用请使用“批量启用”；有效期不影响取价。</p><label>缺失项筛选<select data-filter></select></label><button type="button" data-all class="secondary">选择全部筛选结果</button> <button type="button" data-clear class="secondary">清空选择</button><span data-count></span><div data-list style="max-height:280px;overflow:auto"></div><div class="fields"><label>批量修改字段<select name="field"></select></label><label>修改值<span data-value></span></label><label><input type="checkbox" name="onlyMissing" checked>仅补空值</label></div><p>只修改所选字段，保存为待确认的新版本。阶梯明细、自营铁路分摊及单项附加费请在原记录编辑。</p><p data-error role="alert"></p><button type="submit">保存所选修改</button> <button type="button" data-close class="secondary">关闭</button></form>`;
   document.body.append(dialog);dialog.onclose=()=>dialog.remove();dialog.querySelector('[data-close]').onclick=()=>dialog.close();dialog.showModal();
   const form=dialog.querySelector('form'),selected=new Set(focusId?[focusId]:[]),filter=form.querySelector('[data-filter]');let rows=current(),busy=false;
   const defs=[...gapFields.common,...gapFields[kind]],field=form.elements.field;
   field.innerHTML=defs.map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
-  const labels=new Map(rows.flatMap(r=>costGaps(r,kind)).map(i=>[i.key,i.label]));
-  filter.innerHTML='<option value="block">所有影响报价项</option><option value="all">全部提醒（含有效期）</option>'+[...labels].map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
+  const labels=new Map(rows.flatMap(r=>costGaps(r,kind).filter(i=>i.level==='block')).map(i=>[i.key,i.label]));
+  filter.innerHTML='<option value="block">所有影响报价项</option>'+[...labels].map(([k,l])=>`<option value="${k}">${esc(l)}</option>`).join('');
   const matches=()=>rows.filter(r=>costGaps(r,kind).some(i=>filter.value==='all'||filter.value==='block'&&i.level==='block'||i.key===filter.value));
-  function draw(){const found=matches();form.querySelector('[data-count]').textContent=`已选 ${selected.size} 条 / 筛选 ${found.length} 条`;form.querySelector('[data-list]').innerHTML=found.map(r=>`<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" data-id="${r.id}" ${selected.has(r.id)?'checked':''}>${esc(r.origin)} → ${esc(r.destination)}：${costGaps(r,kind).map(i=>esc((i.level==='warning'?'提示：':'')+i.label)).join('；')}</label>`).join('')||'没有匹配的缺失项';}
+  function draw(){const found=matches();form.querySelector('[data-count]').textContent=`已选 ${selected.size} 条 / 筛选 ${found.length} 条`;form.querySelector('[data-list]').innerHTML=found.map(r=>`<label style="display:block;padding:8px;border-bottom:1px solid #ddd"><input type="checkbox" data-id="${r.id}" ${selected.has(r.id)?'checked':''}>${esc(r.origin)} → ${esc(r.destination)}：${costGaps(r,kind).filter(i=>i.level==='block').map(i=>esc(i.label)).join('；')}</label>`).join('')||'没有匹配的缺失项';}
   form.querySelector('[data-list]').onchange=e=>{if(e.target.dataset.id){e.target.checked?selected.add(e.target.dataset.id):selected.delete(e.target.dataset.id);draw();}};
   filter.onchange=draw;form.querySelector('[data-all]').onclick=()=>{matches().forEach(r=>selected.add(r.id));draw();};form.querySelector('[data-clear]').onclick=()=>{selected.clear();draw();};
   let suppliers=[];try{suppliers=await listSuppliers();}catch(e){form.querySelector('[data-error]').textContent=e.message;}
