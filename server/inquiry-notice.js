@@ -27,21 +27,46 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    const customerEmail=typeof l.email==='string'?l.email.trim().toLowerCase():'';
    const validCustomer=/^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(customerEmail)&&customerEmail.length<=254&&customerEmail!==sender.toLowerCase();
    const customer=validCustomer?customerEmail:null;
-   const subject=`EurasiaGo Freight Inquiry · ${id.slice(0,8).toUpperCase()}`;
-   const body=[
-     'Thank you for contacting EurasiaGo. We have received your freight inquiry.',
-     'Our team will reply to this email thread with the confirmed quotation.',
+   const subject=`EurasiaGo Freight Inquiry [${id.slice(0,8).toUpperCase()}]`;
+   // A website lead's 'message' is structured JSON. Do not print raw JSON,
+   // escaped Unicode, or the complete form payload into customer email.
+   let details={};
+   try{const value=JSON.parse(l.message||'{}');if(value&&typeof value==='object'&&!Array.isArray(value))details=value;}catch{}
+   const safe=(value,max=180)=>String(value??'-').replace(/[\\r\\n\\t]+/g,' ').trim().slice(0,max)||'-';
+   const scope=safe(details.scope||'-',50);
+   const shipment=safe(details.service||'-',20);
+   const quantity=safe(details.quantity||'-',20);
+   const cargo=safe(l.cargo_desc||'-',180);
+   const memo=safe(details.notes||'',500);
+   const lineItems=[
+     ['Inquiry ID',id],
+     ['Name',safe(l.contact_name,90)],
+     ['Route',safe(l.origin,90)+' → '+safe(l.destination,90)],
+     ['Mode',shipment],
+     ['Service scope',scope],
+     ['Quantity',quantity],
+     ['Volume (CBM)',safe(l.volume_cbm||'-',20)],
+     ['Weight (KG)',safe(l.weight_kg||'-',20)],
+     ['Cargo',cargo],
+     ...(memo?[['Remarks',memo]]:[])
+   ];
+   const text=[
+     'Thank you for contacting EurasiaGo. Your freight inquiry has been received.',
+     'Our team will respond in this email conversation. Use Reply All to keep everyone in the discussion.',
      '',
-     `Inquiry reference: ${id}`,
-     `Contact: ${l.contact_name||'-'}`,
-     `Route: ${l.origin||'-'} → ${l.destination||'-'}`,
-     `Cargo: ${l.cargo_desc||'-'}`,
-     `Phone: ${l.phone||'-'}`,
-     `Email: ${customer||'-'}`,
+     ...lineItems.map(([label,value])=>`${label}: ${value}`),
      '',
-     '请直接回复本邮件，业务人员与客户可在同一邮件会话中继续沟通。',
-     '上述询价已收悉，最终运费与服务条款以业务人员正式回复为准。'
+     'This is an inquiry acknowledgment, not a final freight quotation.',
+     '请使用“回复全部”继续沟通，正式运价和服务条款以业务人员回复为准。',
    ].join('\n');
+   const escapeHtml=value=>String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+   const html=`<!doctype html><html><head><meta charset="UTF-8"></head><body style="font-family:Arial,'Microsoft YaHei',sans-serif;color:#243044;line-height:1.6;max-width:640px;margin:24px auto">
+   <h2 style="color:#116b72">EurasiaGo · Freight inquiry received</h2>
+   <p>Thank you for contacting us. Our team will reply in this email thread.</p>
+   <p style="padding:10px;background:#f0f7f8"><strong>To continue the conversation, please use Reply All.</strong><br>请点击“回复全部”，客户和业务人员便可在同一邮件中沟通。</p>
+   <table role="presentation" style="border-collapse:collapse;width:100%">${lineItems.map(([label,value])=>`<tr><th style="text-align:left;padding:9px;border-bottom:1px solid #e5e7eb;width:140px">${escapeHtml(label)}</th><td style="padding:9px;border-bottom:1px solid #e5e7eb">${escapeHtml(value)}</td></tr>`).join('')}</table>
+   <p style="font-size:12px;color:#64748b">Indicative information only. Final freight and terms are subject to confirmation.</p>
+   </body></html>`;
    const transport=createTransport({...smtpOptions(password),connectionTimeout:5000,greetingTimeout:5000,socketTimeout:10000});
    let status='unknown';
    try{
@@ -50,7 +75,8 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
       to:customer||sender,
       ...(customer?{cc:sender}:{}),
       replyTo:sender,
-      subject,text:body,
+      subject,text,html,
+      textEncoding:'base64',
       messageId:`<inquiry-${id}@eurasiago.com>`,
     });
     // Both recipients must be accepted when customer is included. Partial acceptance
