@@ -1,7 +1,7 @@
 import {validEmail} from './mail-model.js';
 const address=value=>String(value||'').trim().toLowerCase();
 // A preview plan only: server-side permission and contact checks remain authoritative.
-export function outreachPlan(chosen,contacts,messages=[],{onePerCompany=true,recentDays=14,now=Date.now()}={}){
+export function outreachPlan(chosen,contacts,messages=[],{onePerCompany=false,recentDays=14,now=Date.now()}={}){
  const blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>address(c.value)));
  const active=new Set(),recent=new Set();
  for(const m of messages){const email=address(m.recipient);if(['scheduled','sending','unknown'].includes(m.status))active.add(email);if(m.status==='sent'&&Date.parse(m.sent_at||m.created_at)>now-recentDays*86400000)recent.add(email);}
