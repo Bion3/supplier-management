@@ -25,7 +25,7 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    // One SMTP message to customer and sales (CC), not two unrelated notifications.
    // The server selects recipients only from the claimed stored lead, never from request JSON.
    const customerEmail=typeof l.email==='string'?l.email.trim().toLowerCase():'';
-   const validCustomer=/^[^\\s@<>\\r\\n]+@[^\\s@<>\\r\\n]+\\.[^\\s@<>\\r\\n]+$/.test(customerEmail)&&customerEmail.length<=254&&customerEmail!==sender.toLowerCase();
+   const validCustomer=/^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(customerEmail)&&customerEmail.length<=254&&customerEmail!==sender.toLowerCase();
    const customer=validCustomer?customerEmail:null;
    const subject=`EurasiaGo Freight Inquiry · ${id.slice(0,8).toUpperCase()}`;
    const body=[
@@ -41,7 +41,7 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
      '',
      '请直接回复本邮件，业务人员与客户可在同一邮件会话中继续沟通。',
      '上述询价已收悉，最终运费与服务条款以业务人员正式回复为准。'
-   ].join('\\n');
+   ].join('\n');
    const transport=createTransport({...smtpOptions(password),connectionTimeout:5000,greetingTimeout:5000,socketTimeout:10000});
    let status='unknown';
    try{
