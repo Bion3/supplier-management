@@ -87,21 +87,21 @@ for(const [dialog,close] of [['entry-dialog','entry-close'],['import-dialog','im
 const contactProgress=installContactProgress('exhibitions:'+(currentUser()?.id||'guest'));
 $('expo-contact-complete').onclick=async()=>{if(contactProgress.active)return;
  if(kind!=='exhibitors'||busy)return;
- const chosen=exhibitors.filter(r=>selected.has(r.id)&&r.website?.startsWith('https://')).slice(0,100);
+ const chosen=exhibitors.filter(r=>selected.has(r.id)&&r.website?.startsWith('https://'));
  if(!chosen.length){$('notice').textContent='所选展商没有可检查的 HTTPS 官网。';return;}
- const button=$('expo-contact-complete');contactProgress.start(chosen.length,'展商联系方式补全');button.disabled=true;
- let completed=0,added=0,failed=0;
+ const button=$('expo-contact-complete');contactProgress.start(Math.min(100,chosen.length),'展商联系方式补全');button.disabled=true;
+ let completed=0,added=0,failed=0,skipped=0;
  try{
-  for(const row of chosen){
+  for(const row of chosen){if(completed+failed>=100)break;
    contactProgress.begin(row.company_name);try{
     const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({action:'enrich-exhibitor',exhibitor_id:row.id})});
     if(result.error)throw Error(result.error);
-    completed++;added+=result.added||0;contactProgress.finish({name:row.company_name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
+    if(result.skipped)skipped++;else completed++;added+=result.added||0;contactProgress.finish({name:row.company_name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
    }catch(e){failed++;contactProgress.finish({name:row.company_name,error:e.message});}
-   $('notice').textContent='展商官网补全进度 '+(completed+failed)+' / '+chosen.length+'；完成 '+completed+'、新增联系方式 '+added+'、失败 '+failed+'。';
+   $('notice').textContent='展商官网补全进度 '+(completed+failed)+' / '+Math.min(100,chosen.length)+'；完成 '+completed+'、新增联系方式 '+added+'、失败 '+failed+'。';
   }
   await load();
-  $('notice').textContent='本批展商已处理 '+chosen.length+' 家；新增公开联系方式 '+added+' 条，失败 '+failed+' 家。所有联系方式仍需人工核实。';
+  $('notice').textContent='本批实际处理 '+(completed+failed)+' 家；跳过 '+skipped+' 家（不占名额）；新增公开联系方式 '+added+' 条，失败 '+failed+' 家。所有联系方式仍需人工核实。';
  }catch(e){contactProgress.interrupt(e.message);}finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
 $('add-entry').onclick=()=>{if(!busy)openEditor();};$('refresh').onclick=()=>{if(!busy)load();};$('tab-fairs').onclick=()=>switchKind('fairs');$('tab-exhibitors').onclick=()=>switchKind('exhibitors');

@@ -278,14 +278,15 @@ $('map-file').onchange=async()=>{
 // enqueue a small batch from the current map-filtered region.
 $('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
  const button=$('map-auto-contact'),notice=$('map-contact-status');
- const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&r.website?.startsWith('https://')).slice(0,100);
+ const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&r.website?.startsWith('https://'));
  if(!candidates.length){notice.textContent='当前筛选没有可补全的官网线索。';return;}
- button.disabled=true;contactProgress.start(candidates.length,'地图企业联系方式补全');
- try{for(const row of candidates){contactProgress.begin(row.name);try{
+ button.disabled=true;contactProgress.start(Math.min(100,candidates.length),'地图企业联系方式补全');let attempted=0;
+ try{for(const row of candidates){if(attempted>=100)break;contactProgress.begin(row.name);try{
  const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
  if(result.error)throw Error(result.error);
+ if(!result.skipped)attempted++;
  contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
- }catch(e){contactProgress.finish({name:row.name,error:e.message});}}
+ }catch(e){attempted++;contactProgress.finish({name:row.name,error:e.message});}}
  await loadDb();notice.textContent='本批处理完成；已检查且没有新线索的企业自动跳过。';
  }catch(e){contactProgress.interrupt(e.message);}finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
