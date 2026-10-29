@@ -278,38 +278,16 @@ $('map-file').onchange=async()=>{
 // enqueue a small batch from the current map-filtered region.
 $('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
  const button=$('map-auto-contact'),notice=$('map-contact-status');
- button.disabled=true;
- try{
-  let jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
-  if(!jobs.length){
-   const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&
-      r.website?.startsWith('https://')&&r.reviewStatus==='pending'&&
-      (!contactChannels(r).email||!contactChannels(r).phone)).slice(0,6);
-   if(!candidates.length){
-    notice.textContent='当前区域没有待补全且支持 HTTPS 的企业。已有联系方式可直接筛选；其他企业需先确认官网。';
-    return;
-   }
-   notice.textContent='正在为本区域 '+candidates.length+' 家企业建立核实任务…';
-   const response=await appRequest('/api/lead-batch',{method:'POST',
-     body:JSON.stringify({ids:candidates.map(r=>r.dbId)})});
-   if(response.error&&!(response.queued>0))throw Error(response.error);
-   jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id&status=eq.queued&order=created_at.asc&limit=6');
-  }
-  if(!jobs.length){notice.textContent='目前没有可执行的官网核实任务。';return;}
-  await loadProgressNames(jobs);contactProgress.start(jobs.length,'地图企业联系方式补全');let done=0,added=0,failed=0;
-  for(let i=0;i<jobs.length;i+=2){
-   const batch=jobs.slice(i,i+2);mapProgressBatch(batch);
-   notice.textContent='官网检查中 '+(i+1)+'–'+Math.min(i+2,jobs.length)+' / '+jobs.length+' 家…';
-   const result=await appRequest('/api/lead-enrich',{method:'POST',
-      body:JSON.stringify({action:'drain',ids:batch.map(j=>j.id)})});
-   mapProgressResult(result);done+=result.completed||0;
-   added+=result.added||0;
-   failed+=(result.results||[]).filter(v=>v.status==='failed').length;
-  }
-  notice.textContent='本批完成：官网检查成功 '+done+' 家，新增公开联系方式 '+added+' 条，失败 '+failed+' 家。联系方式仍需人工核实。';
-  await loadDb();
- }catch(e){contactProgress.interrupt(e.message);notice.textContent='自动补全中断：'+e.message+'；已完成的任务会保留，可再次尝试。';}
- finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
+ const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&r.website?.startsWith('https://')).slice(0,100);
+ if(!candidates.length){notice.textContent='当前筛选没有可补全的官网线索。';return;}
+ button.disabled=true;contactProgress.start(candidates.length,'地图企业联系方式补全');
+ try{for(const row of candidates){contactProgress.begin(row.name);try{
+ const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
+ if(result.error)throw Error(result.error);
+ contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
+ }catch(e){contactProgress.finish({name:row.name,error:e.message});}}
+ await loadDb();notice.textContent='本批处理完成；已检查且没有新线索的企业自动跳过。';
+ }catch(e){contactProgress.interrupt(e.message);}finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
 $('map-dispatch-queued').onclick=async()=>{if(contactProgress.active)return;
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;

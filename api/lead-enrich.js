@@ -1,3 +1,4 @@
+import {contactAlreadyChecked,contactClueKey} from '../server/contact-check.js';
 import {createExhibitorContactCompletion} from '../server/exhibitor-contact-completion.js';
 import {createMapDispatcher} from '../server/lead-map-dispatch.js';
 import {createContactDrain} from '../server/lead-contact-drain.js';
@@ -27,12 +28,13 @@ export async function POST(request){
   if(!lead.website)return reply({error:'该企业没有官网，无法自动提取'},400);
   // Do not enrich Google Places records into a persistent independent business database.
   if(lead.provider==='google_places')return reply({error:'请先用独立来源核实网站，再持久化相关资料'},400);
+  if(contactAlreadyChecked(lead))return reply({added:0,skipped:true,reason:'已补全，暂无新线索'});
   const researched=await researchWebsite(lead.website);
   if(!researched.evidence.length)return reply({error:'无法安全访问官网；'+researched.errors.slice(0,2).join('；')},422);
   const existing=Array.isArray(lead.contacts)?lead.contacts:[];
   const additions=researched.contacts.filter(c=>!existing.some(x=>x.type===c.type&&String(x.value).toLowerCase()===c.value.toLowerCase()));
   const updated=[...existing,...additions].slice(0,100);
-  const evidence=[...(Array.isArray(lead.source_evidence)?lead.source_evidence:[]),...researched.evidence].slice(-60);
+  const evidence=[...(Array.isArray(lead.source_evidence)?lead.source_evidence:[]),...researched.evidence,{contact_check:contactClueKey(lead),checked_at:new Date().toISOString()}].slice(-60);
   // Never auto-approve. Existing manually approved lead moves back to pending review.
   await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({contacts:updated,source_evidence:evidence,verification_status:'website_found_unverified',review_status:'pending',updated_at:new Date().toISOString()})});
   return reply({added:additions.length,total:updated.length,checked_pages:researched.checked_pages,errors:researched.errors,notice:'从公开官网提取，尚未经交叉验证；联系方式已同步客户档案，可继续跟进。'});

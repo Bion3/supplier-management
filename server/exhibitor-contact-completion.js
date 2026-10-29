@@ -1,3 +1,4 @@
+import {contactAlreadyChecked,contactCheckMarker} from './contact-check.js';
 import {researchWebsite} from './lead-website-research.js';
 const BASE='https://hcorkkudgicarsmexnqf.supabase.co/rest/v1/';
 const PUB='sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp';
@@ -13,13 +14,14 @@ export function createExhibitorContactCompletion({fetcher=fetch,researcher=resea
   if(!UUID.test(id))return json({error:'展商 ID 无效'},400);
   const headers={apikey:PUB,Authorization:'Bearer '+jwt,'Content-Type':'application/json'};
   try{
-   const response=await fetcher(BASE+'freight_exhibitors?id=eq.'+id+'&select=id,company_name,website,email,phone,contacts,status,notes&limit=1',{
+   const response=await fetcher(BASE+'freight_exhibitors?id=eq.'+id+'&select=id,company_name,website,email,phone,contacts,status,notes,source_url&limit=1',{
     headers,signal:AbortSignal.timeout(12000)});
    if(!response.ok)return json({error:'展商无访问权限'},403);
    const records=await response.json();
    if(records.length!==1)return json({error:'找不到展商'},404);
    const company=records[0];
    if(!company.website?.startsWith('https://'))return json({error:'展商没有 HTTPS 官网，须先核实官网'},422);
+   if(contactAlreadyChecked(company))return json({added:0,skipped:true,reason:'已补全，暂无新线索'});
    const found=await researcher(company.website);
    if(!found.evidence?.length)return json({error:'官网暂时无法安全访问',details:(found.errors||[]).slice(0,2)},422);
    const old=Array.isArray(company.contacts)?company.contacts:[];
@@ -48,6 +50,7 @@ export function createExhibitorContactCompletion({fetcher=fetch,researcher=resea
    const existingNotes=String(company.notes||'');
    const sourceLine='官网公开联系方式候选（未核实）：'+sources.join('、');
    if(sources.length&&!existingNotes.includes(sourceLine))result.notes=(existingNotes+'\\n'+sourceLine).trim().slice(0,5000);
+   result.notes=((result.notes||existingNotes)+'\n'+contactCheckMarker(company)).trim();
    result.updated_at=new Date().toISOString();
    const updated=await fetcher(BASE+'freight_exhibitors?id=eq.'+id,{
     method:'PATCH',headers:{...headers,Prefer:'return=representation'},body:JSON.stringify(result),signal:AbortSignal.timeout(12000)});
