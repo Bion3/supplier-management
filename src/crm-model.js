@@ -50,7 +50,7 @@ export function validateContact(data){
 
 export function initialContacts(rows){
  const contacts=[],seen=new Set();
- for(const row of rows){let count=0;for(const [field,channel] of [['email','邮箱'],['phone','电话'],['wechat','微信']]){const value=String(row[field]||'').trim();if(!value)continue;const contact=validateContact({name:row.name,channel,value,context:row.context,status:row.status||'待核实'}),key=channel+':'+value.toLowerCase();if(seen.has(key))throw Error('联系方式重复：'+value);seen.add(key);contacts.push(contact);count++;}if(!count&&(String(row.name||'').trim()||String(row.context||'').trim()))throw Error('请为联系人填写至少一种联系方式，或移除该联系人。');}
+ for(const row of rows){let count=0;for(const [field,channel] of [['email','邮箱'],['phone','电话'],['wechat','微信']]){const value=String(row[field]||'').trim();if(!value)continue;const contact=validateContact({name:row.name,channel,value,context:row.context,status:row.status||'有效'}),key=channel+':'+value.toLowerCase();if(seen.has(key))throw Error('联系方式重复：'+value);seen.add(key);contacts.push(contact);count++;}if(!count&&(String(row.name||'').trim()||String(row.context||'').trim()))throw Error('请为联系人填写至少一种联系方式，或移除该联系人。');}
  return contacts;
 }
 
