@@ -20,8 +20,8 @@ export function installMailVerification(ctx){
   $('verification-confirm-label').hidden=!isValid;$('verification-confirm').required=isValid;
   $('verification-save').disabled=busy||!p.updates.length;
  }
- function open(){
-  if(busy)return;scopes=ctx.getScopes().map(s=>({...s,rows:s.rows.filter(c=>c.channel==='邮箱')}));
+ async function open(){
+  if(busy)return;busy=true;try{await ctx.prepare?.();}catch(e){$('notice').textContent=e.message;return;}finally{busy=false;}scopes=ctx.getScopes().map(s=>({...s,rows:s.rows.filter(c=>c.channel==='邮箱')}));
   $('verification-scope').replaceChildren();for(const scope of scopes)$('verification-scope').append(new Option(scope.label+'（'+scope.rows.length+'条）',scope.value));
   const initial=scopes.find(s=>s.value==='selected'&&s.rows.length)||scopes.find(s=>s.value==='group')||scopes.find(s=>s.value==='filtered')||scopes[0];
   $('verification-auto-summary').textContent='检查结果仅作参考；不会自动恢复已停发或退信邮箱。';$('verification-auto-results').replaceChildren();$('verification-scope').value=initial?.value||'';$('verification-status').value='有效';$('verification-confirm').checked=false;$('verification-error').textContent='';preview();dialog.showModal();
