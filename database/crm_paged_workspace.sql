@@ -1,3 +1,13 @@
+create or replace function public.freight_crm_directory_types(refs jsonb) returns text[] language sql immutable security invoker set search_path=public as $$
+ select coalesce(array_agg(distinct v order by v),'{}') from (
+ select upper(btrim(r #>> '{}')) v from jsonb_array_elements(refs)r where jsonb_typeof(r)='string'
+ union all select upper(btrim(coalesce(r->>'source',''))) from jsonb_array_elements(refs)r where jsonb_typeof(r)='object'
+ union all select upper(btrim(coalesce(r->>'provider',''))) from jsonb_array_elements(refs)r where jsonb_typeof(r)='object'
+ union all select upper(btrim(v)) from jsonb_array_elements(refs)r cross join lateral jsonb_array_elements_text(case when jsonb_typeof(r->'original_sources')='array' then r->'original_sources' else '[]' end)v
+ )s where v in ('ENF','WCA','WIFFA')
+$$;
+revoke all on function public.freight_crm_directory_types(jsonb) from public,anon;
+grant execute on function public.freight_crm_directory_types(jsonb) to authenticated;
 -- Bounded list responses. All functions run with the caller's existing RLS permissions.
 create or replace function public.freight_crm_stage(stage text,status text) returns text language sql immutable security invoker set search_path=public as $$
  select case when stage in ('待开发','开发中','有意向','报价中','已合作','暂缓开发') then stage when status='合作中' then '已合作' when status='正在跟进' then '开发中' when status in ('沉睡','流失') then '暂缓开发' else '待开发' end
@@ -8,7 +18,7 @@ $$;
 create or replace function public.freight_crm_uri_component(v text) returns text language sql immutable security invoker set search_path=public as $$
  select coalesce(string_agg(case when b between 48 and 57 or b between 65 and 90 or b between 97 and 122 or chr(b) in ('-','_','.','!','~','*',chr(39),'(',')') then chr(b) else '%'||upper(lpad(to_hex(b),2,'0')) end,'' order by n),'') from (select n,get_byte(convert_to(v,'UTF8'),n) b from generate_series(0,octet_length(convert_to(v,'UTF8'))-1)n)s
 $$;
-create or replace function public.freight_crm_page(p_filters jsonb default '{}',p_offset integer default 0,p_limit integer default 30,p_mode text default 'page',p_ids text[] default null) returns jsonb language plpgsql stable security invoker set search_path=public as $$
+create or replace function public.freight_crm_page(p_filters jsonb default '{}',p_offset integer default 0,p_limit integer default 30,p_mode text default 'page',p_ids text[] default null) returns jsonb language plpgsql stable security invoker set search_path=public set jit=off as $$
 declare result jsonb;
 begin
 execute $pagequery$
@@ -16,13 +26,13 @@ with checked_leads as materialized (
  select id::text id,exists(select 1 from jsonb_array_elements(source_evidence)e where e->>'contact_check'=public.freight_crm_clue_key(website,null,source_evidence)) checked from public.lead_discovery_leads
 ), checked_exhibitors as materialized (
  select id::text id,position('[contact-check:'||public.freight_crm_uri_component(public.freight_crm_clue_key(website,source_url,'[]'))||']' in notes)>0 checked from public.freight_exhibitors
-), ca as materialized (
+), ca_rows as materialized (
  select company_id,count(*) n,bool_or(channel='邮箱') any_email,bool_or(channel='邮箱' and status<>'失效' and value<>'') email,bool_or(channel='电话' and status<>'失效' and value<>'') phone,bool_or(channel='邮箱' and status='有效' and email_allowed) verified,
  string_agg(name||' '||value,' ') search,
  array_agg(distinct g) filter(where g is not null) groups
  from public.freight_contacts c left join lateral unnest(c.mail_groups)g on true
  group by company_id
-), base as materialized (
+), ca_map as materialized (select jsonb_object_agg(company_id,to_jsonb(ca_rows)-'company_id') lookup from ca_rows), base as materialized (
  select c.id,c.company_name,c.status,c.role,c.owner,c.industry,c.region,c.development_stage,c.is_key_customer,c.current_routes,c.historical_routes,c.updated_at,
  public.freight_crm_stage(c.development_stage,c.status) stage,
  coalesce(ca.email,false) has_email,coalesce(ca.phone,false) has_phone,coalesce(ca.any_email,false) any_email,coalesce(ca.verified,false) verified,coalesce(ca.n,0) contact_count,ca.search contact_search,
@@ -36,8 +46,8 @@ with checked_leads as materialized (
  case when $4='facets' then false when coalesce(ca.email,false) and coalesce(ca.phone,false) then false when not (c.source_refs::text like '%"lead_id"%' or c.source_refs::text like '%"exhibitor_id"%') then false else (select count(*)>0 and bool_and(coalesce(case when r ? 'lead_id' then l.checked else e.checked end,false)) from jsonb_array_elements(c.source_refs)r left join checked_leads l on l.id=r->>'lead_id' left join checked_exhibitors e on e.id=r->>'exhibitor_id' where jsonb_typeof(r)='object' and (r ? 'lead_id' or r ? 'exhibitor_id')) end _lower_priority,
  case when $4='stats' or coalesce($1->>'due','')<>'' then (select next_date from public.freight_followups f where f.company_id=c.id order by created_at desc,id desc limit 1) else null::date end next_date,
  case when coalesce($1->>'query','')<>'' then c.notes else '' end search_notes,c.source_refs search_refs
- from public.freight_companies c left join ca on ca.company_id=c.id
- where ($5 is null or c.id=any($5)) and (coalesce($1->>'role','')='' or c.role=$1->>'role')
+ from public.freight_companies c cross join ca_map cm left join lateral jsonb_to_record(cm.lookup->c.id) as ca(n bigint,email boolean,phone boolean,any_email boolean,verified boolean,search text,groups text[]) on true
+ where (coalesce($1->>'directory','')='' or (upper($1->>'directory')='ENF' and c.source_refs @? '$[*] ? (@.source like_regex "^ENF$" flag "i" || @.provider like_regex "^ENF$" flag "i" || @.original_sources[*] like_regex "^ENF$" flag "i" || @ like_regex "^ENF$" flag "i")') or (upper($1->>'directory')='WCA' and c.source_refs @? '$[*] ? (@.source like_regex "^WCA$" flag "i" || @.provider like_regex "^WCA$" flag "i" || @.original_sources[*] like_regex "^WCA$" flag "i" || @ like_regex "^WCA$" flag "i")') or (upper($1->>'directory')='WIFFA' and c.source_refs @? '$[*] ? (@.source like_regex "^WIFFA$" flag "i" || @.provider like_regex "^WIFFA$" flag "i" || @.original_sources[*] like_regex "^WIFFA$" flag "i" || @ like_regex "^WIFFA$" flag "i")')) and ($5 is null or c.id=any($5)) and (coalesce($1->>'role','')='' or c.role=$1->>'role')
 ), filtered as materialized (
  select * from base b where
  (coalesce($1->>'stage','')='' or b.stage=$1->>'stage')

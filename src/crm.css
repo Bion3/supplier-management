@@ -17,3 +17,5 @@ header a{color:white;font-size:14px} .actions{display:flex;gap:10px;flex-wrap:wr
 @media(max-width:800px){#workspace .heading{align-items:start;flex-direction:column}#workspace .toolbar{grid-template-columns:1fr 1fr}#workspace .toolbar label:first-child{grid-column:1/-1}#workspace .stats{grid-template-columns:repeat(3,1fr)}.crm-batch-actions{gap:8px}.crm-selection-top{flex-wrap:wrap}}
 
 #customer-mail-timeline{margin-top:20px;padding-top:16px;border-top:1px solid #d6e1e4}#customer-mail-timeline details{padding:12px 0;border-bottom:1px solid #e3eaec}#customer-mail-timeline summary{cursor:pointer;overflow-wrap:anywhere}#customer-mail-timeline p{white-space:pre-wrap;overflow-wrap:anywhere}
+
+.crm-directory-tag{display:inline-block;padding:2px 7px;margin:4px 5px 0 0;border:1px solid #b5d5d0;border-radius:5px;background:#edf7f4;color:#12665e;font-size:12px;cursor:pointer}
