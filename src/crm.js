@@ -10,6 +10,8 @@ import {developmentStages,companyStage,companySourceTypes,companyGroupOptions,fi
 const $=id=>document.getElementById(id);
 let companies=[],contacts=[],shipments=[],followups=[],page=1,selected=null,editingCompany=null,editingContact=null,generation=0,detailGeneration=0,selectedCompanies=new Set(),filteredCompanies=[],pageCompanies=[];
 const sourceQuery=new URLSearchParams(location.search).get('source');if([...$('source-filter').options].some(o=>o.value===sourceQuery))$('source-filter').value=sourceQuery;
+const peerView=new URLSearchParams(location.search).get('view')==='peers';
+if(peerView){$('role-filter').value='同行';$('role-filter').disabled=true;document.querySelector('.heading h1').textContent='同行客户';document.title='同行客户 · 国际物流管理系统';document.querySelector('.heading p:last-child').textContent='统一维护货代、铁路、仓储、拖车及海外物流同行，筛选联系方式并记录跟进。';}
 let gaps=new Map();let size=30;let pendingOpen=new URLSearchParams(location.search).get('company');
 for(const id of ['stage-filter','company-stage']){if(id==='stage-filter')$(id).append(new Option('全部阶段',''));for(const value of developmentStages)$(id).append(new Option(value,value));}
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;size=newSize;render();},30);
@@ -26,11 +28,13 @@ async function load(){
 function td(text){const el=document.createElement('td');el.textContent=text??'—';return el;}
 function paragraph(text){const el=document.createElement('p');el.textContent=text;return el;}
 function btn(text,action){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',action);return b;}
+function viewCompanies(){return peerView?companies.filter(c=>c.role==='同行'):companies;}
 function render(){
+ if(peerView)$('role-filter').value='同行';
  fillGroups();
- gaps=contactGapIndex(companies,contacts);renderQuickViews();const latest=latestFollowups(followups),today=chinaDate();$('development-count').textContent=companies.filter(c=>companyStage(c)==='待开发').length;$('key-count').textContent=companies.filter(c=>c.is_key_customer).length;
- $('total').textContent=companies.length;$('pending').textContent=companies.filter(c=>c.status==='待核实').length;
- $('due-count').textContent=companies.filter(c=>latest.get(c.id)?.next_date&&latest.get(c.id).next_date<=today).length;
+ const scoped=viewCompanies();gaps=contactGapIndex(companies,contacts);renderQuickViews();const latest=latestFollowups(followups),today=chinaDate();$('development-count').textContent=scoped.filter(c=>companyStage(c)==='待开发').length;$('key-count').textContent=scoped.filter(c=>c.is_key_customer).length;
+ $('total').textContent=scoped.length;$('pending').textContent=scoped.filter(c=>c.status==='待核实').length;
+ $('due-count').textContent=scoped.filter(c=>latest.get(c.id)?.next_date&&latest.get(c.id).next_date<=today).length;
  const visible=filterCompanies(companies,contacts,followups,{stage:$('stage-filter').value,focus:$('focus-filter').value,source:$('source-filter').value,group:$('group-filter').value,query:$('search').value,status:$('status').value,due:$('due').value,region:$('region-filter').value.trim(),role:$('role-filter').value,industry:$('industry-filter').value.trim(),owner:$('owner-filter').value,contact:$('contact-filter').value});
  const pages=Math.max(1,Math.ceil(visible.length/size));page=Math.max(1,Math.min(page,pages));
  $('count').textContent=`共 ${visible.length} 家`;$('rows').replaceChildren();
@@ -59,7 +63,7 @@ async function openDetail(id){
  try{const rows=await cloudRequest(`freight_sources?company_id=eq.${encodeURIComponent(id)}&select=*&order=sheet.asc,row_number.asc`);if(dg!==detailGeneration||selected!==id)return;$('sources').replaceChildren();appendAcquisitionSources(companies.find(c=>c.id===id));for(const r of rows){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${r.source_filename} · ${r.sheet}!${r.row_number}`;details.append(summary,paragraph(Object.entries(r.raw).map(([k,v])=>`${k}：${v}`).join('\n')));$('sources').append(details);}if(!rows.length&&!$('sources').children.length)$('sources').textContent='手动新增档案，无导入来源。';}
  catch(e){if(dg===detailGeneration)$('sources').textContent=e.message;}
 }
-function openCompany(c){editingCompany=c?.id||null;$('company-form').reset();$('initial-contact-rows').replaceChildren();$('initial-contacts').hidden=!!c;if(!c)addInitialContact();$('company-error').textContent='';$('company-title').textContent=c?'编辑公司档案':'新增公司';if(c)for(const key of ['company_name','status','role','region','owner','industry','current_routes','notes','addresses','development_stage','is_key_customer'])$('company-form').elements.namedItem(key).value=key==='addresses'?(c.addresses||[]).join('\n'):key==='development_stage'?companyStage(c):key==='is_key_customer'?String(!!c.is_key_customer):c[key]||'';$('company-editor').showModal();}
+function openCompany(c){editingCompany=c?.id||null;$('company-form').reset();if(peerView&&!c)$('company-form').elements.namedItem('role').value='同行';$('initial-contact-rows').replaceChildren();$('initial-contacts').hidden=!!c;if(!c)addInitialContact();$('company-error').textContent='';$('company-title').textContent=c?'编辑公司档案':'新增公司';if(c)for(const key of ['company_name','status','role','region','owner','industry','current_routes','notes','addresses','development_stage','is_key_customer'])$('company-form').elements.namedItem(key).value=key==='addresses'?(c.addresses||[]).join('\n'):key==='development_stage'?companyStage(c):key==='is_key_customer'?String(!!c.is_key_customer):c[key]||'';$('company-editor').showModal();}
 function addInitialContact(){
  const row=document.createElement('fieldset');row.className='contact-card';const legend=document.createElement('legend');legend.textContent='联系人';row.append(legend);const fields=document.createElement('div');fields.className='fields';
  for(const [key,title,type] of [['name','姓名','text'],['email','邮箱','email'],['phone','电话','tel'],['wechat','微信','text'],['context','备注 / 来源','text']]){const label=document.createElement('label');label.textContent=title;const input=document.createElement('input');input.dataset.field=key;input.type=type;input.maxLength=key==='name'?120:500;label.append(input);fields.append(label);}
@@ -79,7 +83,7 @@ $('logout').addEventListener('click',async()=>{++generation;++detailGeneration;t
 $('refresh').addEventListener('click',load);$('add-company').addEventListener('click',()=>openCompany());$('edit-company').addEventListener('click',()=>openCompany(companies.find(c=>c.id===selected)));$('add-contact').addEventListener('click',()=>openContact());
 for(const id of ['search','stage-filter','focus-filter','source-filter','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter'])$(id).addEventListener(['search','region-filter','industry-filter'].includes(id)?'input':'change',()=>{page=1;render();});
 function fillGroups(){
- const select=$('group-filter'),previous=select.value,options=companyGroupOptions(companies,contacts);
+ const select=$('group-filter'),previous=select.value,options=companyGroupOptions(viewCompanies(),contacts);
  select.replaceChildren(new Option('全部客户分组',''),new Option('未分组','__ungrouped'));
  for(const [isBatch,label] of [[true,'采集批次'],[false,'联系分组']]){const rows=options.filter(x=>x.isBatch===isBatch);if(!rows.length)continue;const group=document.createElement('optgroup');group.label=label;for(const row of rows)group.append(new Option(`${row.name}（${row.count}家）`,row.name));select.append(group);}
  select.value=previous;if(select.selectedIndex<0)select.value='';
@@ -99,7 +103,7 @@ $('prev').addEventListener('click',()=>{page--;render();});$('next').addEventLis
 
 
 async function quickPatch(company,patch,control){control.disabled=true;try{const rows=await cloudRequest('freight_companies?id=eq.'+encodeURIComponent(company.id)+'&updated_at=eq.'+encodeURIComponent(company.updated_at),{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({...patch,updated_at:new Date().toISOString()})});if(rows.length!==1)throw Error('资料已变化，请刷新后重试。');companies=companies.map(c=>c.id===company.id?rows[0]:c);render();renderDetail();$('notice').textContent='已更新 '+company.company_name+' 的分类。';}catch(e){$('notice').textContent=e.message;render();}finally{control.disabled=false;}}
-function renderQuickViews(){const node=$('crm-quick-views');node.replaceChildren();for(const value of ['',...developmentStages]){const count=value?companies.filter(c=>companyStage(c)===value).length:companies.length,b=btn((value||'全部')+' '+count,()=>{$('stage-filter').value=value;page=1;render();});b.setAttribute('aria-pressed',String($('stage-filter').value===value));node.append(b);}const b=btn('★ 重点关注 '+companies.filter(c=>c.is_key_customer).length,()=>{$('focus-filter').value=$('focus-filter').value==='key'?'':'key';page=1;render();});b.setAttribute('aria-pressed',String($('focus-filter').value==='key'));node.append(b);const gap=btn('待补全联系方式 '+companies.filter(c=>{const g=gaps.get(c.id);return g.email||g.phone;}).length,()=>{$('contact-filter').value='needs-contact';page=1;render();});gap.setAttribute('aria-pressed',String($('contact-filter').value==='needs-contact'));node.append(gap);}
+function renderQuickViews(){const scoped=viewCompanies(),node=$('crm-quick-views');node.replaceChildren();for(const value of ['',...developmentStages]){const count=value?scoped.filter(c=>companyStage(c)===value).length:scoped.length,b=btn((value||'全部')+' '+count,()=>{$('stage-filter').value=value;page=1;render();});b.setAttribute('aria-pressed',String($('stage-filter').value===value));node.append(b);}const b=btn('★ 重点关注 '+scoped.filter(c=>c.is_key_customer).length,()=>{$('focus-filter').value=$('focus-filter').value==='key'?'':'key';page=1;render();});b.setAttribute('aria-pressed',String($('focus-filter').value==='key'));node.append(b);const gap=btn('待补全联系方式 '+scoped.filter(c=>{const g=gaps.get(c.id);return g.email||g.phone;}).length,()=>{$('contact-filter').value='needs-contact';page=1;render();});gap.setAttribute('aria-pressed',String($('contact-filter').value==='needs-contact'));node.append(gap);}
 
 function appendAcquisitionSources(company){for(const ref of company?.source_refs||[]){const box=document.createElement('details'),summary=document.createElement('summary');summary.textContent=typeof ref==='string'?'导入批次 / 来源：'+ref:'获客来源：'+(ref.exhibition||ref.source||'其他')+(ref.edition?' · '+ref.edition:'');box.append(summary,paragraph(typeof ref==='object'?JSON.stringify(ref,null,2):ref));if(ref&&typeof ref==='object')for(const key of ['url','website']){try{const u=new URL(ref[key]);if(!['http:','https:'].includes(u.protocol)||u.username||u.password)continue;const a=document.createElement('a');a.href=u.href;a.textContent=key==='website'?'企业官网':'原始来源';a.target='_blank';a.rel='noopener noreferrer';box.append(a,document.createTextNode(' '));}catch{}}$('sources').append(box);}}
 
@@ -122,3 +126,4 @@ async function loadMailTimeline(id,dg){
   section.append(paragraph(timeline.length?'显示最近100封发件及100封收件。':'暂无可显示的邮件记录。'));
  }catch(error){if(dg===detailGeneration&&selected===id)section.append(paragraph(error.message));}
 }
+

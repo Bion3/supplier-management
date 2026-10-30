@@ -1,6 +1,6 @@
 export const developmentStages=['待开发','开发中','有意向','报价中','已合作','暂缓开发'];
 export function companyStage(c){return developmentStages.includes(c.development_stage)?c.development_stage:c.status==='合作中'?'已合作':c.status==='正在跟进'?'开发中':['沉睡','流失'].includes(c.status)?'暂缓开发':'待开发';}
-export function companySourceTypes(c){const result=new Set();for(const ref of c.source_refs||[]){const key=typeof ref==='object'&&ref?String(ref.source||ref.provider||''):'';if(key==='exhibition')result.add('展会展商');else if(/openstreetmap|overture|google|map/i.test(key))result.add('地图获客');else if(key)result.add('其他线索');else result.add('历史/批次导入');}return result.size?[...result]:['手动新增'];}
+export function companySourceTypes(c){const result=new Set();for(const ref of c.source_refs||[]){const key=typeof ref==='object'&&ref?String(ref.source||ref.provider||''):'';if(key==='landbridge')result.add('Landbridge同行名录');else if(key==='exhibition')result.add('展会展商');else if(/openstreetmap|overture|google|map/i.test(key))result.add('地图获客');else if(key)result.add('其他线索');else result.add('历史/批次导入');}return result.size?[...result]:['手动新增'];}
 export const customerStatuses=['待核实','潜在','正在跟进','合作中','沉睡','流失'];
 export function chinaDate(now=new Date()){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}
 export function latestFollowups(rows){
@@ -53,4 +53,5 @@ export function initialContacts(rows){
  for(const row of rows){let count=0;for(const [field,channel] of [['email','邮箱'],['phone','电话'],['wechat','微信']]){const value=String(row[field]||'').trim();if(!value)continue;const contact=validateContact({name:row.name,channel,value,context:row.context,status:row.status||'待核实'}),key=channel+':'+value.toLowerCase();if(seen.has(key))throw Error('联系方式重复：'+value);seen.add(key);contacts.push(contact);count++;}if(!count&&(String(row.name||'').trim()||String(row.context||'').trim()))throw Error('请为联系人填写至少一种联系方式，或移除该联系人。');}
  return contacts;
 }
+
 

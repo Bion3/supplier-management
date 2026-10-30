@@ -3,17 +3,18 @@ const pages=[
  {group:'首页',items:[['/hub.html','系统首页']]},
  {group:'基础资料',items:[['/','供应商档案']]},
  {group:'成本中心',items:[['/cost.html','成本测算'],['/pricing.html','采购价格中心']]},
- {group:'客户开发',items:[['/crm.html','客户资源'],['/exhibitions.html','展会与展商'],['/lead-map.html','地图获客'],['/discovery.html','企业线索'],['/inbox.html','回复与跟进'],['/mail.html','开发邮件']]},
+ {group:'客户开发',items:[['/crm.html','客户资源'],['/crm.html?view=peers','同行客户'],['/exhibitions.html','展会与展商'],['/lead-map.html','地图获客'],['/discovery.html','企业线索'],['/inbox.html','回复与跟进'],['/mail.html','开发邮件']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/index.html'?'/':location.pathname;
 const pricePages={'/trucking.html':['国内运输','国内拖车费'],'/container-rental.html':['集装箱与箱务','集装箱租箱价格'],'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费'],'/fcl-rail.html':['国际运输','整箱铁路运费']};
-const activePath=pricePages[path]?'/pricing.html':path;
+const currentPath=path==='/crm.html'&&new URLSearchParams(location.search).get('view')==='peers'?'/crm.html?view=peers':path;
+const activePath=pricePages[path]?'/pricing.html':currentPath;
 const header=document.querySelector('body>header');
 if(header){
- const active=pricePages[path]?.[1]||pages.flatMap(x=>x.items).find(([href])=>href===path)?.[1]||document.title;
+ const active=pricePages[path]?.[1]||pages.flatMap(x=>x.items).find(([href])=>href===currentPath)?.[1]||document.title;
  let saved={};try{saved=JSON.parse(localStorage.getItem('eurasiago-nav-groups')||'{}')||{};if(typeof saved!=='object'||Array.isArray(saved))saved={};}catch{}
- const link=(href,label)=>`<a href="${href}" ${href===path?'aria-current="page"':''}>${label}</a>`;
+ const link=(href,label)=>`<a href="${href}" ${href===currentPath?'aria-current="page"':''}>${label}</a>`;
  const items=section=>section.items.map(([href,label])=>{
   if(href!=='/pricing.html')return link(href,label);
   return `<details class="nav-subgroup" data-nav-group="采购价格中心" ${activePath===href||saved['采购价格中心']?'open':''}><summary>${label}</summary><div class="nav-children">${link(href,'价格库总览')}${Object.entries(pricePages).map(([url,info])=>link(url,info[1])).join('')}</div></details>`;
@@ -29,3 +30,4 @@ if(header){
  for(const group of nav.querySelectorAll('details'))group.addEventListener('toggle',()=>{saved[group.dataset.navGroup]=group.open;try{localStorage.setItem('eurasiago-nav-groups',JSON.stringify(saved));}catch{}});
 }
 if(pricePages[path]){const context=document.createElement('nav');context.className='price-breadcrumb';context.setAttribute('aria-label','当前位置');context.innerHTML=`<a href="/pricing.html">采购价格中心</a><span> / ${pricePages[path][0]} / ${pricePages[path][1]}</span>`;document.querySelector('main')?.prepend(context);}
+
