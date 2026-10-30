@@ -1,6 +1,6 @@
 import {logout} from './cloud.js';
 const pages=[
- {group:'首页',items:[['/hub.html','系统首页']]},
+ {group:'首页',items:[['/hub.html','系统首页'],['/daily-dashboard.html','每日任务驾驶舱']]},
  {group:'基础资料',items:[['/','供应商档案']]},
  {group:'成本中心',items:[['/cost.html','成本测算'],['/pricing.html','采购价格中心']]},
  {group:'客户开发',items:[['/crm.html','客户资源'],['/crm.html?view=peers','同行客户'],['/exhibitions.html','展会与展商'],['/lead-map.html','地图获客'],['/discovery.html','企业线索'],['/inbox.html','回复与跟进'],['/mail.html','开发邮件']]},
