@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>海关数据</title><link rel="stylesheet" href="/src/style.css"><link rel="stylesheet" href="/src/customs-data.css"></head>
+<body><header></header><main>
+<section class="heading"><div><p class="eyebrow">贸易数据获客</p><h1>海关数据</h1><p>查市场进出口量，寻找进出口企业及发货人、收货人。</p></div><a class="customs-link" href="/crm.html">查看客户资源 →</a></section>
+<p class="panel customs-status" role="status"><b>当前为数据来源导航</b> · 尚未接入逐票数据或商业 API，暂无企业贸易记录入库。点击来源可前往查询。</p>
+<section class="panel"><div class="customs-filters"><label>数据用途<select id="purpose"><option value="">全部用途</option><option value="statistics">进出口量与市场分析</option><option value="company">进出口企业与收发货人</option></select></label><label>目标市场<select id="market"><option value="">全部市场</option><option value="china">中国</option><option value="europe">欧洲</option><option value="usa">美国</option><option value="global">其他国家 / 全球</option></select></label><label>搜索来源<input id="source-query" type="search" placeholder="来源、字段或运输方式"></label><button class="secondary" id="clear-filters" type="button">清空筛选</button></div><p id="source-count" aria-live="polite"></p><div id="source-cards" class="customs-grid"></div><p id="source-empty" hidden>暂无匹配来源，请调整筛选。</p></section>
+<section class="panel"><h2>欧洲与中欧铁路怎么找客户</h2><p>先用官方统计筛选“国家 + HS 编码 + 月份”的市场规模，再用企业级贸易记录寻找交易双方，最后通过企业官网、展商目录和现有客户资源补全联系方式。</p><p>欧洲官方统计不能直接当作进口商名录；商业平台出现一家欧洲企业，也可能来自它与其他国家交易的对方记录。采购前要核对目标国家、进出口方向、年份、运输方式、企业名和收发货人字段的实际样本。</p><p>中欧铁路覆盖应单独确认，不能用美国海运提单数据代替铁路货量。发货人、收货人也可能是贸易公司、货代或代理，需要核实后再标记为实际货主。</p></section>
+<section class="panel"><h2>数据口径与入库字段</h2><div class="table-wrap"><table><thead><tr><th>分类</th><th>应保留字段</th><th>使用规则</th></tr></thead><tbody>
+<tr><td>市场进出口量</td><td>统计国、贸易伙伴、方向、年月、HS 编码及版本、金额、币种、净重、数量及单位</td><td>金额、重量、数量分别显示；不推算为柜量。</td></tr>
+<tr><td>企业及交易双方</td><td>出口商、进口商、发货人、收货人、通知人、国家、地址、角色</td><td>保留原始名称与标准名称；区分实际货主与代理。</td></tr>
+<tr><td>逐票记录</td><td>来源记录 ID、日期、产品、HS 编码、重量、数量、金额、运输方式、起讫港站</td><td>仅记录来源实际提供的字段；缺失显示未知。</td></tr>
+<tr><td>来源与覆盖</td><td>来源、原始链接、数据期间、更新时间、覆盖国家及方式、授权范围</td><td>逐票数据统计的是已覆盖记录，不等同企业全部进出口量。</td></tr>
+<tr><td>联系信息</td><td>官网、多个邮箱、电话、联系来源、核实日期</td><td>贸易记录用于找企业，邮箱和联系人另行补全、核实。</td></tr>
+</tbody></table></div></section>
+</main><script type="module" src="/src/customs-data.js"></script><script type="module" src="/src/nav.js"></script></body></html>
