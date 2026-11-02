@@ -1,0 +1,20 @@
+[
+{"code":"ENF","name":"ENF 光伏全产业链名录","industry":"光伏新能源","region":"全球","resource_type":"行业名录","url":"https://www.enf.com.cn/directory/panel","priority":1,"collection_mode":"现有任务","notes":"沿用现有ENF每日任务，避免重复采集。"},
+{"code":"WCA","name":"WCA 货代会员名录","industry":"物流货代","region":"全球","resource_type":"协会会员","url":"https://www.wcaworld.com/directory","priority":2,"collection_mode":"资源参考","notes":"保留已有客户分类；仅公开信息可采集，会员登录区不处理。"},
+{"code":"WIFFA","name":"WIFFA 国际货代资源","industry":"物流货代","region":"中国及全球","resource_type":"协会会员","url":"https://www.wiffa.net/","priority":2,"collection_mode":"资源参考","notes":"已有导入客户可在客户目录筛选；公开目录入口需核实。"},
+{"code":"EUROPUR","name":"EUROPUR 聚氨酯及家具材料企业","industry":"聚氨酯与家具材料","region":"欧洲","resource_type":"协会会员","url":"https://europur.org/our-members/","priority":1,"collection_mode":"每日增量","notes":"会员详情公开总部国家、官网、企业邮箱及电话，优先处理欧洲生产商。"},
+{"code":"EUROBAT","name":"EUROBAT 电池与储能企业","industry":"电池储能","region":"欧洲","resource_type":"协会会员","url":"https://eurobat.org/members/","priority":1,"collection_mode":"每日增量","notes":"汽车及工业电池、储能系统和材料；从会员企业官网补全联系方式。"},
+{"code":"PMMI","name":"PMMI ProSource 包装与加工设备","industry":"机械设备","region":"北美及全球","resource_type":"行业名录","url":"https://www.prosource.org/","priority":2,"collection_mode":"每日增量","notes":"包装及食品加工设备，可按设备和产品分类筛选。"},
+{"code":"FPA","name":"FPA 软包装采购指南","industry":"包装印刷","region":"北美及全球","resource_type":"协会会员","url":"https://www.flexpack.org/buyers-guide","priority":2,"collection_mode":"每日增量","notes":"仅采集公开网页或公开PDF；登录后名单不处理。"},
+{"code":"SPC","name":"SPC 可持续包装企业目录","industry":"包装印刷","region":"全球","resource_type":"协会会员","url":"https://sustainablepackaging.org/membership-directory/","priority":2,"collection_mode":"每日增量","notes":"分类区分材料制造商、加工商、品牌及回收企业，避免协会本身当成企业。"},
+{"code":"NAPCOR","name":"NAPCOR PET塑料产业会员","industry":"塑料与再生材料","region":"北美及全球","resource_type":"协会会员","url":"https://napcor.com/napcor-membership/membership-directory-resources/","priority":2,"collection_mode":"每日增量","notes":"PET原料、包装、设备及再生企业。"},
+{"code":"ITMF","name":"ITMF 纺织企业会员","industry":"纺织服装","region":"全球","resource_type":"协会会员","url":"https://www.itmf.org/membership/corporate-members","priority":1,"collection_mode":"每日增量","notes":"优先企业会员；协会会员列表仅作资源，不冒充直客。"},
+{"code":"CEFIC","name":"Cefic 化工企业会员","industry":"化工材料","region":"欧洲","resource_type":"协会会员","url":"https://cefic.org/resources/business-members-abm/","priority":1,"collection_mode":"每日增量","notes":"企业会员公开名单；不据此判断危化属性或运输条件。"},
+{"code":"CERAME","name":"欧洲陶瓷产业集群企业","industry":"建材陶瓷","region":"欧洲","resource_type":"协会会员","url":"https://www.cerameurop.com/en/members/","priority":1,"collection_mode":"每日增量","notes":"区分企业、研究机构及服务机构，优先陶瓷制造和贸易企业。"},
+{"code":"WINDMODELS","name":"Wind Turbine Models 风机制造商名录","industry":"风电设备","region":"全球","resource_type":"行业名录","url":"https://en.wind-turbine-models.com/manufacturers?view=table","priority":2,"collection_mode":"每日增量","notes":"制造商国家及产品信息；联系方式以企业官网为准。"},
+{"code":"EUROPAGES","name":"Europages 欧洲企业名录","industry":"综合制造与贸易","region":"欧洲","resource_type":"综合B2B","url":"https://www.europages.co.uk/","priority":1,"collection_mode":"每日增量","notes":"优先欧洲进口商、批发商和分销商；出现机器人验证即跳过。"},
+{"code":"WLW","name":"WLW 德语区供应商与批发商","industry":"综合制造与贸易","region":"德国奥地利瑞士","resource_type":"综合B2B","url":"https://www.wlw.de/","priority":1,"collection_mode":"每日增量","notes":"按行业及国家扩展；只处理公开页面，受限则换源。"},
+{"code":"KOMPASS","name":"Kompass 全球行业企业库","industry":"综合制造与贸易","region":"全球","resource_type":"综合B2B","url":"https://us.kompass.com/","priority":2,"collection_mode":"每日增量","notes":"只采集公开字段；付费联系人不采集。"},
+{"code":"SOURCEGUIDES","name":"Source Guides 可再生能源名录","industry":"综合新能源","region":"全球","resource_type":"行业名录","url":"https://sourceguides.com/","priority":3,"collection_mode":"每日增量","notes":"目录信息可能较旧，需以企业官网复核；超时则记录重试。"},
+{"code":"CBI","name":"CBI 欧洲分行业买家开发资源","industry":"食品家居与轻工","region":"欧洲","resource_type":"市场资源","url":"https://www.cbi.eu/tips-find-buyers-europe","priority":2,"collection_mode":"资源参考","notes":"食品、家居家纺、服装等买家开发指引，用于发现行业协会与买家来源，不直接当作企业名单。"}
+]
