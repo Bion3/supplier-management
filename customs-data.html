@@ -2,14 +2,34 @@
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>海关数据</title><link rel="stylesheet" href="/src/style.css"><link rel="stylesheet" href="/src/customs-data.css"></head>
 <body><header></header><main>
 <section class="heading"><div><p class="eyebrow">贸易数据获客</p><h1>海关数据</h1><p>查市场进出口量，寻找进出口企业及发货人、收货人。</p></div><a class="customs-link" href="/crm.html">查看客户资源 →</a></section>
-<p class="panel customs-status" role="status"><b>当前为数据来源导航</b> · 尚未接入逐票数据或商业 API，暂无企业贸易记录入库。点击来源可前往查询。</p>
-<section class="panel"><div class="customs-filters"><label>数据用途<select id="purpose"><option value="">全部用途</option><option value="statistics">进出口量与市场分析</option><option value="company">进出口企业与收发货人</option></select></label><label>目标市场<select id="market"><option value="">全部市场</option><option value="china">中国</option><option value="europe">欧洲</option><option value="usa">美国</option><option value="global">其他国家 / 全球</option></select></label><label>搜索来源<input id="source-query" type="search" placeholder="来源、字段或运输方式"></label><button class="secondary" id="clear-filters" type="button">清空筛选</button></div><p id="source-count" aria-live="polite"></p><div id="source-cards" class="customs-grid"></div><p id="source-empty" hidden>暂无匹配来源，请调整筛选。</p></section>
-<section class="panel"><h2>欧洲与中欧铁路怎么找客户</h2><p>先用官方统计筛选“国家 + HS 编码 + 月份”的市场规模，再用企业级贸易记录寻找交易双方，最后通过企业官网、展商目录和现有客户资源补全联系方式。</p><p>欧洲官方统计不能直接当作进口商名录；商业平台出现一家欧洲企业，也可能来自它与其他国家交易的对方记录。采购前要核对目标国家、进出口方向、年份、运输方式、企业名和收发货人字段的实际样本。</p><p>中欧铁路覆盖应单独确认，不能用美国海运提单数据代替铁路货量。发货人、收货人也可能是贸易公司、货代或代理，需要核实后再标记为实际货主。</p></section>
+<p class="panel customs-status" role="status"><b>数据来源与核实指南</b> · 尚未接入逐票数据或商业 API，本页暂不提供企业记录查询、导入或自动匹配。点击来源可前往查询。</p>
+<section class="panel"><div class="customs-filters"><label>数据用途<select id="purpose"><option value="">全部用途</option><option value="statistics">进出口量与市场分析</option><option value="directory">企业贸易活动名录</option><option value="company">逐票交易 / 提单记录</option></select></label><label>目标市场<select id="market"><option value="">全部市场</option><option value="china">中国</option><option value="europe">欧洲（含英国）</option><option value="uk">英国</option><option value="usa">美国</option><option value="global">其他国家 / 全球</option></select></label><label>搜索来源<input id="source-query" type="search" placeholder="来源、字段或运输方式"></label><button class="secondary" id="clear-filters" type="button">清空筛选</button></div><p id="source-count" aria-live="polite"></p><div id="source-cards" class="customs-grid"></div><p id="source-empty" hidden>暂无匹配来源，请调整筛选。</p></section>
+<section class="panel"><h2>三类数据，分别使用</h2><div class="table-wrap"><table><thead><tr><th>数据层级</th><th>能验证什么</th><th>不能据此判断什么</th></tr></thead><tbody>
+<tr><td>宏观贸易统计</td><td>国家、商品、月份的金额与数量及趋势</td><td>具体买家名称、企业货量或柜量</td></tr>
+<tr><td>企业贸易活动名录</td><td>企业曾进口或出口某类产品及活动期间</td><td>每票货量、金额、买卖双方或运输方式</td></tr>
+<tr><td>逐票交易 / 提单记录</td><td>来源覆盖内的交易双方、日期、货物等字段</td><td>企业全部业务量及实际货主身份</td></tr>
+</tbody></table></div></section>
+<section class="panel"><h2>欧洲与中欧铁路怎么找客户</h2><p>先用官方统计筛选“国家 + HS 编码 + 月份”的市场，再用英国 HMRC 企业名录或有明确来源的逐票记录寻找企业，通过官网、ENF 和展商目录补全身份及联系方式。</p><p><b>英国可查企业贸易活动。</b> HMRC 可查企业名称、地址、进出口身份、商品与活动期间，但不提供具体往来国家、交易金额、数量或客户名单。因此不能仅凭 HMRC 名录标记“从中国进口”或“有铁路需求”。</p><p>欧洲不同国家的企业信息开放范围不同；商业平台中的欧洲企业也可能来自交易对方的镜像记录。中欧铁路覆盖应单独确认，不能用美国海运提单代替铁路货量。发货人、收货人可能是贸易公司、货代或代理。</p></section>
+<details class="panel"><summary>与 ENF、展商目录及客户资源相互验证</summary><p>以下为核实规则，当前尚未执行自动匹配。已有客户可在客户资源中查看来源与跟进；不自动覆盖既有分类和联系方式。</p><div class="table-wrap"><table><thead><tr><th>核实目标</th><th>交叉证据</th><th>应记录的结论</th></tr></thead><tbody>
+<tr><td>是否为同一家企业</td><td>原始企业名、地址 + 官网法律名称、注册号、注册地址</td><td>名称匹配 / 疑似匹配 / 已确认匹配；仅名称相似不合并</td></tr>
+<tr><td>是否经营目标产品</td><td>ENF 分类 + 官网产品 + 展商介绍 + 交易商品描述</td><td>产品匹配程度；保留 HS 版本与描述，不仅凭编码判断</td></tr>
+<tr><td>是否有近期贸易活动</td><td>企业活动名录或逐票记录 + 最新活动日期</td><td>来源覆盖内有活动；不把未查到记录标记为无进出口</td></tr>
+<tr><td>是否存在交易关系</td><td>同条原始记录中的双方名称、日期、货物与记录 ID</td><td>记录内关系；确认前不标记为直接采购关系</td></tr>
+<tr><td>是否值得开发</td><td>产品、地区、近期活动 + 经核实的官网和联系方式</td><td>联系优先级，结合现有 CRM 跟进</td></tr>
+<tr><td>是否适合中欧铁路</td><td>中国—欧洲交易线索 + 货物适运性 + 实际运输资料或客户确认</td><td>铁路潜在线索 / 已确认铁路需求，分开记录</td></tr>
+</tbody></table></div><p><b>同一原始提单在多个平台出现，只算一条记录。</b> 记录供应商与原始来源，优先按原始记录 ID 去重；无 ID 时用双方、日期、单号和货物辅助核实，不把三个平台当作三份独立证据。</p><p>宏观镜像统计只用于比较市场方向，不验证单家企业货量。FOB / CIF、时间差、转口和统计口径会导致双方数字不同。</p></details>
+<details class="panel"><summary>来源边界与 API 接入检查</summary><ul>
+<li>美国 ACE 报表需要账号及指定角色；它与面向公众的海运舱单数据是不同渠道。</li>
+<li>不能统一认定“某国全部舱单公开”。巴西官方统计不提供可识别企业的贸易信息及相应名单；商业记录需另核实来源。</li>
+<li>宏观镜像：贸易对方报告的汇总统计。企业镜像：对方记录中出现的企业。两者都不代表本国完整企业数据库。</li>
+<li>API 接入前，确认目标国家、进出口方向、期间、运输方式、双方字段、更新日期、额度及 CRM 保存授权。</li>
+<li>企业授权提供自身报关资料，与未经授权泄露监管资料分开处理；出现中国企业名称不等同于数据来自中国监管内部。</li>
+</ul><p>核对依据：<a href="https://www.uktradeinfo.com/find-uk-traders/how-to-use-our-tool-to-find-uk-traders/" target="_blank" rel="noopener noreferrer">HMRC 字段与限制</a> · <a href="https://www.cbp.gov/sites/default/files/2024-08/Accessing%20the%20ACE%20Reports%20Application.pdf" target="_blank" rel="noopener noreferrer">ACE 报表访问说明</a> · <a href="https://www.gov.br/mdic/pt-br/assuntos/comercio-exterior/estatisticas/perguntas-frequentes-faq" target="_blank" rel="noopener noreferrer">巴西官方统计 FAQ</a> · <a href="https://uncomtrade.org/docs/trade-valuation/" target="_blank" rel="noopener noreferrer">UN Comtrade 计价口径</a></p></details>
 <section class="panel"><h2>数据口径与入库字段</h2><div class="table-wrap"><table><thead><tr><th>分类</th><th>应保留字段</th><th>使用规则</th></tr></thead><tbody>
 <tr><td>市场进出口量</td><td>统计国、贸易伙伴、方向、年月、HS 编码及版本、金额、币种、净重、数量及单位</td><td>金额、重量、数量分别显示；不推算为柜量。</td></tr>
-<tr><td>企业及交易双方</td><td>出口商、进口商、发货人、收货人、通知人、国家、地址、角色</td><td>保留原始名称与标准名称；区分实际货主与代理。</td></tr>
+<tr><td>企业贸易活动</td><td>企业名、地址、进出口身份、商品编码及描述、活动期间、来源和记录日期</td><td>不填造金额、数量、往来国家或运输方式。</td></tr>\n<tr><td>企业及交易双方</td><td>出口商、进口商、发货人、收货人、通知人、国家、地址、角色</td><td>保留原始名称与标准名称；区分实际货主与代理。</td></tr>
 <tr><td>逐票记录</td><td>来源记录 ID、日期、产品、HS 编码、重量、数量、金额、运输方式、起讫港站</td><td>仅记录来源实际提供的字段；缺失显示未知。</td></tr>
-<tr><td>来源与覆盖</td><td>来源、原始链接、数据期间、更新时间、覆盖国家及方式、授权范围</td><td>逐票数据统计的是已覆盖记录，不等同企业全部进出口量。</td></tr>
+<tr><td>来源与覆盖</td><td>供应商、原始来源、原始记录 ID、链接、数据期间、更新时间、直接或镜像覆盖、授权范围</td><td>同源不重复计数；统计已覆盖记录，不等同企业全部进出口量。</td></tr>
 <tr><td>联系信息</td><td>官网、多个邮箱、电话、联系来源、核实日期</td><td>贸易记录用于找企业，邮箱和联系人另行补全、核实。</td></tr>
 </tbody></table></div></section>
 </main><script type="module" src="/src/customs-data.js"></script><script type="module" src="/src/nav.js"></script></body></html>
