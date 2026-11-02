@@ -24,10 +24,12 @@ const mailColumns={
  freight_contacts:'id,company_id,name,channel,value,status,email_allowed,mail_groups',
 };
 async function all(table,order='id.asc'){
- const rows=[],size=1000,columns=mailColumns[table]||'*',filter=table==='freight_contacts'?'&channel=eq.'+encodeURIComponent('邮箱'):'';
+ const rows=[],size=1000,columns=mailColumns[table]||'*';
  for(let offset=0;;offset+=size){
   let batch;
-  try{batch=await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}${filter}`);}
+  try{batch=table==='freight_contacts'
+   ?await cloudRequest('rpc/freight_mail_contacts_page',{method:'POST',body:JSON.stringify({p_offset:offset,p_limit:size})})
+   :await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}`);}
   catch(error){throw Error(`${{freight_companies:'公司资料',freight_contacts:'客户邮箱',freight_mail_templates:'邮件模板',freight_mail_messages:'发送记录'}[table]||table}读取失败（第 ${Math.floor(offset/size)+1} 页）：${error.message}`);}
   rows.push(...batch);if(batch.length<size)return rows;
  }
