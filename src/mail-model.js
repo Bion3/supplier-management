@@ -1,4 +1,4 @@
-import {companyStage,companySourceTypes,companyGroups} from './crm-model.js';
+import {companyStage,companySourceTypes,companyGroups,mailExclusionReason} from './crm-model.js';
 import {mailContent} from './mail-content.js';
 export function validEmail(value){return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(String(value))&&String(value).length<=254;}
 export function eligibleContacts(contacts){const seen=new Set(),blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>{const e=c.value?.trim().toLowerCase();if(c.channel!=='邮箱'||c.status!=='有效'||blocked.has(e)||!validEmail(e)||seen.has(e))return false;seen.add(e);return true;});}
@@ -24,7 +24,7 @@ export function filterRecipients(contacts,companies,filters={}){
  &&(!filters.region||regionInfo(co).value===filters.region)&&(!filters.verification||c.status===filters.verification)
  &&(!filters.allowed||(filters.allowed==='yes'?c.email_allowed!==false:c.email_allowed===false))
  &&(!filters.group||(filters.group==='__ungrouped'?!groups.length:groups.includes(filters.group)))
- &&(!filters.sendable||(c.status==='有效'&&eligible.has(c.value.trim().toLowerCase())))
+ &&(!filters.sendable||(c.status==='有效'&&eligible.has(c.value.trim().toLowerCase())&&!mailExclusionReason(co)))
  &&(!filters.selectedOnly||filters.selected?.has(c.id));});
 }
 export function groupNames(value){const groups=[...new Set(String(value||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean))];if(!groups.length||groups.some(x=>x.length>50))throw Error('请填写分组名称，每个名称最多50字，可用逗号分隔。');return groups;}

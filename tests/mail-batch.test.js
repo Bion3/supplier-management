@@ -24,7 +24,7 @@ test('后台分段分发535封，单段至多100封，发布并发至多5',async
  await assert.rejects(()=>dispatch({ids:['invalid'],scheduled_at:'2026-10-14'}));
 });
 test('账号核对仅复用于一个服务实例，批次RPC一次传入所有编号',async()=>{
- let auth=0,rpc=0;const fetcher=async(url,o)=>{const u=new URL(url);if(u.pathname==='/auth/v1/user'){auth++;return Response.json({id:'user'});}if(u.pathname.endsWith('/freight_mail_access'))return Response.json([{user_id:'user'}]);rpc++;const body=JSON.parse(o.body);assert.equal(body.p_ids.length,535);return Response.json(body.p_ids.map(id=>({id,status:'scheduled',scheduled_at:body.p_scheduled_at})));};
+ let auth=0,rpc=0;const fetcher=async(url,o)=>{const u=new URL(url);if(u.pathname==='/auth/v1/user'){auth++;return Response.json({id:'user'});}if(u.pathname.endsWith('/freight_mail_access'))return Response.json([{user_id:'user'}]);if(u.pathname.endsWith('/freight_mail_messages'))return Response.json([]);rpc++;const body=JSON.parse(o.body);assert.equal(body.p_ids.length,535);return Response.json(body.p_ids.map(id=>({id,status:'scheduled',scheduled_at:body.p_scheduled_at})));};
  const create=()=>makeService({fetcher,password:'fixture',workerSecret:'fixture',createTransport:()=>{throw Error('No SMTP');}}),service=create(),ids=Array.from({length:535},(_,i)=>id(i));await service.authorize('fixture');await service.prepareBatch(ids,new Date(Date.now()+120000).toISOString(),'fixture');assert.equal(auth,1);assert.equal(rpc,1);await create().authorize('fixture');assert.equal(auth,2);
 });
 test('草稿发送计划排除未核实、停止联系、已发送、重复及联系人不匹配',()=>{

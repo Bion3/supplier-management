@@ -1,6 +1,12 @@
 import {companyDirectoryTypes} from './crm-directories.js';
-export const developmentStages=['待开发','开发中','有意向','报价中','已合作','暂缓开发'];
-export function companyStage(c){return developmentStages.includes(c.development_stage)?c.development_stage:c.status==='合作中'?'已合作':c.status==='正在跟进'?'开发中':['沉睡','流失'].includes(c.status)?'暂缓开发':'待开发';}
+export const developmentStages=['待开发','开发中','有意向','报价中','已合作','暂缓开发','暂不开发'];
+export function mailExclusionReason(company){
+ if(!company)return '';
+ if(company.development_stage==='暂不开发'||/^CO-[a-f0-9]{20}$/i.test(company.id||''))return '历史指定货直客名单，暂不开发';
+ if((company.source_refs||[]).some(ref=>typeof ref==='string'?ref.startsWith('LANDBRIDGE-'):ref?.source==='landbridge'))return 'Landbridge同行名录，暂不发送';
+ return '';
+}
+export function companyStage(c){return /^CO-[a-f0-9]{20}$/i.test(c.id||'')&&['','待开发'].includes(c.development_stage||'')?'暂不开发':developmentStages.includes(c.development_stage)?c.development_stage:c.status==='合作中'?'已合作':c.status==='正在跟进'?'开发中':['沉睡','流失'].includes(c.status)?'暂缓开发':'待开发';}
 export function companySourceTypes(c){const result=new Set();for(const ref of c.source_refs||[]){const key=typeof ref==='object'&&ref?String(ref.source||ref.provider||''):'';if(key==='landbridge')result.add('Landbridge同行名录');else if(key==='exhibition')result.add('展会展商');else if(/openstreetmap|overture|google|map/i.test(key))result.add('地图获客');else if(key)result.add('其他线索');else result.add('历史/批次导入');}return result.size?[...result]:['手动新增'];}
 export const customerStatuses=['待核实','潜在','正在跟进','合作中','沉睡','流失'];
 export function chinaDate(now=new Date()){return new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);}

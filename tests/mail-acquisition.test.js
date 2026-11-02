@@ -32,3 +32,11 @@ test('multiple emails per company are allowed by default; identical addresses st
  const rows=[contact('a','same'),contact('b','same'),contact('copy','other',{value:'A@example.com'})];
  assert.deepEqual(outreachPlan(rows,rows,[],{now}).rows.map(c=>c.id),['a','b']);
 });
+test('historical designated-cargo list and Landbridge directory stay out of outreach',()=>{
+ const historical={id:'CO-c742e4dde88f3b258802',development_stage:'待开发'},landbridge={id:'peer',source_refs:[{source:'landbridge'}]},recent={id:'new-direct',role:'直客'};
+ const rows=[contact('old',historical.id),contact('peer','peer'),contact('new','new-direct')],companies=[historical,landbridge,recent];
+ const plan=outreachPlan(rows,rows,[],{companyRows:companies,now});
+ assert.deepEqual(plan.rows.map(c=>c.id),['new']);
+ assert.deepEqual(plan.skipped.map(x=>x.reason),['历史指定货直客名单，暂不开发','Landbridge同行名录，暂不发送']);
+ assert.deepEqual(filterRecipients(rows,companies,{sendable:true}).map(c=>c.id),['new']);
+});

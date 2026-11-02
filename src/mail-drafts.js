@@ -4,12 +4,15 @@ import {addPagerAfter} from './pagination.js';
 import {validEmail,validateMail} from './mail-model.js';
 import {mailContent} from './mail-content.js';
 import {scheduleISO,chinaInput} from './mail-rules.js';
-export function draftSendPlan(rows,contacts){
+import {mailExclusionReason} from './crm-model.js';
+export function draftSendPlan(rows,contacts,companies=[]){
+ const byCompany=new Map(companies.map(c=>[c.id,c]));
  const byId=new Map(contacts.map(c=>[c.id,c])),blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));
  const seen=new Set(),eligible=[],skipped=[];
  for(const m of rows){
   const email=String(m.recipient||'').trim().toLowerCase(),contact=byId.get(m.contact_id);let reason='';
   if(m.status!=='draft')reason='不是待发送草稿';
+  else if(byCompany.size&&mailExclusionReason(byCompany.get(m.company_id)))reason=mailExclusionReason(byCompany.get(m.company_id));
   else if(!validEmail(email))reason='邮箱格式无效';
   else if(!contact||contact.company_id!==m.company_id||contact.channel!=='邮箱'||contact.value.trim().toLowerCase()!==email)reason='联系人不匹配';
   else if(blocked.has(email)||contact.email_allowed!==true)reason='已停止联系';
@@ -61,7 +64,7 @@ export function installDraftBulk(ctx){
  }
  const dialog=document.createElement('dialog');dialog.id='draft-send-dialog';dialog.innerHTML='<div class="dialog-heading"><h2>批量发送草稿</h2><button id="draft-send-close" class="secondary" type="button">关闭</button></div><p id="draft-send-summary"></p><p id="draft-send-skipped"></p><div class="fields"><label>开始发送<select id="draft-send-mode"><option value="now">尽快开始（后台发送）</option><option value="scheduled">指定日期时间</option></select></label><label id="draft-send-date-label" hidden>发送时间（北京时间）<input id="draft-send-date" type="datetime-local"></label></div><p id="draft-send-rules"></p><div id="draft-send-previews"></div><p id="draft-send-error" role="alert"></p><footer><button id="draft-send-confirm">确认批量提交</button></footer><p class="footnote">提交完成后可关闭页面；已安排的邮件由后台发送，超过每日上限自动顺延。</p>';document.body.append(dialog);
  function open(){
-  if(busy)return;for(const id of ['draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=false;const rows=ctx.getMessages().filter(m=>chosen.has(m.id)),plan=draftSendPlan(rows,ctx.getContacts());previewIds=plan.eligible.map(m=>m.id);
+  if(busy)return;for(const id of ['draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=false;const rows=ctx.getMessages().filter(m=>chosen.has(m.id)),plan=draftSendPlan(rows,ctx.getContacts(),ctx.getCompanies());previewIds=plan.eligible.map(m=>m.id);
   $('draft-send-summary').textContent=`已选 ${rows.length} 封；可提交 ${plan.eligible.length} 封；跳过 ${plan.skipped.length} 封。`;
   const counts=new Map();for(const {reason} of plan.skipped)counts.set(reason,(counts.get(reason)||0)+1);$('draft-send-skipped').textContent=[...counts].map(([reason,n])=>reason+'：'+n+'封').join('； ');
   const rules=ctx.getRules();$('draft-send-mode').value=rules.send_mode;$('draft-send-date').value=rules.default_scheduled_at?chinaInput(rules.default_scheduled_at):'';toggleMode();
@@ -76,7 +79,7 @@ export function installDraftBulk(ctx){
  $('draft-send-confirm').addEventListener('click',async()=>{
   if(busy||!previewIds.length)return;const epoch=ctx.getEpoch(),mode=$('draft-send-mode').value;let date;
   try{date=mode==='scheduled'?scheduleISO($('draft-send-date').value):null;}catch(e){$('draft-send-error').textContent=e.message;return;}
-  const current=ctx.getMessages().filter(m=>previewIds.includes(m.id)),plan=draftSendPlan(current,ctx.getContacts());if(!plan.eligible.length){$('draft-send-error').textContent='草稿或邮箱状态已变化，请重新选择。';return;}
+  const current=ctx.getMessages().filter(m=>previewIds.includes(m.id)),plan=draftSendPlan(current,ctx.getContacts(),ctx.getCompanies());if(!plan.eligible.length){$('draft-send-error').textContent='草稿或邮箱状态已变化，请重新选择。';return;}
   busy=true;for(const id of ['draft-send-confirm','draft-send-close','draft-send-mode','draft-send-date'])$(id).disabled=true;render();$('draft-send-summary').textContent=`正在将整批 ${plan.eligible.length} 封保存到后台，请稍候…`;let submitted=0;const errors=[];
   try{
    const size=1000;

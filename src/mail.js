@@ -153,7 +153,7 @@ $('send-rules-form').addEventListener('submit',async e=>{e.preventDefault();awai
 function openComposer(){if(!selected.size){$('notice').textContent='请先批量选择客户邮箱。';return;}if(!currentPlan().rows.length){$('notice').textContent='所选邮箱均被跳过，请检查联系许可、状态或近期发送记录。';return;}setMailView('compose');$('composer-summary').textContent=$('selection-summary').textContent;($('template-mode').value==='random'?$('template-library'): $('subject')).focus();}
 $('prepare-send').addEventListener('click',openComposer);
 $('back-recipients').addEventListener('click',()=>setMailView('recipients'));
-draftBulk=installDraftBulk({getMessages:()=>messages,getContacts:()=>contacts,getRules:()=>rules,getEpoch:()=>epoch,isConfigured:()=>configured,openSaved,
+draftBulk=installDraftBulk({getMessages:()=>messages,getContacts:()=>contacts,getCompanies:()=>companies,getRules:()=>rules,getEpoch:()=>epoch,isConfigured:()=>configured,openSaved,
  async setReply(m,value){if(value==='拒绝联系'){const contact=contacts.find(c=>c.id===m.contact_id);if(contact)await setAllowed(contact,false);}await cloudRequest('freight_mail_messages?id=eq.'+encodeURIComponent(m.id),{method:'PATCH',body:JSON.stringify({reply_status:value})});m.reply_status=value;},
  async cancel(m){await appRequest('/api/mail',{method:'POST',body:JSON.stringify({id:m.id,action:'cancel'})});m.status='draft';m.scheduled_at=null;render();},
  async reloadMessages(){const e=epoch,rows=await all('freight_mail_messages','created_at.desc,id.desc');if(e===epoch){messages=rows;render();}}
@@ -169,7 +169,7 @@ if(mailView==='compose')mailView='recipients';applyMailView();authUI();if(curren
 
 
 
-function currentPlan(){return outreachPlan(contacts.filter(c=>selected.has(c.id)),contacts,messages,{onePerCompany:$('one-per-company').checked,recentDays:Number($('recent-days').value)});}
+function currentPlan(){return outreachPlan(contacts.filter(c=>selected.has(c.id)),contacts,messages,{onePerCompany:$('one-per-company').checked,recentDays:Number($('recent-days').value),companyRows:companies});}
 function applyHandoff(){
  if(new URLSearchParams(location.search).get('from')!=='acquisition')return;
  let handoff;try{handoff=JSON.parse(sessionStorage.getItem('mail-acquisition-selection')||'null');}catch{}

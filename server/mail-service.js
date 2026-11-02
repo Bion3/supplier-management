@@ -1,6 +1,7 @@
 import {mailContent} from '../src/mail-content.js';
 import {queueOptions} from '../src/mail-rules.js';
 import {validEmail,validateMail} from '../src/mail-model.js';
+import {mailExclusionReason} from '../src/crm-model.js';
 const base='https://hcorkkudgicarsmexnqf.supabase.co';
 const key='sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp';
 export const sender='benjamin@eurasiago.com';
@@ -15,9 +16,14 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
   return authorized.get(token);
  }
  async function patch(id,data,token){return request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id),token,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify(data)});}
+ async function checkCompany(companyId,token){
+  const rows=await request('/rest/v1/freight_companies?id=eq.'+encodeURIComponent(companyId||'')+'&select=id,development_stage,source_refs',token);
+  if(rows.length!==1)throw Error('客户公司资料不存在。');
+  const reason=mailExclusionReason(rows[0]);if(reason)throw Error(reason);
+ }
  async function check(d,token){validateMail(d.subject,d.body);if(!validEmail(d.recipient))throw Error('收件邮箱格式无效。');
   if(d.purpose==='测试'){if(d.recipient.toLowerCase()!==sender)throw Error('测试邮件只允许发给发信邮箱自身。');}
-  else{const c=await request('/rest/v1/freight_contacts?id=eq.'+encodeURIComponent(d.contact_id||'')+'&select=*',token);if(c.length!==1||c[0].company_id!==d.company_id||c[0].channel!=='邮箱'||c[0].status!=='有效'||!c[0].email_allowed||c[0].value.trim().toLowerCase()!==d.recipient.toLowerCase())throw Error('收件人尚未核实或已停止邮件联系。');
+  else{await checkCompany(d.company_id,token);const c=await request('/rest/v1/freight_contacts?id=eq.'+encodeURIComponent(d.contact_id||'')+'&select=*',token);if(c.length!==1||c[0].company_id!==d.company_id||c[0].channel!=='邮箱'||c[0].status!=='有效'||!c[0].email_allowed||c[0].value.trim().toLowerCase()!==d.recipient.toLowerCase())throw Error('收件人尚未核实或已停止邮件联系。');
    for(let offset=0;;offset+=500){const banned=await request('/rest/v1/freight_contacts?channel=eq.'+encodeURIComponent('邮箱')+'&email_allowed=eq.false&select=value&order=id.asc&limit=500&offset='+offset,token);if(banned.some(c=>c.value.trim().toLowerCase()===d.recipient.toLowerCase()))throw Error('该邮箱已停止邮件联系。');if(banned.length<500)break;}
   }
 
@@ -31,7 +37,10 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
   try{await enqueue('freight-mail',{id},queueOptions(id,scheduled_at));}catch{await request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id)+'&status=eq.scheduled&scheduled_at=eq.'+encodeURIComponent(scheduled_at),token,{method:'PATCH',body:JSON.stringify({status:'draft',scheduled_at:null})}).catch(()=>{});throw Error('定时队列未能建立，请刷新草稿状态后重试。');}
   return {status:'scheduled',scheduled_at};
  }
- async function prepareBatch(ids,date,token){await authorize(token);if(!password||!workerSecret)throw Error('定时发信配置尚未完成');return request('/rest/v1/rpc/freight_mail_prepare_batch',token,{method:'POST',body:JSON.stringify({p_ids:ids,p_scheduled_at:date})});}
+ async function prepareBatch(ids,date,token){await authorize(token);if(!password||!workerSecret)throw Error('定时发信配置尚未完成');
+  const companies=new Set();for(let i=0;i<ids.length;i+=100){const drafts=await request('/rest/v1/freight_mail_messages?id=in.'+encodeURIComponent('('+ids.slice(i,i+100).join(',')+')')+'&select=id,company_id,purpose',token);for(const d of drafts)if(d.purpose!=='测试')companies.add(d.company_id);}
+  const companyIds=[...companies];for(let i=0;i<companyIds.length;i+=100){const batch=companyIds.slice(i,i+100),rows=await request('/rest/v1/freight_companies?id=in.'+encodeURIComponent('('+batch.join(',')+')')+'&select=id,development_stage,source_refs',token);if(rows.length!==batch.length)throw Error('部分客户公司资料不存在。');for(const row of rows){const reason=mailExclusionReason(row);if(reason)throw Error(reason);}}
+  return request('/rest/v1/rpc/freight_mail_prepare_batch',token,{method:'POST',body:JSON.stringify({p_ids:ids,p_scheduled_at:date})});}
  async function restoreBatch(ids,date,token){await authorize(token);return request('/rest/v1/rpc/freight_mail_restore_batch',token,{method:'POST',body:JSON.stringify({p_ids:ids,p_scheduled_at:date})});}
  async function cancel(id,token){await authorize(token);const rows=await request('/rest/v1/freight_mail_messages?id=eq.'+encodeURIComponent(id)+'&status=eq.scheduled',token,{method:'PATCH',headers:{Prefer:'return=representation'},body:JSON.stringify({status:'draft',scheduled_at:null})});if(rows.length!==1)throw Error('邮件已开始处理或定时任务已取消。');return {status:'draft'};}
  async function send(id,token){

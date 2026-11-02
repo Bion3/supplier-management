@@ -1,13 +1,16 @@
 import {validEmail} from './mail-model.js';
+import {mailExclusionReason} from './crm-model.js';
 const address=value=>String(value||'').trim().toLowerCase();
 // A preview plan only: server-side permission and contact checks remain authoritative.
-export function outreachPlan(chosen,contacts,messages=[],{onePerCompany=false,recentDays=14,now=Date.now()}={}){
+export function outreachPlan(chosen,contacts,messages=[],{onePerCompany=false,recentDays=14,now=Date.now(),companyRows=[]}={}){
+ const companyMap=new Map(companyRows.map(c=>[c.id,c]));
  const blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>address(c.value)));
  const active=new Set(),recent=new Set();
  for(const m of messages){const email=address(m.recipient);if(['scheduled','sending','unknown'].includes(m.status))active.add(email);if(m.status==='sent'&&Date.parse(m.sent_at||m.created_at)>now-recentDays*86400000)recent.add(email);}
  const emails=new Set(),companies=new Set(),rows=[],skipped=[];
  for(const c of chosen){const email=address(c.value);let reason='';
-  if(c.channel!=='邮箱'||!validEmail(email))reason='邮箱格式无效';
+  if(companyMap.size&&mailExclusionReason(companyMap.get(c.company_id)))reason=mailExclusionReason(companyMap.get(c.company_id));
+  else if(c.channel!=='邮箱'||!validEmail(email))reason='邮箱格式无效';
   else if(blocked.has(email)||c.email_allowed!==true)reason='停止联系或未允许联系';
   else if(c.status!=='有效')reason='邮箱待核实或已失效';
   else if(active.has(email))reason='正在排队或发送结果待核查';
