@@ -1,5 +1,5 @@
 import {cloudRequest,currentUser} from './cloud.js';
-import {DAY,days,ms,stats,recent,stage} from './tracking-model.js';
+import {DAY,days,ms,stats,recent,stage,departureInfo} from './tracking-model.js';
 const $=id=>document.getElementById(id),el=(tag,text,cls)=>{const e=document.createElement(tag);if(text!=null)e.textContent=String(text);if(cls)e.className=cls;return e;};
 const num=v=>v==null?'—':v.toFixed(1)+'天',date=v=>v?v.replace('T',' ').slice(0,16):'—';
 let reports=[],incidents=[],imports=[],page=1,tab='analysis',candidate=null,busy=false,asOf='',exportRows=[];
@@ -35,10 +35,10 @@ function render(){
 function grouped(ts){const groups=new Map();for(const t of ts)for(const d of t.dests){if($('dest').value&&d.dest!==$('dest').value)continue;const key=t.operator+' / '+d.dest;if(!groups.has(key))groups.set(key,[]);groups.get(key).push({t,d});}return groups;}
 function renderAnalysis(ts){
  const root=$('analysis-rows');root.replaceChildren();exportRows=[];
- const groups=grouped(ts);
+ const groups=grouped(ts);$('dispatch-rows').replaceChildren();for(const op of [...new Set(ts.map(t=>t.operator))]){const list=ts.filter(t=>t.operator===op),b=stats(list.map(t=>t.xianBorderDays)),br=stats(list.map(t=>t.xianBrestDays)),m=stats(list.map(t=>t.xianMalaDays));row($('dispatch-rows'),[op,list.filter(t=>t.dispatchPrecision==='time').length+' / '+list.filter(t=>t.dispatchPrecision==='day').length,num(b.mean)+' / '+b.n,num(br.mean)+' / '+br.n,num(m.mean)+' / '+m.n]);}
  for(const [key,items] of [...groups].sort()){
   const v=stats(items.map(x=>x.d.totalDays)),border=stats(items.map(x=>x.t.borderDays)),cis=stats(items.map(x=>x.d.malaDays)),eu=stats(items.map(x=>x.d.euDays));
-  const vals=[key,v.n,num(v.mean),num(v.median),num(v.p90),num(border.mean)+' / '+border.n,num(cis.mean)+' / '+cis.n,num(eu.mean)+' / '+eu.n];row(root,vals);if(tab==='analysis')exportRows.push(vals);
+  const approx=items.filter(x=>x.d.totalDays!=null&&x.d.dateBased).length;const vals=[key,v.n+(approx?'（标签日期 '+approx+'）':''),num(v.mean),num(v.median),num(v.p90),num(border.mean)+' / '+border.n,num(cis.mean)+' / '+cis.n,num(eu.mean)+' / '+eu.n];row(root,vals);if(tab==='analysis')exportRows.push(vals);
  }
  if(!groups.size)row(root,['所选范围暂无班次，请调整日期或运营商。']);
  const cmp=$('comparison');cmp.replaceChildren();const [start,end]=period(),length=(Date.parse(end)-Date.parse(start))/DAY+1;
@@ -60,7 +60,7 @@ function renderTrains(rows){
  for(const r of rows.slice((page-1)*20,page*20)){
   const t=r.summary,button=el('button','详情','secondary');button.onclick=()=>openDetail(r);
   const phase=historical(t)?'历史待确认':Object.entries(t.stages).map(([k,n])=>k+' '+n+'箱').join(' / '),stale=days(t.lastUpdate,t.asOf+'T23:59:59');
-  const vals=[withSmall(t.name,t.operator),withSmall(date(t.departure||t.planned),t.departure?'实际 ATD':'班次编码日期；非实际 ATD'),t.dests.map(d=>d.dest).join(' / '),t.arrived+' / '+t.total,withSmall(phase,t.remarks?t.remarks+'箱有原文备注':''),withSmall(t.locations.map(e=>e.location+(e.remark?' · '+e.remark:'')).join('；')||'无有效位置更新',date(t.lastUpdate)+(t.arrived<t.total&&stale>3?' · 距报表 '+Math.floor(stale)+'天':'')),num(t.borderDays),button];row(root,vals);
+  const vals=[withSmall(t.name,t.operator),withSmall(t.departure?date(t.departure):(t.planned||'').slice(0,10),t.departure?'西安实际发车时刻':'西安发运日 · 班次标签（日级）'),t.dests.map(d=>d.dest).join(' / '),t.arrived+' / '+t.total,withSmall(phase,t.remarks?t.remarks+'箱有原文备注':''),withSmall(t.locations.map(e=>e.location+(e.remark?' · '+e.remark:'')).join('；')||'无有效位置更新',date(t.lastUpdate)+(t.arrived<t.total&&stale>3?' · 距报表 '+Math.floor(stale)+'天':'')),num(t.borderDays),button];row(root,vals);
  }
  if(!rows.length)row(root,['没有匹配班列。']);$('page-info').textContent=`共 ${rows.length} 班 · 第 ${page} / ${pages} 页`;$('prev').disabled=page===1;$('next').disabled=page===pages;
  if(tab==='transit')exportRows=rows.map(({summary:t})=>[t.name,t.operator,t.departure||'',t.planned||'',t.arrived,t.total,t.lastUpdate||'',t.borderDays??'']);
@@ -73,7 +73,7 @@ function renderIncidents(){const list=activeIncidents().sort((a,b)=>(b.events.at
 function renderSources(){const root=$('source-rows');root.replaceChildren();for(const s of imports){const d=el('div',null,'tracking-source');d.append(el('strong',s.filename),el('small',`${s.operator} · 截至 ${s.as_of} · ${s.train_count} 班 / ${s.incident_count} 条异常 · ${s.status==='complete'?'已入库':'未完成，可重试导入'} · 导入 ${s.created_at.slice(0,16).replace('T',' ')} UTC`));root.append(d);}if(tab==='sources')exportRows=imports.map(s=>[s.filename,s.operator,s.as_of,s.train_count,s.incident_count,s.status]);}
 async function openDetail(r){$('detail-title').textContent=r.summary.name+' · '+r.operator;$('detail-body').textContent='正在读取逐箱运踪…';$('detail').showModal();try{
  const [result]=await cloudRequest('freight_tracking_reports?select=detail&id=eq.'+encodeURIComponent(r.id));if(!result)throw Error('未找到详情');const t=result.detail,root=$('detail-body');root.replaceChildren();
- root.append(el('p',`${t.filename} / ${t.name} · 报表截至 ${t.asOf}`),el('p',`实际 ATD：${date(t.departure)} · 依据：${t.departureBasis||'缺失'} · 国内班次：${t.domesticTrain||'未关联'}`),el('p','顶部 Latest 节点仅作正常箱参考，不替代下方逐箱到达。','tracking-warning'));
+ root.append(el('p',`${t.filename} / ${t.name} · 报表截至 ${t.asOf}`),el('p',`西安发运：${t.departure?date(t.departure):departureInfo(t).value||'缺失'} · 依据：${departureInfo(t).basis} · 国内班次：${t.domesticTrain||'未关联'}`),el('p','顶部 Latest 节点仅作正常箱参考，不替代下方逐箱到达。','tracking-warning'));
  const latest=el('p',Object.entries(t.latest).filter(([,v])=>v).map(([k,v])=>k+' '+date(v)).join('；'));root.append(latest);
  const wrap=el('div',null,'tracking-scroll'),table=el('table'),head=el('thead'),body=el('tbody');row(head,['箱号 / Part','目的站 / 场站','马拉实到','欧洲段实发','预计到达','实际到达','阶段 / 原文备注']);table.append(head,body);wrap.append(table);root.append(wrap);
  for(const c of t.containers)row(body,[withSmall(c.number,c.part+' · 来源行 '+c.row),withSmall(c.dest,c.terminal),date(c.mala),date(c.euDeparture),date(c.eta),date(c.arrival),withSmall(stage(c,t),c.remark)]);

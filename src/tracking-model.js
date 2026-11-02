@@ -14,6 +14,10 @@ export function dateValue(v){
 export const ms=v=>v?Date.parse(v+'Z'):NaN;
 export const days=(a,b)=>{const n=(ms(b)-ms(a))/DAY;return Number.isFinite(n)&&n>=0&&n<=180?n:null;};
 export function trainKey(name){const s=str(name).toUpperCase().replace(/\s+/g,' ');return (s.match(/WBE\d{8}|XIAN-\d+ WB\d{4}|WB\d{4}(?:-\d+)?/)||[])[0]||s;}
+// User confirmed the worksheet service date as the Xi'an dispatch date.
+// Preserve actual timestamps separately; a label supplies day precision only.
+export function departureInfo(t){return t.departure?{value:t.departure,precision:'time',basis:t.departureBasis||'实际西安发车记录'}:t.planned?{value:t.planned.slice(0,10),precision:'day',basis:'工作表班次标签发运日期（用户确认）'}:{value:null,precision:null,basis:'缺发运日期'};}
+export function fromXianDays(t,end){const d=departureInfo(t);if(!d.value||!end||t.asOf&&end.slice(0,10)>t.asOf)return null;return d.precision==='day'?days(d.value+'T00:00:00',end.slice(0,10)+'T00:00:00'):days(d.value,end);}
 export function destination(v){const s=str(v);if(/^(dui|duis|duisburg)$/i.test(s))return 'Duisburg';if(/^(hh|ham|hamburg)$/i.test(s))return 'Hamburg';if(/^(mala|malaszewicze)$/i.test(s))return 'Malaszewicze';return s||'未注明';}
 function embedded(text,label){const m=text.match(new RegExp(label+'\\s+(20\\d{2}[/-]\\d{1,2}[/-]\\d{1,2}(?:\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)?)','i'));return m?dateValue(m[1]):null;}
 export function parseSheets(sheets,{operator,filename,asOf}){
@@ -55,7 +59,8 @@ export function parseSheets(sheets,{operator,filename,asOf}){
   }
   if(!containers.length)continue;
   const key=trainKey(sheet.name),code=key.match(/^WBE(\d{2})(\d{2})(\d{2})/);
-  // The date encoded in a service name is a planned service date, not an actual ATD.
+  // `planned` is retained for storage compatibility: the label date is a user-confirmed
+  // dispatch date at day precision, and must not become a fabricated midnight ATD.
   let planned=code?dateValue(`20${code[1]}-${code[2]}-${code[3]}`):null;
   const departure=embedded(remarks,'ATD XIAN'),borderArrival=getTop(4)||embedded(remarks,'ATA (?:Dostyk|Altynkol)'),borderDeparture=getTop(5)||embedded(remarks,'ATD (?:Dostyk|Altynkol)');
   const legacy=key.match(/WB(\d{2})(\d{2})(?:-|$)/);if(!planned&&legacy){const year=(departure||borderArrival||lastDate||asOf||'').slice(0,4);planned=dateValue(`${year}-${legacy[1]}-${legacy[2]}`);}
@@ -93,11 +98,12 @@ export function summarize(t){
   const cs=t.containers.filter(c=>c.dest===dest),arrived=cs.filter(c=>c.arrival),last=arrived.map(c=>c.arrival).sort().at(-1)||null;
   const malas=cs.map(c=>c.mala).filter(Boolean).sort(),eus=cs.map(c=>c.euDeparture).filter(Boolean).sort();
   const stages={};for(const c of cs){const k=stage(c,t);stages[k]=(stages[k]||0)+1;}
-  return {dest,total:cs.length,arrived:arrived.length,arrival:last,complete:arrived.length===cs.length,totalDays:arrived.length===cs.length?days(t.departure,last):null,malaDays:malas.length===cs.length?days(t.borderDeparture,malas.at(-1)):null,euDays:arrived.length===cs.length&&eus.length===cs.length?days(eus[0],last):null,stages};
+  return {dest,total:cs.length,arrived:arrived.length,arrival:last,complete:arrived.length===cs.length,totalDays:arrived.length===cs.length?fromXianDays(t,last):null,dateBased:!t.departure&&!!t.planned,malaDays:malas.length===cs.length?days(t.borderDeparture,malas.at(-1)):null,euDays:arrived.length===cs.length&&eus.length===cs.length?days(eus[0],last):null,stages};
  });
  const stages={};for(const c of t.containers){const k=stage(c,t);stages[k]=(stages[k]||0)+1;}
  const last=t.events.map(e=>e.at).filter(Boolean).sort().at(-1)||null;
- return {key:t.key,name:t.name,operator:t.operator,filename:t.filename,asOf:t.asOf,departure:t.departure,departureBasis:t.departureBasis,planned:t.planned,borderArrival:t.borderArrival,borderDeparture:t.borderDeparture,borderDays:days(t.borderArrival,t.borderDeparture),dests,stages,total:t.containers.length,arrived:t.containers.filter(c=>c.arrival).length,lastUpdate:last,locations:t.events.filter(e=>e.at===last),remarks:t.containers.filter(c=>c.remark).length,containerNos:t.containers.map(c=>c.number)};
+ const dispatch=departureInfo(t),mala=Object.entries(t.latest||{}).find(([k])=>/^Latest ATA Mala$/i.test(k))?.[1];
+ return {key:t.key,name:t.name,operator:t.operator,filename:t.filename,asOf:t.asOf,origin:'西安',dispatchDate:dispatch.value,dispatchPrecision:dispatch.precision,dispatchBasis:dispatch.basis,xianBorderDays:fromXianDays(t,t.borderArrival),xianBrestDays:fromXianDays(t,t.brestArrival),xianMalaDays:fromXianDays(t,mala),departure:t.departure,departureBasis:t.departureBasis,planned:t.planned,borderArrival:t.borderArrival,borderDeparture:t.borderDeparture,borderDays:days(t.borderArrival,t.borderDeparture),dests,stages,total:t.containers.length,arrived:t.containers.filter(c=>c.arrival).length,lastUpdate:last,locations:t.events.filter(e=>e.at===last),remarks:t.containers.filter(c=>c.remark).length,containerNos:t.containers.map(c=>c.number)};
 }
 export function stats(values){const a=values.filter(v=>v!==null&&Number.isFinite(v)).sort((a,b)=>a-b);return {n:a.length,mean:a.length?a.reduce((s,v)=>s+v,0)/a.length:null,median:a.length?(a[Math.floor((a.length-1)/2)]+a[Math.ceil((a.length-1)/2)])/2:null,p90:a.length?a[Math.ceil(a.length*.9)-1]:null};}
 export function recent(t,start,end){const d=t.departure||t.planned;return !!d&&d.slice(0,10)>=start&&d.slice(0,10)<=end;}
