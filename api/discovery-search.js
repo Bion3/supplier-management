@@ -1,4 +1,5 @@
-// On-demand Google Places Text Search (New). Google content is returned transiently, not stored.
+// Authenticated source search: HMRC public CSV or transient Google Places results.
+import {createHmrcSearch} from '../server/hmrc-search.js';
 const BASE='https://hcorkkudgicarsmexnqf.supabase.co';
 const PUB='sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp';
 const headers={ 'Cache-Control':'no-store' };
@@ -9,6 +10,7 @@ export async function POST(request){
   const token=(request.headers.get('authorization')||'').replace(/^Bearer\s+/i,'');
   if(!token)return reply({error:'请先登录'},401);
   const body=await request.json();
+  if(body.source==='HMRC')return createHmrcSearch()(request,body);
   const id=String(body.task_id||'');
   if(!/^[a-f0-9-]{36}$/i.test(id))return reply({error:'任务编号无效'},400);
   const authHeaders={apikey:PUB,Authorization:'Bearer '+token};

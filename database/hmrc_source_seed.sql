@@ -1,0 +1,1 @@
+insert into public.freight_industry_directories(code,name,industry,region,resource_type,url,priority,collection_mode,access_status,notes) values('HMRC','HMRC 英国海关企业贸易活动','多行业','英国','海关企业名录','https://www.uktradeinfo.com/find-uk-traders/',1,'每日增量','可采集','按商品编码采集英国进口企业与月度活动；首批854143光伏组件。无交易金额、数量、往来国家；不能据此判定中国采购或铁路需求。由海关板块按需查询，也纳入现有行业名录增量来源。') on conflict(code) do nothing;
