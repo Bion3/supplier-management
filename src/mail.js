@@ -19,7 +19,19 @@ const pager=createPager('prev','next',(value,newSize)=>{page=value-0;render();},
 const editor=createMailEditor($('body'),$('editor-toolbar'),message=>{$('editor-error').textContent=message;});
 let rules={...defaultRules};
 const names=()=>new Map(companies.map(c=>[c.id,c]));
-async function all(table,order='id.asc'){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=${order}&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
+const mailColumns={
+ freight_companies:'id,company_name,status,role,region,addresses,current_routes,historical_routes,source_refs,notes,development_stage,is_key_customer',
+ freight_contacts:'id,company_id,name,channel,value,status,email_allowed,mail_groups',
+};
+async function all(table,order='id.asc'){
+ const rows=[],size=1000,columns=mailColumns[table]||'*',filter=table==='freight_contacts'?'&channel=eq.'+encodeURIComponent('邮箱'):'';
+ for(let offset=0;;offset+=size){
+  let batch;
+  try{batch=await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}${filter}`);}
+  catch(error){throw Error(`${{freight_companies:'公司资料',freight_contacts:'客户邮箱',freight_mail_templates:'邮件模板',freight_mail_messages:'发送记录'}[table]||table}读取失败（第 ${Math.floor(offset/size)+1} 页）：${error.message}`);}
+  rows.push(...batch);if(batch.length<size)return rows;
+ }
+}
 function authUI(){syncAuthShell();}
 async function load(){const e=++epoch;try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),all('freight_mail_messages','created_at.desc,id.desc'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected=new Set([...selected].filter(id=>contacts.some(c=>c.id===id)));applyHandoff();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){$('notice').textContent=err.message;authUI();}}}
 function cell(text){const td=document.createElement('td');td.textContent=text;return td;}
