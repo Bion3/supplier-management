@@ -14,7 +14,14 @@ export function matchCosts(input,rates,plans){
  const valid=currentRates(rates,input.date),replaced=new Set(plans.map(p=>p.supersedes_id).filter(Boolean));const result=[];
  for(const plan of plans.filter(p=>!replaced.has(p.id)&&p.status==='confirmed'&&(!p.inputs.importSource||p.inputs.railUnitCost?.complete===true)&&placeMatches(p.destination,input.destination))){
   const config=structuredClone(plan.inputs),volume=input.volume,weight=input.weight,fx=config.fx;
-  config.railUnitCost=config.railUnitCost||railUnit(config);
+  // A confirmed rail unit tariff is the source of truth. Do not silently
+  // manufacture a per-RT price by dividing an own-train container cost pool.
+  config.railUnitCost=config.railUnitCost||(
+    config.mode==='own'
+      ? {unit:null,currency:'USD',ratio:500,minimum:0,fees:0,components:[],
+         pending:['铁路计费方单价未录入，不能按整柜成本自动推导'],complete:false}
+      : railUnit(config)
+  );
   // Freight linehaul is valid only for the requested origin and this rail plan's hub.
   // Previously every linehaul ending at the hub was paired with the generic pickup
   // template, even when its starting city was unrelated to the shipment.
