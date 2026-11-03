@@ -11,7 +11,9 @@ export function calculate(s){
  // Original bands are preserved. Cross-band and fractional gaps require an explicit price.
  const matches=(s.volume>=1&&s.volume<=5&&s.weight<=2500)||(s.volume>=6&&s.volume<=10&&s.weight>=2500&&s.weight<=5000);
  if(s.pickupQuote)applyDomestic('国内提货',s.pickupQuote);else add('提货费',pickup??(matches?80:null),pickup!==null?'手动确认金额':'原始双条件阶梯');
- if(s.linehaulQuote)applyDomestic('国内干线',{...s.linehaulQuote,kind:'linehaul'});else applyDomestic('国内干线',{kind:'linehaul',rule:'billable',status:'confirmed',currency:'CNY',ratio:s.domesticRatio,cbm:s.domesticRate??null,ton:s.domesticTonRate??null,minimum:0,deliveryIncluded:true});
+ if(s.linehaulQuote?.internalNoLinehaul){warnings.push('起运地与铁路集货站同城，无独立国内干线，未重复收取干线费');}
+ else if(s.linehaulQuote)applyDomestic('国内干线',{...s.linehaulQuote,kind:'linehaul'});
+ else applyDomestic('国内干线',{kind:'linehaul',rule:'billable',status:'confirmed',currency:'CNY',ratio:s.domesticRatio,cbm:s.domesticRate??null,ton:s.domesticTonRate??null,minimum:0,deliveryIncluded:true});
  if(s.railUnitCost){
   const q=s.railUnitCost;positive(q.ratio,'铁路重抛比');railQty=Math.max(s.volume,s.weight/q.ratio);unit=amount(q.unit,'铁路采购单价');add('铁路运费',unit===null?null:Math.max(railQty*unit,q.minimum??0),`${railQty}计费方 × 已保存采购单价 USD ${unit??'待定'}`);if(s.mode==='external')add('外配杂费',q.fees??null,'铁路采购价另计杂费');pending.push(...q.pending);
  }else if(s.mode==='own'){
