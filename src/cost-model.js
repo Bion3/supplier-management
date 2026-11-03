@@ -1,7 +1,7 @@
 import {domesticCost} from './domestic-model.js';
 export const defaults=()=>({route:'西安—汉堡',box:'40HQ',fx:7,capacity:60,domesticRatio:300,railRatio:500,volume:5,weight:1000,domesticRate:null,domesticTonRate:null,pickup:null,profitMode:'markup',profit:10,mode:'own',selected:0,own:[{name:'西安装箱',amount:3000,currency:'CNY'},{name:'铁路运费',amount:8400,currency:'USD'},{name:'租箱',amount:1800,currency:'USD'},{name:'目的港提柜拆箱',amount:1200,currency:'USD'},{name:'THC',amount:null,currency:'USD'}].map(x=>({...x,selected:0,alternatives:[{supplierId:'',supplierName:'待关联',version:'用户参考价',...x},{supplierId:'',supplierName:'备选2',version:'',amount:null,currency:x.currency},{supplierId:'',supplierName:'备选3',version:'',amount:null,currency:x.currency}]})),external:Array.from({length:3},(_,i)=>({supplierId:'',supplierName:`拼箱商${i+1}`,version:'',rate:null,ratio:500,minimum:0,fees:null,included:'',validUntil:''}))});
 const positive=(x,label)=>{if(!Number.isFinite(x)||x<=0)throw Error(label+'必须大于0');return x;};
-const amount=(x,label)=>{if(x===null||x==='')return null;if(!Number.isFinite(x)||x<0)throw Error(label+'不能为负数');return x;};
+const amount=(x,label)=>{if(x===null||x===undefined||x==='')return null;if(!Number.isFinite(x)||x<0)throw Error(label+'不能为负数');return x;};
 export function calculate(s){
  positive(s.fx,'汇率');positive(s.capacity,'预计计费方');positive(s.domesticRatio,'干线重抛比');positive(s.railRatio,'铁路重抛比');positive(s.volume,'体积');positive(s.weight,'重量');
  const pending=[],warnings=[],lines=[],domesticQty=Math.max(s.volume,s.weight/s.domesticRatio);let railQty,unit;
