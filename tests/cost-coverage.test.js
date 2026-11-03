@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estimateFcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
+import {estimateFcl,estimateLcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
 const source=(valid=true,price=8400)=>({id:'rail-1',origin:'西安',destination:'汉堡',supplier_id:'supplier-1',status:'confirmed',quote:{container:'40HQ',equipment:'COC',scope:'站到站',unit:'柜',price,currency:'USD',fees:[],validFrom:valid?'2026-10-01':'',validUntil:valid?'2026-11-30':''}});
 const input={transport:'fcl',station:'西安',origin:'西安',destination:'汉堡',date:'2026-10-25',quantity:2,box:'40HQ',equipment:'COC',truck:false,rent:false,fx:7,eurFx:null,profitMode:'markup',profit:10,termsReviewed:true};
 test('confirmed valid FCL rail rate is calculated per container',()=>{
@@ -81,4 +81,25 @@ test('expired confirmed rail and rental rates remain costed and identified',()=>
  assert.equal(result.result.cost,16800);
  assert.equal(result.result.validity[0].status,'已过期');
  assert.equal(result.result.validity[0].until,'2026-09-30');
+});
+
+test('Xi’an local pickup uses only the pickup tier, never a different city linehaul',()=>{
+ const shared={id:'pickup-local',kind:'pickup',origin:'通用本地提货',destination:'本地集货仓',status:'confirmed',supplier_id:null,quote:{kind:'pickup',sharedPickup:true,tierMode:'ceil',rule:'tier',ratio:300,currency:'USD',minimum:0,deliveryIncluded:true,tiers:[{minVolume:4,maxVolume:10,minWeight:2500,maxWeight:5000,amount:125,unit:'fixed'}]}};
+ const shanghai={id:'linehaul-from-shanghai',kind:'linehaul',origin:'上海,上海市',destination:'西安',status:'confirmed',supplier_id:'other',quote:{kind:'linehaul',rule:'max',cbm:110,ton:410,ratio:300,currency:'CNY',minimum:0,deliveryIncluded:true}};
+ const plan={id:'plan-xian-hamburg',origin:'西安',destination:'汉堡',status:'confirmed',inputs:{mode:'own',fx:7,capacity:60,domesticRatio:300,railRatio:500,railUnitCost:{unit:197.14285714285717,ratio:500,minimum:0,pending:['THC']}}};
+ const input={transport:'lcl',scope:'door',origin:'西安',destination:'汉堡',date:'2026-11-03',pieces:5,weight:5000,volume:10,fx:7,profitMode:'markup',profit:15};
+ const local=estimateLcl(input,{domestic:[shared,shanghai],plans:[plan]})[0];
+ assert.equal(local.inputs.pickupQuote.quoteId,'pickup-local');
+ assert.equal(local.inputs.linehaulQuote.internalNoLinehaul,true);
+ assert.equal(local.result.lines.filter(line=>line.name==='国内干线').length,0);
+ assert.equal(local.result.lines.find(line=>line.name==='国内提货').value,125);
+ assert.ok(Math.abs(local.result.cost-(125+1971.4285714285716))<0.001);
+ assert.equal(local.result.complete,false);
+ assert.match(local.result.pending.join(';'),/THC/);
+ const mismatch=estimateLcl({...input,origin:'天津'},{domestic:[shared,shanghai],plans:[plan]})[0];
+ assert.equal(mismatch.inputs.linehaulQuote.quoteId,undefined);
+ assert.equal(mismatch.result.lines.some(line=>line.name==='国内干线'),false);
+ assert.equal(mismatch.result.lines.some(line=>line.name==='国内提货'),false);
+ assert.equal(mismatch.result.complete,false);
+ assert.match(mismatch.result.pending.join(';'),/国内干线/);
 });
