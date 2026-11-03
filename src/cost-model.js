@@ -6,7 +6,7 @@ export function calculate(s){
  positive(s.fx,'汇率');positive(s.capacity,'预计计费方');positive(s.domesticRatio,'干线重抛比');positive(s.railRatio,'铁路重抛比');positive(s.volume,'体积');positive(s.weight,'重量');
  const pending=[],warnings=[],lines=[],domesticQty=Math.max(s.volume,s.weight/s.domesticRatio);let railQty,unit;
  const add=(name,value,basis)=>{if(value===null)pending.push(name);else lines.push({name,value,basis});};
- const applyDomestic=(name,q)=>{const r=domesticCost(q,s.volume,s.weight,s.fx,s.date);add(name,r.usd,r.basis+'；采购版本 '+(q.quoteId||q.source||''));pending.push(...r.pending.map(p=>name+'：'+p));warnings.push(...(r.warnings||[]).map(p=>name+'：'+p));};
+ const applyDomestic=(name,q)=>{const r=domesticCost(q,s.volume,s.weight,s.fx,s.date);const noRate=r.pending.some(p=>/运费缺价|计价规则待确认|阶梯重叠|货物不在阶梯范围|方价缺失|吨价缺失/.test(p));add(name,noRate?null:r.usd,r.basis+'；采购版本 '+(q.quoteId||q.source||''));pending.push(...r.pending.map(p=>name+'：'+p));warnings.push(...(r.warnings||[]).map(p=>name+'：'+p));};
  const pickup=amount(s.pickup,'提货费');
  // Original bands are preserved. Cross-band and fractional gaps require an explicit price.
  const matches=(s.volume>=1&&s.volume<=5&&s.weight<=2500)||(s.volume>=6&&s.volume<=10&&s.weight>=2500&&s.weight<=5000);
