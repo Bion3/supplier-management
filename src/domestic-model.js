@@ -9,10 +9,13 @@ export function domesticCost(q,volume,weight,fx,date=new Date().toISOString().sl
  const cbm=n(q.cbm,'方价'),ton=n(q.ton,'吨价');
  // Linehaul selects the tariff by density, never by comparing charge amounts.
  if(q.kind==='linehaul'&&['cbm','ton','max','billable'].includes(q.rule)){
-  if(!Number.isFinite(q.ratio)||q.ratio<=0)throw Error('重抛比必须大于0');
-  const heavy=weight>=volume*q.ratio,rate=heavy?ton:cbm,quantity=heavy?weight/1000:volume;
+  // Domestic LCL linehaul always classifies at 1 CBM : 300 KG.
+  // The heavy branch bills actual tonnes at the supplier's tonne rate;
+  // the light branch bills physical CBM at the supplier's CBM rate.
+  const heavy=weight>=volume*300,rate=heavy?ton:cbm,quantity=heavy?weight/1000:volume;
+  if(q.ratio!==undefined&&q.ratio!==null&&Number(q.ratio)!==300)warnings.push('原采购记录重抛比不是1:300，已按统一国内干线规则计算');
   freight=rate===null?null:quantity*rate;
-  basis.push(`重抛比1:${q.ratio}；${heavy?'重货':'轻货'}；${quantity}${heavy?'吨':'CBM'} × ${rate??'待定'}${heavy?'/吨':'/CBM'}`);
+  basis.push(`国内重抛比1:300；${heavy?'重货':'轻货'}；${quantity}${heavy?'吨':'CBM'} × ${rate??'待定'}${heavy?'/吨':'/CBM'}`);
   if(rate===null)pending.push(heavy?'重货吨价缺失':'轻货方价缺失');
  }else switch(q.rule){
  case 'cbm':freight=cbm===null?null:volume*cbm;basis.push(`${volume}CBM × ${cbm??'待定'}`);break;
