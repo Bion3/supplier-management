@@ -19,7 +19,7 @@ export function quoteAuditRows(selected){
   ...(input.truck?[['国内拖车','truck']]:[]),['整箱铁路','rail'],
   ...(input.rent&&input.equipment==='SOC'?[['租箱基础费（不含超期）','rent']]:[])
  ]:[
-  ...(input.scope==='station'?[]:[['国内提货','pickup'],['国内干线','linehaul']]),
+  ...(input.scope==='station'?[]:[['国内提货','pickup'],...(input.linehaulQuote?.internalNoLinehaul?[]:[['国内干线','linehaul']])]),
   ['拼箱铁路运费','rail']
  ];
  const pending=result.pending||[],out=[];
