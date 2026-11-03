@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {estimateFcl,estimateLcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
+import {domesticCost} from '../src/domestic-model.js';
+import {calculate} from '../src/cost-model.js';
 const source=(valid=true,price=8400)=>({id:'rail-1',origin:'西安',destination:'汉堡',supplier_id:'supplier-1',status:'confirmed',quote:{container:'40HQ',equipment:'COC',scope:'站到站',unit:'柜',price,currency:'USD',fees:[],validFrom:valid?'2026-10-01':'',validUntil:valid?'2026-11-30':''}});
 const input={transport:'fcl',station:'西安',origin:'西安',destination:'汉堡',date:'2026-10-25',quantity:2,box:'40HQ',equipment:'COC',truck:false,rent:false,fx:7,eurFx:null,profitMode:'markup',profit:10,termsReviewed:true};
 test('confirmed valid FCL rail rate is calculated per container',()=>{
@@ -102,4 +104,39 @@ test('Xi’an local pickup uses only the pickup tier, never a different city lin
  assert.equal(mismatch.result.lines.some(line=>line.name==='国内提货'),false);
  assert.equal(mismatch.result.complete,false);
  assert.match(mismatch.result.pending.join(';'),/国内干线/);
+});
+
+test('domestic linehaul 1:300 selects volume price for light goods, not maximum billed amount',()=>{
+ const q={kind:'linehaul',rule:'max',ratio:300,cbm:100,ton:550,currency:'USD',minimum:0,deliveryIncluded:true,status:'confirmed'};
+ const light=domesticCost(q,10,2000,7,'2026-11-03');
+ assert.equal(light.usd,1000);assert.match(light.basis,/轻货.*10CBM × 100/);
+ const heavy=domesticCost(q,10,5000,7,'2026-11-03');
+ assert.equal(heavy.usd,2750);assert.match(heavy.basis,/重货.*5吨 × 550/);
+ const boundary=domesticCost(q,10,3000,7,'2026-11-03');
+ assert.equal(boundary.usd,1650);assert.match(boundary.basis,/重货/);
+});
+test('railway heavy bills KG/500 times recorded per-chargeable-CBM rate; fixed fee only once',()=>{
+ const input={fx:7,capacity:60,domesticRatio:300,railRatio:500,volume:8,weight:5000,pickup:0,
+  linehaulQuote:{internalNoLinehaul:true},
+  pickupQuote:{status:'confirmed',rule:'fixed',fixed:0,minimum:0,currency:'USD',deliveryIncluded:true},
+  railUnitCost:{unit:175,ratio:500,minimum:0,fees:150,pending:[]},
+  mode:'external',profitMode:'markup',profit:10};
+ const r=calculate(input);
+ assert.equal(r.railQty,10);
+ assert.equal(r.lines.find(x=>x.name==='铁路运费').value,1750);
+ assert.equal(r.lines.find(x=>x.name==='外配杂费').value,150);
+ assert.equal(r.cost,1900);
+ const light=calculate({...input,weight:2000});
+ assert.equal(light.railQty,8);
+ assert.equal(light.lines.find(x=>x.name==='铁路运费').value,1400);
+});
+test('missing own-plan rail unit cannot silently use container-pool conversion',()=>{
+ const p={id:'own-no-unit',origin:'西安',destination:'汉堡',status:'confirmed',inputs:{
+  mode:'own',fx:7,capacity:60,domesticRatio:300,railRatio:500,pickup:null,profitMode:'markup',profit:10,
+  own:[{name:'整柜铁路',selected:0,alternatives:[{amount:8400,currency:'USD'}]}]
+ }};
+ const v=estimateLcl({transport:'lcl',scope:'station',station:'西安',origin:'西安',destination:'汉堡',date:'2026-11-03',pieces:1,weight:5000,volume:8,fx:7,profitMode:'markup',profit:10},{domestic:[],plans:[p]})[0];
+ assert.equal(v.result.lines.some(x=>x.name==='铁路运费'),false);
+ assert.match(v.result.pending.join(';'),/铁路计费方单价未录入/);
+ assert.equal(v.result.complete,false);
 });
