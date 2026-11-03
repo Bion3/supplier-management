@@ -86,7 +86,7 @@ test('expired confirmed rail and rental rates remain costed and identified',()=>
 test('Xi’an local pickup uses only the pickup tier, never a different city linehaul',()=>{
  const shared={id:'pickup-local',kind:'pickup',origin:'通用本地提货',destination:'本地集货仓',status:'confirmed',supplier_id:null,quote:{kind:'pickup',sharedPickup:true,tierMode:'ceil',rule:'tier',ratio:300,currency:'USD',minimum:0,deliveryIncluded:true,tiers:[{minVolume:4,maxVolume:10,minWeight:2500,maxWeight:5000,amount:125,unit:'fixed'}]}};
  const shanghai={id:'linehaul-from-shanghai',kind:'linehaul',origin:'上海,上海市',destination:'西安',status:'confirmed',supplier_id:'other',quote:{kind:'linehaul',rule:'max',cbm:110,ton:410,ratio:300,currency:'CNY',minimum:0,deliveryIncluded:true}};
- const plan={id:'plan-xian-hamburg',origin:'西安',destination:'汉堡',status:'confirmed',inputs:{mode:'own',fx:7,capacity:60,domesticRatio:300,railRatio:500,railUnitCost:{unit:197.14285714285717,ratio:500,minimum:0,pending:['THC']}}};
+ const plan={id:'plan-xian-hamburg',origin:'西安',destination:'汉堡',status:'confirmed',inputs:{mode:'own',fx:7,capacity:60,domesticRatio:300,railRatio:500,profitMode:'markup',profit:15,pickup:null,railUnitCost:{unit:197.14285714285717,ratio:500,minimum:0,pending:['THC']}}};
  const input={transport:'lcl',scope:'door',origin:'西安',destination:'汉堡',date:'2026-11-03',pieces:5,weight:5000,volume:10,fx:7,profitMode:'markup',profit:15};
  const local=estimateLcl(input,{domestic:[shared,shanghai],plans:[plan]})[0];
  assert.equal(local.inputs.pickupQuote.quoteId,'pickup-local');
