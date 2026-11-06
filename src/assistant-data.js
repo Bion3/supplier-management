@@ -16,3 +16,15 @@ export async function taskSummary(request,range='today',now=new Date()){
   return {name:source[1],kind:source[0],limited:response.value.length>100,...dailyStats(data.map(row=>normalizeRun(source[0],row)))};
  });
 }
+
+export async function mailSummary(request){
+ const columns='id,recipient,subject,status,scheduled_at,created_at,error,delivery_status';
+ const sources=[
+  {kind:'queue',name:'待发送队列',href:'/mail.html?view=drafts&state=queue',query:'freight_mail_messages?select='+columns+'&status=in.(scheduled,sending)&order=scheduled_at.asc.nullslast,id.asc'},
+  {kind:'drafts',name:'未提交草稿',href:'/mail.html?view=drafts&state=draft',query:'freight_mail_messages?select='+columns+'&status=eq.draft&order=created_at.desc,id.desc'},
+  {kind:'issues',name:'发送异常 / 退信',href:'/mail.html?view=drafts&state=issues',query:'freight_mail_messages?select='+columns+'&or=(status.in.(failed,unknown),delivery_status.like.bounce_*)&order=created_at.desc,id.desc'},
+  {kind:'replies',name:'客户回复',href:'/inbox.html',query:'freight_mail_inbox?select=id,from_email,from_name,subject,received_at,unread,reply_message_id&mail_kind=eq.normal&reply_message_id=not.is.null&order=received_at.desc,id.desc'}
+ ];
+ const responses=await Promise.allSettled(sources.map(source=>request(source.query+'&limit=11')));
+ return sources.map(({query,...source},i)=>{const response=responses[i];return response.status==='fulfilled'&&Array.isArray(response.value)?{...source,rows:response.value.slice(0,10),limited:response.value.length>10}:{...source,error:true};});
+}

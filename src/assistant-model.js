@@ -1,6 +1,6 @@
 export const countryAliases={德国:['德国','Germany'],波兰:['波兰','Poland'],荷兰:['荷兰','Netherlands'],法国:['法国','France'],意大利:['意大利','Italy'],英国:['英国','United Kingdom','UK'],西班牙:['西班牙','Spain'],捷克:['捷克','Czech'],匈牙利:['匈牙利','Hungary'],俄罗斯:['俄罗斯','Russia'],伊朗:['伊朗','Iran']};
 export function assistantIntent(text){
- if(/邮件|开发信|跟进信|email|draft/i.test(text))return 'draft';
+ if(/邮件|开发信|跟进信|收件|回复|email|draft/i.test(text))return 'mail';
  if(/任务|进度|采集|失败|同步/.test(text))return 'tasks';
  if(/成本|费用|报价|运价|价格|重泡|重抛|计费/.test(text))return 'cost';
  if(/客户|企业|进口商|批发商|分销商|同行/.test(text))return 'customers';

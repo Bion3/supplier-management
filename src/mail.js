@@ -164,6 +164,8 @@ installMailVerification({buttonId:'verify-selected',getContacts:()=>contacts,get
  if(group)scopes.push({value:'group',label:'当前分组：'+(group==='__ungrouped'?'未分组':group),rows:filterRecipients(contacts,companies,{group})});
  const visibleIds=draftView?new Set(draftBulk.getVisibleContactIds()):null;scopes.push({value:'filtered',label:'全部筛选结果',rows:draftView?contacts.filter(c=>visibleIds.has(c.id)):filtered()});return scopes;
 },applyRows:rows=>{const map=new Map(rows.map(c=>[c.id,c]));contacts=contacts.map(c=>map.get(c.id)||c);},render});
+const entry=new URLSearchParams(location.search);
+if(entry.get('view')==='drafts'){mailView='drafts';const state=entry.get('state');if(['draft','queue','sent','issues'].includes(state))$('draft-status').value=state;}
 if(mailView==='compose')mailView='recipients';applyMailView();authUI();if(currentUser())load();
 
 

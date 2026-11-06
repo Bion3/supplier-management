@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {assistantIntent,assistantFilters,regionVariants,mailDraft} from '../src/assistant-model.js';
-import {findCustomers,taskSummary} from '../src/assistant-data.js';
+import {findCustomers,taskSummary,mailSummary} from '../src/assistant-data.js';
 import {loginDestination} from '../src/login-model.js';
 test('customer query identifies country/stage/contact/source without treating missing email as contactable',()=>{
  assert.deepEqual(assistantFilters('查德国 ENF 有邮箱的待开发客户'),{region:'德国',contact:'verified-email',stage:'待开发',directory:'ENF'});
@@ -9,7 +9,7 @@ test('customer query identifies country/stage/contact/source without treating mi
  assert.equal(assistantFilters('暂不开发的同行客户').stage,'暂缓开发');
  assert.equal(assistantFilters('Turkey 客户').region,undefined);
  assert.equal(regionVariants({region:'德国'})[1].region,'Germany');
- assert.equal(assistantIntent('写邮件给德国客户'),'draft');
+ assert.equal(assistantIntent('写邮件给德国客户'),'mail');
  assert.equal(assistantIntent('最近7天采集任务'),'tasks');
  assert.equal(assistantIntent('查询运价'),'cost');
 });
@@ -34,4 +34,14 @@ test('six fixed mail templates fill entered fields, retain signature and never i
 test('assistant login returns to protected assistant page while rejecting external redirects',()=>{
  assert.equal(loginDestination('/assistant.html','https://crm.eurasiago.com'),'/assistant.html');
  assert.equal(loginDestination('https://evil.example/assistant.html','https://crm.eurasiago.com'),'/hub.html');
+});
+
+test('mail overview reads bounded queues and matched replies without sending or reading bodies',async()=>{
+ const paths=[];
+ const result=await mailSummary(async(path,options)=>{assert.equal(options,undefined);paths.push(path);if(path.includes('status=eq.draft'))throw Error('offline');return Array.from({length:11},(_,id)=>({id}));});
+ assert.equal(result[0].rows.length,10);assert.equal(result[0].limited,true);assert.equal(result[1].error,true);assert.equal(result[2].kind,'issues');assert.equal(result[3].kind,'replies');
+ for(const path of paths){assert.ok(path.endsWith('&limit=11'));assert.ok(!path.includes('body'));}
+ assert.ok(paths[0].includes('status=in.(scheduled,sending)'));assert.ok(paths[2].includes('delivery_status.like.bounce_*'));
+ assert.ok(paths[3].includes('mail_kind=eq.normal&reply_message_id=not.is.null'));
+ assert.equal(assistantIntent('查看客户回复'),'mail');assert.equal(assistantIntent('待发送邮件任务'),'mail');
 });
