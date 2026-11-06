@@ -143,3 +143,14 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 .cost-compare-group th:last-child,.cost-compare-group td:last-child{min-width:78px;white-space:nowrap}
 .cost-compare-group td small{display:block;line-height:1.5;margin-top:4px}
 @media(max-width:700px){.cost-audit-heading{display:block}.cost-audit-table{min-width:720px}.audit-overview{align-items:flex-start}}
+
+/* Quote entry: make mode selection the first choice; keep station filters compact. */
+#goods .cost-mode-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+#goods .cost-mode-switch button{border:1px solid #dbe4ea;background:#fff;color:#334155;border-radius:12px;padding:13px 16px;text-align:left;display:flex;flex-direction:column;gap:3px;cursor:pointer;min-height:66px}
+#goods .cost-mode-switch button strong{font-size:15px}
+#goods .cost-mode-switch button small{font-size:12px;color:#64748b}
+#goods .cost-mode-switch button.active{border-color:#147d71;background:#eff9f6;box-shadow:0 0 0 1px #147d71;color:#17594c}
+#goods .cost-mode-switch button:focus-visible{outline:3px solid #86cbb9;outline-offset:2px}
+#goods #destination-region,#goods #destination-country{min-width:0}
+#goods #cost-destination-help{display:block;line-height:1.5;font-size:11px;color:#64748b;margin-top:4px}
+@media(max-width:650px){#goods .cost-mode-switch button{padding:11px;min-height:61px}#goods .cost-mode-switch button strong{font-size:14px}}
