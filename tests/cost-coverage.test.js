@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {estimateFcl,estimateLcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
 import {domesticCost} from '../src/domestic-model.js';
 import {calculate} from '../src/cost-model.js';
+import {classifyQuoteDestination,destinationChoices} from '../src/cost-destination-options.js';
+import {readFileSync} from 'node:fs';
 const source=(valid=true,price=8400)=>({id:'rail-1',origin:'西安',destination:'汉堡',supplier_id:'supplier-1',status:'confirmed',quote:{container:'40HQ',equipment:'COC',scope:'站到站',unit:'柜',price,currency:'USD',fees:[],validFrom:valid?'2026-10-01':'',validUntil:valid?'2026-11-30':''}});
 const input={transport:'fcl',station:'西安',origin:'西安',destination:'汉堡',date:'2026-10-25',quantity:2,box:'40HQ',equipment:'COC',truck:false,rent:false,fx:7,eurFx:null,profitMode:'markup',profit:10,termsReviewed:true};
 test('confirmed valid FCL rail rate is calculated per container',()=>{
@@ -155,4 +157,33 @@ test('large or special LCL cargo remains pending and cannot produce publishable 
  }
  const exact=calculate({...base,volume:25,weight:7000,pieceLength:3,pieceWidth:1.5,pieceHeight:1.5,pieceWeight:3000});
  assert.equal(exact.complete,true);
+});
+
+test('internal FCL and LCL destination lists filter by country/region and discard old versions',()=>{
+ const rows=[
+  {id:'fcl-1',destination:'莫斯科',status:'confirmed'},
+  {id:'fcl-2',destination:'汉堡（快线）',status:'confirmed'},
+  {id:'fcl-3',destination:'马拉',status:'confirmed'},
+  {id:'fcl-4',destination:'布达佩斯',status:'confirmed'},
+  {id:'fcl-5',destination:'旧报价站',status:'confirmed'},
+  {id:'fcl-6',destination:'未录价',status:'draft'},
+  {id:'fcl-7',destination:'莫斯科',status:'confirmed',supersedes_id:'fcl-5'},
+ ];
+ assert.deepEqual(classifyQuoteDestination('莫斯科'),{region:'俄罗斯及独联体',country:'俄罗斯'});
+ assert.deepEqual(classifyQuoteDestination('马拉'),{region:'欧洲',country:'波兰'});
+ assert.deepEqual(classifyQuoteDestination('不明站'),{region:'未分类',country:'待核实'});
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'欧洲',country:'德国'}),['汉堡（快线）']);
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'欧洲',country:'波兰'}),['马拉']);
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'俄罗斯及独联体'}),['莫斯科']);
+ assert.equal(destinationChoices(rows,'fcl').includes('旧报价站'),false);
+ assert.equal(destinationChoices(rows,'fcl').includes('未录价'),false);
+});
+test('internal quote page uses separate FCL/LCL tabs and region/country-station selectors',()=>{
+ const html=readFileSync(new URL('../cost.html',import.meta.url),'utf8');
+ const code=readFileSync(new URL('../src/cost-auto.js',import.meta.url),'utf8');
+ for(const key of ['data-cost-mode="fcl"','data-cost-mode="lcl"','id="destination-region"','id="destination-country"','id="cost-destination-list"'])assert.ok(html.includes(key),key);
+ assert.match(code,/function renderDestinationFilters\(/);
+ assert.match(code,/destinationChoices\(pricedDestinations\[kind\]/);
+ assert.match(code,/async function loadDestinationChoices\(/);
+ assert.match(code,/\$\('destination'\)\.value=''/);
 });
