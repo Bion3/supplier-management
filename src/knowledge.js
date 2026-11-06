@@ -58,18 +58,21 @@ $('shipment-form').addEventListener('input',()=>{clearShipment();$('shipment-err
 function evidence(e){
  const wrap=document.createElement('div');wrap.className='evidence-row';const title=document.createElement('strong');title.textContent=e.title;
  const meta=para(`${e.resultStatus} · ${e.matchReason} · ${e.source||'来源待补充'} · 生效 ${e.effective_from||'未知'} / 失效 ${e.valid_until||'未注明'}`);meta.className='evidence-meta';
- wrap.append(title,meta,btn('查看原文与版本',()=>openDetail(e.id)));return wrap;
+ wrap.append(title,...(e.hit?[para(e.hit)]:[]),meta,btn('查看原文与版本',()=>openDetail(e.id)));return wrap;
 }
 $('shipment-form').addEventListener('submit',event=>{
  event.preventDefault();$('shipment-error').textContent='';
  try{
  const input=Object.fromEntries(new FormData(event.currentTarget));const result=shipmentRequirements(input,{entries,routes,stations,sources},chinaDate());
  const box=$('shipment-results');box.replaceChildren();box.hidden=false;
- const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=`${input.origin} → ${input.destination} · ${input.shipment_type}`;
+ const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=`${input.origin||'发站待定'} → ${input.destination||'目的站待定'} · ${input.shipment_type}`;
  const summary=`${input.cargo} · ${input.pieces||'—'}件 / ${input.weight||'—'}kg / ${input.volume||'—'}m³${result.density!==null?' · 密度 '+result.density.toFixed(1)+' kg/m³':''}`;
  intro.append(h,para(summary),para(`按 ${result.date} 核对版本 · ${result.approved} 条已核实要求 · ${result.relevant.length} 条相关依据`));
- const copy=btn('复制操作清单',async()=>{const text=[h.textContent,summary,'待确认事项',...result.risks.map(x=>'• '+x),...result.groups.flatMap((g,i)=>[`${i+1}. ${g.title}（操作准备建议）`,g.action,...g.items.filter(e=>e.approved).map(e=>e.title+'\n'+e.content+'\n来源：'+e.source)]),'匹配资料为参考，具体接货与时限需承运方确认。'].join('\n');try{await navigator.clipboard.writeText(text);copy.textContent='已复制';}catch{copy.textContent='复制失败，请手动选择结果复制';}});head.append(intro,copy);box.append(head);
- const warning=document.createElement('section');warning.className='result-warning';const wh=document.createElement('h3');wh.textContent='先确认这些信息';const list=document.createElement('ul');for(const r of result.risks){const li=document.createElement('li');li.textContent=r;list.append(li);}warning.append(wh,list);box.append(warning);
+ const copy=btn('复制操作清单',async()=>{const text=[h.textContent,summary,'本票操作清单',...result.todo.map((x,i)=>(i+1)+'. '+x),...result.matches.map(e=>'品名参考（'+e.resultStatus+'）：'+e.title+' / '+e.hit),'待确认事项',...result.risks.map(x=>'• '+x),...result.groups.flatMap((g,i)=>[`${i+1}. ${g.title}（操作准备建议）`,g.action,...g.items.filter(e=>e.approved).map(e=>e.title+'\n'+e.content+'\n来源：'+e.source)]),'匹配资料为参考，具体接货与时限需承运方确认。'].join('\n');try{await navigator.clipboard.writeText(text);copy.textContent='已复制';}catch{copy.textContent='复制失败，请手动选择结果复制';}});head.append(intro,copy);box.append(head);
+ const checklist=document.createElement('section');checklist.className='panel step-card';const label=document.createElement('h3');label.textContent='本票操作清单';const steps=document.createElement('ol');for(const action of result.todo){const li=document.createElement('li');li.textContent=action;steps.append(li);}checklist.append(label,steps);box.append(checklist);
+ if(result.matches.length){const hit=document.createElement('section');hit.className='panel step-card';const h=document.createElement('h3');h.textContent='本票品名匹配 · 核对适用条件';hit.append(h,...result.matches.map(evidence));box.append(hit);}
+ const more=document.createElement('details');more.className='panel step-card';const caption=document.createElement('summary');caption.textContent='展开详细操作、资料和待确认事项';more.append(caption);box.append(more);
+ const warning=document.createElement('section');warning.className='result-warning';const wh=document.createElement('h3');wh.textContent='先确认这些信息';const list=document.createElement('ul');for(const r of result.risks){const li=document.createElement('li');li.textContent=r;list.append(li);}warning.append(wh,list);more.append(warning);
  result.groups.forEach((g,i)=>{
  const card=document.createElement('section');card.className='panel step-card';const title=document.createElement('h3');title.textContent=`0${i+1}  ${g.title}`;card.append(title,para(g.action));
  const verified=g.items.filter(e=>e.approved);for(const e of verified){const detail=document.createElement('div');detail.className='confirmed';detail.append(para(e.content),evidence(e));card.append(detail);}
@@ -77,9 +80,10 @@ $('shipment-form').addEventListener('submit',event=>{
  const docs=[...new Set(g.items.flatMap(e=>(e.content?.match(/^单据：([^\n]+)/m)?.[1]||'').match(/《[^》]+》/g)||[]))];
  if(docs.length){const d=para('历史流程涉及的资料（需确认本票适用）：'+docs.join('、'));card.append(d);}
  const pending=g.items.filter(e=>!e.approved);if(pending.length){const details=document.createElement('details'),sum=document.createElement('summary');sum.textContent=`查看 ${pending.length} 条待核实 / 历史依据`;details.append(sum,...pending.map(evidence));card.append(details);}else if(!g.items.length)card.append(para('尚无匹配依据，请向发站或目的站代理补充资料。'));
- box.append(card);
+ more.append(card);
  });
- if(result.references.length){const details=document.createElement('details');details.className='panel step-card';const sum=document.createElement('summary');sum.textContent=`其他相关参考（${result.references.length}）`;details.append(sum,...result.references.map(evidence));box.append(details);}
+ if(result.references.length){const details=document.createElement('details');details.className='panel step-card';const sum=document.createElement('summary');sum.textContent=`其他相关参考（${result.references.length}）`;details.append(sum,...result.references.map(evidence));more.append(details);}
+ if(result.otherStations.length){const d=document.createElement('details'),cap=document.createElement('summary');d.className='panel step-card';cap.textContent='其他站点品名参考（不作为本票要求） · '+result.otherStations.length;d.append(cap,...result.otherStations.map(evidence));box.append(d);}
  box.scrollIntoView({behavior:'smooth',block:'start'});
  }catch(e){$('shipment-error').textContent=e.message;}
 });
