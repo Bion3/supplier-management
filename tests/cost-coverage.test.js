@@ -178,12 +178,18 @@ test('internal FCL and LCL destination lists filter by country/region and discar
  assert.equal(destinationChoices(rows,'fcl').includes('旧报价站'),false);
  assert.equal(destinationChoices(rows,'fcl').includes('未录价'),false);
 });
-test('internal quote page uses separate FCL/LCL tabs and region/country-station selectors',()=>{
+test('internal quote page uses FCL/LCL tabs and one searchable grouped destination picker',()=>{
  const html=readFileSync(new URL('../cost.html',import.meta.url),'utf8');
  const code=readFileSync(new URL('../src/cost-auto.js',import.meta.url),'utf8');
- for(const key of ['data-cost-mode="fcl"','data-cost-mode="lcl"','id="destination-region"','id="destination-country"','id="cost-destination-list"'])assert.ok(html.includes(key),key);
- assert.match(code,/function renderDestinationFilters\(/);
+ for(const key of ['data-cost-mode="fcl"','data-cost-mode="lcl"','id="destination"','id="cost-destination-panel"','id="cost-destination-groups"','id="cost-destination-toggle"'])assert.ok(html.includes(key),key);
+ for(const retired of ['id="destination-region"','id="destination-country"','id="cost-destination-list"'])assert.equal(html.includes(retired),false,retired);
+ assert.match(code,/function renderDestinationGroups\(/);
+ assert.match(code,/grouped\.get\(region\)\.get\(country\)\.push\(name\)/);
  assert.match(code,/destinationChoices\(pricedDestinations\[kind\]/);
+ assert.match(code,/data-choose-destination/);
+ assert.match(code,/function toggleDestinationPanel\(/);
  assert.match(code,/async function loadDestinationChoices\(/);
  assert.match(code,/\$\('destination'\)\.value=''/);
+ assert.match(code,/e\.key==='Escape'/);
+ assert.match(code,/e\.key==='ArrowDown'/);
 });
