@@ -154,3 +154,22 @@ main>.panel,#workspace>.panel{margin-top:16px;padding:20px}summary{cursor:pointe
 #goods #destination-region,#goods #destination-country{min-width:0}
 #goods #cost-destination-help{display:block;line-height:1.5;font-size:11px;color:#64748b;margin-top:4px}
 @media(max-width:650px){#goods .cost-mode-switch button{padding:11px;min-height:61px}#goods .cost-mode-switch button strong{font-size:14px}}
+
+/* Single destination picker: grouped by region and country, search in one field. */
+#goods .cost-destination-field{position:relative;min-width:0;display:flex;flex-direction:column;gap:5px}
+#goods .cost-destination-field>label{font-size:inherit}
+#goods .cost-destination-control{display:flex;align-items:stretch;min-width:0}
+#goods .cost-destination-control input{flex:1;min-width:0;border-radius:8px 0 0 8px}
+#goods #cost-destination-toggle{flex:none;width:40px;margin:0;padding:0;border:1px solid #d5e1e5;border-left:0;background:#f5f9f8;color:#285b54;border-radius:0 8px 8px 0;font-size:17px}
+#goods #cost-destination-toggle:hover{background:#e8f6f1}
+#goods .cost-destination-panel{position:absolute;z-index:30;top:calc(100% - 23px);left:0;right:0;background:#fff;border:1px solid #cddfe0;border-radius:10px;box-shadow:0 12px 30px rgba(14,51,60,.16);padding:8px 10px;max-height:330px;overflow-y:auto;overscroll-behavior:contain}
+#goods .cost-destination-region{padding:3px 0 7px}
+#goods .cost-destination-region+.cost-destination-region{border-top:1px solid #e4ebee}
+#goods .cost-destination-region h4{font-size:12px;color:#126b5f;margin:4px 0 6px;font-weight:700}
+#goods .cost-destination-country{padding:2px 0 7px}
+#goods .cost-destination-country-name{font-size:11px;color:#64748b;margin-bottom:5px}
+#goods .cost-destination-stations{display:flex;flex-wrap:wrap;gap:5px}
+#goods .cost-destination-option{font-size:12px;text-align:left;white-space:normal;overflow-wrap:anywhere;border:1px solid #deeaec;background:#f8fafb;color:#263f48;border-radius:7px;padding:6px 9px;margin:0;line-height:1.4}
+#goods .cost-destination-option:hover,#goods .cost-destination-option:focus-visible{border-color:#1a8d7c;background:#e9f7f3;outline:none}
+#goods .cost-destination-empty{font-size:12px;padding:12px;color:#64748b}
+@media(max-width:650px){#goods .cost-destination-panel{max-height:290px}}
