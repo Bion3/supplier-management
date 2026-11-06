@@ -21,38 +21,74 @@ function paintCostMode(){
   button.classList.toggle('active',active);
  });
 }
-function renderDestinationFilters(){
- const kind=$('transport').value,rows=pricedDestinations[kind]||[],selectedRegion=$('destination-region').value;
- const names=destinationChoices(rows,kind);
- const groupings=[...new Map(names.map(name=>[name,classifyQuoteDestination(name)])).entries()];
- const regions=[...new Set(groupings.map(([,g])=>g.region))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
- const regionSelect=$('destination-region');
- regionSelect.innerHTML='<option value="">全部区域</option>'+regions.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
- if(regions.includes(selectedRegion))regionSelect.value=selectedRegion;
- const region=regionSelect.value,countrySelect=$('destination-country'),oldCountry=countrySelect.value;
- const countries=[...new Set(groupings.filter(([,g])=>!region||g.region===region).map(([,g])=>g.country))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
- countrySelect.innerHTML='<option value="">全部国家 / 地区</option>'+countries.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
- if(countries.includes(oldCountry))countrySelect.value=oldCountry;
- renderDestinationStations();
+function renderDestinationGroups(){
+ const kind=$('transport').value;
+ const query=$('destination').value.trim().toLocaleLowerCase();
+ const names=destinationChoices(pricedDestinations[kind]||[],kind);
+ const filtered=names.filter(name=>{
+  const {region,country}=classifyQuoteDestination(name);
+  return !query||[name,region,country].some(v=>v.toLocaleLowerCase().includes(query));
+ });
+ const grouped=new Map();
+ for(const name of filtered){
+  const {region,country}=classifyQuoteDestination(name);
+  if(!grouped.has(region))grouped.set(region,new Map());
+  if(!grouped.get(region).has(country))grouped.get(region).set(country,[]);
+  grouped.get(region).get(country).push(name);
+ }
+ const html=[...grouped.entries()].map(([region,countries])=>
+  `<section class="cost-destination-region"><h4>${esc(region)}</h4>${[...countries.entries()].map(([country,stations])=>
+   `<div class="cost-destination-country"><div class="cost-destination-country-name">${esc(country)}</div><div class="cost-destination-stations">${stations.map(name=>
+    `<button type="button" class="cost-destination-option" data-choose-destination="${esc(name)}">${esc(name)}</button>`).join('')}</div></div>`
+  ).join('')}</section>`
+ ).join('');
+ $('cost-destination-groups').innerHTML=html||'<p class="cost-destination-empty">没有匹配的已确认站点，可直接输入其他目的地进行核算。</p>';
+ $('cost-destination-help').textContent=`当前${kind==='fcl'?'整柜':'拼箱'}有 ${names.length} 个已录价目的站 · ${query?'筛选匹配 '+filtered.length+' 个 · ':''}支持输入区域/国家/站点搜索，或直接填写其他目的地。`;
 }
-function renderDestinationStations(){
- const kind=$('transport').value,region=$('destination-region').value,country=$('destination-country').value;
- const names=destinationChoices(pricedDestinations[kind]||[],kind,{region,country});
- $('cost-destination-list').innerHTML=names.map(v=>`<option value="${esc(v)}"></option>`).join('');
- $('cost-destination-help').textContent=names.length?`当前筛选有 ${names.length} 个已录价目的站；可搜索选择，或直接输入其他目的站。`:'当前筛选暂无已确认采购价；可手动输入其他目的站进行核算。';
+function toggleDestinationPanel(open){
+ const panel=$('cost-destination-panel');
+ panel.hidden=!open;
+ $('destination').setAttribute('aria-expanded',String(open));
+ $('cost-destination-toggle').setAttribute('aria-expanded',String(open));
+ $('cost-destination-toggle').setAttribute('aria-label',open?'收起目的站选择':'展开目的站选择');
+ if(open)renderDestinationGroups();
 }
 function setCostMode(kind){
  if(kind===$('transport').value)return;
- $('transport').value=kind;
- $('destination-region').value='';$('destination-country').value='';$('destination').value='';
- mode();paintCostMode();renderDestinationFilters();invalidate();
+ $('transport').value=kind;$('destination').value='';
+ mode();paintCostMode();toggleDestinationPanel(false);renderDestinationGroups();invalidate();
 }
 document.querySelectorAll('[data-cost-mode]').forEach(b=>b.addEventListener('click',()=>setCostMode(b.dataset.costMode)));
-$('destination-region').addEventListener('change',()=>{
- $('destination-country').value='';$('destination').value='';renderDestinationFilters();invalidate();
+$('cost-destination-toggle').addEventListener('click',()=>{
+ const open=$('cost-destination-panel').hidden;
+ toggleDestinationPanel(open);
+ if(open)$('destination').focus();
 });
-$('destination-country').addEventListener('change',()=>{
- $('destination').value='';renderDestinationStations();invalidate();
+$('destination').addEventListener('focus',()=>toggleDestinationPanel(true));
+$('destination').addEventListener('input',()=>toggleDestinationPanel(true));
+$('destination').addEventListener('keydown',e=>{
+ if(e.key==='Escape')toggleDestinationPanel(false);
+ if(e.key==='ArrowDown'&&!$('cost-destination-panel').hidden){
+  const first=$('cost-destination-groups').querySelector('button');
+  if(first){e.preventDefault();first.focus();}
+ }
+});
+$('cost-destination-groups').addEventListener('click',e=>{
+ const option=e.target.closest('[data-choose-destination]');
+ if(!option)return;
+ $('destination').value=option.dataset.chooseDestination;
+ toggleDestinationPanel(false);invalidate();
+ $('destination').dispatchEvent(new Event('change',{bubbles:true}));
+});
+$('cost-destination-groups').addEventListener('keydown',e=>{
+ if(e.key==='Escape'){toggleDestinationPanel(false);$('destination').focus();}
+ if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+  const list=[...$('cost-destination-groups').querySelectorAll('button')],index=list.indexOf(document.activeElement);
+  if(index>=0){e.preventDefault();list[(index+(e.key==='ArrowDown'?1:-1)+list.length)%list.length].focus();}
+ }
+});
+document.addEventListener('pointerdown',e=>{
+ if(!e.target.closest('.cost-destination-field'))toggleDestinationPanel(false);
 });
 async function loadDestinationChoices(){
  async function fetchStations(table){
@@ -65,7 +101,7 @@ async function loadDestinationChoices(){
  }
  const [fcl,lcl]=await Promise.all([fetchStations('freight_fcl_rail_rates'),fetchStations('freight_rail_plans')]);
  pricedDestinations={fcl,lcl};
- renderDestinationFilters();
+ renderDestinationGroups();
 }
 
 $('goods').addEventListener('input',()=>{mode();invalidate();});$('goods').addEventListener('change',()=>{mode();invalidate();});mode();
