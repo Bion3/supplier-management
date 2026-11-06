@@ -50,8 +50,9 @@ $('open-sources').addEventListener('click',()=>{renderSources();$('sources-dialo
 
 function clearShipment(){const el=$('shipment-results');el.hidden=true;el.replaceChildren();}
 function shipmentOptions(){
+ $('shipment-routes').replaceChildren(...routes.map(r=>option(r.name,r.code+' · '+r.name)));
  $('shipment-stations').replaceChildren(...[...new Set(stations.map(s=>s.name))].map(n=>option(n,n)));
- const current=$('shipment-supplier').value;$('shipment-supplier').replaceChildren(option('','待确定'),...suppliers.map(s=>option(s.id,s.name)));$('shipment-supplier').value=current;
+ const current=$('shipment-supplier').value;$('shipment-supplier').replaceChildren(option('','不限'),...suppliers.map(s=>option(s.id,s.name)));$('shipment-supplier').value=current;
 }
 $('toggle-maintenance').addEventListener('click',()=>{const panel=$('maintenance');panel.hidden=!panel.hidden;$('toggle-maintenance').setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});});
 $('shipment-form').addEventListener('input',()=>{clearShipment();$('shipment-error').textContent='';});
@@ -65,8 +66,8 @@ $('shipment-form').addEventListener('submit',event=>{
  try{
  const input=Object.fromEntries(new FormData(event.currentTarget));const result=shipmentRequirements(input,{entries,routes,stations,sources},chinaDate());
  const box=$('shipment-results');box.replaceChildren();box.hidden=false;
- const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=`${input.origin||'发站待定'} → ${input.destination||'目的站待定'} · ${input.shipment_type}`;
- const summary=`${input.cargo} · ${input.pieces||'—'}件 / ${input.weight||'—'}kg / ${input.volume||'—'}m³${result.density!==null?' · 密度 '+result.density.toFixed(1)+' kg/m³':''}`;
+ const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=[input.origin||input.destination?[input.origin||'起运站不限',input.destination||'目的站不限'].join(' → '):'',input.route,input.mode].filter(Boolean).join(' · ')||'操作清单';
+ const summary=[input.cargo,input.hs?'HS '+input.hs:'',suppliers.find(s=>s.id===input.supplier_id)?.name].filter(Boolean).join(' · ')||(Object.values(input).some(Boolean)?'按所选条件查询':'通用操作清单');
  intro.append(h,para(summary),para(`按 ${result.date} 核对版本 · ${result.approved} 条已核实要求 · ${result.relevant.length} 条相关依据`));
  const copy=btn('复制操作清单',async()=>{const text=[h.textContent,summary,'本票操作清单',...result.todo.map((x,i)=>(i+1)+'. '+x),...result.matches.map(e=>'品名参考（'+e.resultStatus+'）：'+e.title+' / '+e.hit),'待确认事项',...result.risks.map(x=>'• '+x),...result.groups.flatMap((g,i)=>[`${i+1}. ${g.title}（操作准备建议）`,g.action,...g.items.filter(e=>e.approved).map(e=>e.title+'\n'+e.content+'\n来源：'+e.source)]),'匹配资料为参考，具体接货与时限需承运方确认。'].join('\n');try{await navigator.clipboard.writeText(text);copy.textContent='已复制';}catch{copy.textContent='复制失败，请手动选择结果复制';}});head.append(intro,copy);box.append(head);
  const checklist=document.createElement('section');checklist.className='panel step-card';const label=document.createElement('h3');label.textContent='本票操作清单';const steps=document.createElement('ol');for(const action of result.todo){const li=document.createElement('li');li.textContent=action;steps.append(li);}checklist.append(label,steps);box.append(checklist);

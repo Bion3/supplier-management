@@ -17,51 +17,53 @@ export const phases=[
  {title:'到站与交付',action:'向目的站代理确认到货、清关及提货资料；确认自提或派送安排，回收签收及还箱凭证。',pattern:/到站|交付|配送|还箱|签收|清关|自提/}
 ];
 export function shipmentRequirements(input,{entries=[],routes=[],stations=[],sources=[]},today){
- for(const k of ['cargo','shipment_type'])if(!norm(input[k]))throw Error('请填写货物品名和业务类型。');
+ const hs=String(input.hs||'').trim().replace(/[.\s]/g,'');
+ if(hs&&!/^\d{1,10}$/.test(hs))throw Error('HS 编码请输入最多 10 位数字，可只填前几位。');
+ const mode=norm(input.mode),type=input.shipment_type||(/拼箱|lcl/.test(mode)?'拼箱LCL':/整箱|fcl/.test(mode)?'整箱FCL':'');
+ const broad=!!(hs||input.route||mode||input.supplier_id);
  for(const k of ['pieces','weight','volume','length','width','height'])if(input[k]!==''&&input[k]!=null&&(!Number.isFinite(Number(input[k]))||Number(input[k])<=0))throw Error('件数、重量、体积和尺寸须大于0。');
  if(input.pieces&& !Number.isInteger(Number(input.pieces)))throw Error('件数须为整数。');
  if(input.date&&(!/^\d{4}-\d{2}-\d{2}$/.test(input.date)||Number.isNaN(Date.parse(input.date))||new Date(input.date).toISOString().slice(0,10)!==input.date))throw Error('计划发运日期无效。');
  const risks=['接货结论待承运方确认；知识匹配不代表已获接货批准。'];
- if(['木箱','托盘'].includes(input.packaging))risks.push('确认包装材质及目的地对木质包装的处理、标识和证明要求。');
- if(!input.packaging)risks.push('补充包装方式，确认是否使用实木包装。');
- if(!input.weight||!input.volume||!input.pieces)risks.push('补齐件数、总毛重和总体积后核对装载条件。');
- if(!input.length||!input.width||!input.height)risks.push('补充最大单件长、宽、高及单件重量；总体积不能代替单件尺寸。');
- if(!input.date)risks.push('未填计划发运日期，版本有效性暂按今日判断。');
- if(!input.supplier_id)risks.push('承运方未确定，承运方专属要求暂不采用。');
- if(!input.features||input.features==='不确定')risks.push('确认是否含电池、液体、粉末、磁性等特殊属性，并补充材质、用途及HS编码。');
- else if(input.features!=='无上述属性')risks.push(`已选“${input.features}”：请承运方按真实成分确认鉴定报告及接货条件。`);
  const date=input.date||today, relevant=[],otherStations=[];
  for(const e of entries){
   if(e.kind==='报价'||e.kind==='航线档案')continue;
-  if(e.shipment_type&&e.shipment_type!==input.shipment_type)continue;
-  if(!e.shipment_type&&/FCL|整箱/.test(e.title)&&input.shipment_type==='拼箱LCL')continue;
-  if(e.supplier_id&&e.supplier_id!==input.supplier_id)continue;
+  if(type&&e.shipment_type&&e.shipment_type!==type)continue;
+  if(!e.shipment_type&&/FCL|整箱/.test(e.title)&&type==='拼箱LCL')continue;
+  if(input.supplier_id?e.supplier_id!==input.supplier_id:!!e.supplier_id&&!broad)continue;
   const route=routes.find(r=>r.id===e.route_id),station=stations.find(s=>s.id===e.station_id),source=sources.find(s=>s.id===e.source_id);
+  if(input.route&&![route?.name,route?.code,[route?.origin,route?.destination].filter(Boolean).join('至')].some(n=>fuzzy(n,input.route)))continue;
+  const descriptor=[route?.category,route?.name,e.title,e.scope,e.source,e.shipment_type].join(' ');
+  const transport=mode.replace(/拼箱|整箱|lcl|fcl/g,'');
+  if(transport&&!norm(descriptor).includes(transport)&&!(transport==='铁路'&&/班列|TDD总体操作流程/.test(descriptor)))continue;
+  const hsCodes=[...(String(e.content||'')+' '+(e.title||'')+' '+(e.scope||'')).matchAll(/(?:HS(?:\s*CODE|编码|栏原值|号|码)?|税号|海关编码)\s*[:：]?\s*([0-9][0-9.]{1,14})/gi)].map(m=>m[1].replace(/\./g,''));
+  if(hs&&!hsCodes.some(c=>c.startsWith(hs)))continue;
+  if(!input.cargo&&!input.origin&&!input.destination&&!broad&&!type&&(route?.code!=='GENERAL'||e.station_id||e.shipment_type||e.supplier_id))continue;
   const line=productLine(e,input.cargo);
   const names=station?[station.name,station.english_name,...String(station.aliases||'').split(/[;；,，]/)].filter(Boolean):[];
   const stationExact=names.some(n=>samePlace(input.origin,n)||samePlace(input.destination,n));
   const originMatch=names.some(n=>samePlace(input.origin,n)||fuzzy(input.origin,n));
   const stationNear=names.some(n=>fuzzy(input.origin,n)||fuzzy(input.destination,n));
-  if(station&&(!stationExact&&!stationNear||line&&!originMatch)){
+  if(station&&(input.origin||input.destination||!broad)&&(!stationExact&&!stationNear||line&&!originMatch)){
    if(line)otherStations.push({...e,hit:line,matchReason:station.name+' · 仅供对照，不适用于本票',resultStatus:effectiveStatus(e,date)});
    continue;
   }
-  if(/不需要鉴定报告物品/.test(e.title)&&!line)continue;
+  if(input.cargo&&/不需要鉴定报告物品/.test(e.title)&&!line)continue;
   const general=route?.code==='GENERAL';
   const xi=route?.code==='XI-EXPORT'&&samePlace(input.origin,'西安')&&input.shipment_type!=='进口';
   const exact=route&&samePlace(route.origin,input.origin)&&samePlace(route.destination,input.destination);
   const partial=route&&(input.origin||input.destination)&&(!input.origin||samePlace(input.origin,route.origin)||fuzzy(input.origin,route.origin))&&(!input.destination||samePlace(input.destination,route.destination)||fuzzy(input.destination,route.destination));
-  if(!general&&!xi&&!exact&&!partial)continue;
+  if(!general&&!xi&&!exact&&!partial&&!(broad&&!input.origin&&!input.destination))continue;
   const cargoCase=/历史货物审核/.test(e.title);
-  if(cargoCase){const name=e.content?.match(/品名原文：([^\n]+)/)?.[1];if(!name||!fuzzy(name,input.cargo))continue;}
+  if(cargoCase&&input.cargo){const name=e.content?.match(/品名原文：([^\n]+)/)?.[1];if(!name||!fuzzy(name,input.cargo))continue;}
   let status=effectiveStatus(e,date);
   const sourceStatus=source?effectiveStatus({...source,status:'已核实'},date):'已核实';
   if(sourceStatus!=='已核实')status=sourceStatus;
   const superseded=entries.some(n=>n.supersedes_id===e.id&&effectiveStatus(n,date)==='已核实'&&n.effective_from&&n.effective_from<=date&&n.route_id===e.route_id&&n.station_id===e.station_id&&n.shipment_type===e.shipment_type&&n.supplier_id===e.supplier_id);
   const sourceReplaced=source&&sources.some(n=>n.supersedes_id===source.id&&n.effective_from&&n.effective_from<=date&&(!n.valid_until||n.valid_until>=date));
   if(superseded||sourceReplaced)status='已被替代';
-  const approved=status==='已核实'&&!!e.effective_from&&!!e.shipment_type&&!!exact&&(!station||stationExact)&&!line&&!cargoCase&&(!source||!!source.effective_from);
-  relevant.push({...e,hit:line,resultStatus:approved?'已核实':status==='已核实'?'适用范围 / 日期待确认':status,approved,sourceRecord:source,matchReason:line?(station?.name||'品名')+' · 品名相关':!exact&&partial?'线路部分匹配，仅供参考':exact?'起运地与目的地匹配':xi?'西安出口参考':'业务通用流程参考',cargoCase});
+  const approved=!!type&&status==='已核实'&&!!e.effective_from&&!!e.shipment_type&&!!exact&&(!station||stationExact)&&!line&&!cargoCase&&(!source||!!source.effective_from);
+  relevant.push({...e,hit:line,resultStatus:approved?'已核实':status==='已核实'?'适用范围 / 日期待确认':status,approved,sourceRecord:source,matchReason:!exact&&broad&&!line?'查询条件匹配，仅供参考':line?(station?.name||'品名')+' · 品名相关':!exact&&partial?'线路部分匹配，仅供参考':exact?'起运地与目的地匹配':xi?'西安出口参考':'业务通用流程参考',cargoCase});
  }
  const groups=phases.map(p=>({...p,items:relevant.filter(e=>!e.cargoCase&&p.pattern.test(e.title+' '+(e.content?.match(/^阶段：([^\n]+)/)?.[1]||'')))}));
  const references=relevant.filter(e=>!groups.some(g=>g.items.some(x=>x.id===e.id)));
@@ -70,7 +72,7 @@ export function shipmentRequirements(input,{entries=[],routes=[],stations=[],sou
  if(!relevant.some(e=>e.approved&&stations.some(s=>s.id===e.station_id&&samePlace(s.name,input.destination))))risks.push(`补充${input.destination||"目的站"}实际终端、清关及提货要求；城市名称不能替代到站终端。`);
  const matches=relevant.filter(e=>e.hit);
  const todo=[...groups.map(g=>g.action)];
- todo[0]='向客户核对“'+input.cargo+'”的具体商品、成分、用途及包装。'+(matches.length?'核对下方品名命中记录，并请承运方确认适用条件。':'向'+(input.origin||'发站')+'承运方核实是否需要鉴定报告。');
+ todo[0]=(input.cargo?'向客户核对“'+input.cargo+'”的具体商品、成分、用途及包装。':'确认本票具体品名、成分、用途及包装。')+(matches.length?'核对下方品名命中记录，并请承运方确认适用条件。':'向'+(input.origin||'发站')+'承运方核实是否需要鉴定报告。');
  if(!input.destination)todo[1]='先向客户确认目的城市、具体到站及交付方式，再核对订舱资料和截单时间。';
  if(!input.pieces||!input.weight||!input.volume)todo[2]='补齐件数、毛重和体积，确认进仓、贴唛及装载要求。';
  return {input,date,groups,todo,matches,otherStations,references,risks,relevant,density:input.weight&&input.volume?Number(input.weight)/Number(input.volume):null,approved:relevant.filter(e=>e.approved).length};
