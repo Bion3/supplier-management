@@ -140,3 +140,19 @@ test('missing own-plan rail unit cannot silently use container-pool conversion',
  assert.match(v.result.pending.join(';'),/铁路计费方单价未录入/);
  assert.equal(v.result.complete,false);
 });
+
+test('large or special LCL cargo remains pending and cannot produce publishable quote',()=>{
+ const base={fx:7,capacity:60,domesticRatio:300,railRatio:500,volume:10,weight:5000,pickup:0,
+ linehaulQuote:{internalNoLinehaul:true},
+ pickupQuote:{status:'confirmed',rule:'fixed',fixed:0,minimum:0,currency:'USD',deliveryIncluded:true},
+ railUnitCost:{unit:175,ratio:500,minimum:0,fees:150,pending:[]},
+ mode:'external',profitMode:'markup',profit:10};
+ const normal=calculate(base);assert.equal(normal.complete,true);
+ for(const change of [{volume:26},{weight:7001},{pieceLength:3.1},{pieceWidth:1.6},{pieceHeight:1.6},{pieceWeight:3001},{cargoRisk:'restricted'},{cargoRisk:'special'}]){
+   const result=calculate({...base,...change});
+   assert.equal(result.complete,false,JSON.stringify(change));
+   assert.ok(result.pending.length,JSON.stringify(change));
+ }
+ const exact=calculate({...base,volume:25,weight:7000,pieceLength:3,pieceWidth:1.5,pieceHeight:1.5,pieceWeight:3000});
+ assert.equal(exact.complete,true);
+});
