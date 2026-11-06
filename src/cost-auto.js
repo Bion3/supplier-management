@@ -4,15 +4,70 @@ import {login,listSuppliers,cloudRequest,syncAuthShell} from './cloud.js';
 import {estimateFcl,estimateLcl,diagnoseFclMatches} from './cost-unified-model.js';
 import {websiteQuoteDraft} from './public-quote-model.js';
 import {addPagerAfter} from './pagination.js';
+import {classifyQuoteDestination,destinationChoices} from './cost-destination-options.js';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let data={},suppliers=[],history=[],matches=[],selected=null,choices={},activeInput=null,busy=false,historyPage=1;
+let data={},suppliers=[],history=[],matches=[],selected=null,choices={},activeInput=null,busy=false,historyPage=1,pricedDestinations={lcl:[],fcl:[]};
 const pager=addPagerAfter($('history'),'cost-history',n=>{historyPage=n;renderHistory();});
 const supplier=id=>suppliers.find(s=>s.id===id)?.name||'供应商待确认';
 $('date').value=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 async function all(table){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=created_at.desc,id.asc&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
 function read(){const out={};for(const id of ['transport','scope','origin','station','destination','date','box','equipment','pickupPlace','profitMode','webValidUntil'])out[id]=$(id).value.trim();for(const id of ['pieces','weight','volume','quantity','fx','profit','eurFx','webRange','webMinimum'])out[id]=$(id).value===''?null:Number($(id).value);for(const id of ['truck','rent','preview'])out[id]=$(id).checked;if($('pickupMode').value==='manual')out.pickupOverride={amount:$('pickupAmount').value===''?null:Number($('pickupAmount').value),currency:$('pickupCurrency').value,reason:$('pickupReason').value.trim()};if(out.equipment==='COC')out.rent=false;return out;}
-function mode(){const fcl=$('transport').value==='fcl';document.querySelectorAll('[data-lcl]').forEach(el=>{el.hidden=fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=fcl);});document.querySelectorAll('[data-fcl]').forEach(el=>{el.hidden=!fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=!fcl);});$('rent').disabled=!fcl||$('equipment').value==='COC';$('pickup-place-wrap').hidden=!fcl||!$('truck').checked;const origin=$('origin-field');origin.hidden=fcl&&!$('truck').checked;origin.querySelector('input').disabled=fcl&&!$('truck').checked;}
+function mode(){const fcl=$('transport').value==='fcl';document.querySelectorAll('[data-lcl]').forEach(el=>{el.hidden=fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=fcl);});document.querySelectorAll('[data-fcl]').forEach(el=>{el.hidden=!fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=!fcl);});$('rent').disabled=!fcl||$('equipment').value==='COC';$('pickup-place-wrap').hidden=!fcl||!$('truck').checked;const origin=$('origin-field');origin.hidden=fcl&&!$('truck').checked;origin.querySelector('input').disabled=fcl&&!$('truck').checked;paintCostMode();}
 function invalidate(){$('supplier-comparison').hidden=true;$('comparison-rows').innerHTML='';$('match-diagnostics').hidden=true;$('match-diagnostics').textContent='';selected=null;activeInput=null;choices={};$('result').textContent='输入已改变，请重新匹配价格并核算。';$('save').disabled=true;$('publish').disabled=true;$('segments').innerHTML='';$('alternatives').hidden=true;}
+function paintCostMode(){
+ document.querySelectorAll('[data-cost-mode]').forEach(button=>{
+  const active=button.dataset.costMode===$('transport').value;
+  button.setAttribute('aria-pressed',String(active));
+  button.classList.toggle('active',active);
+ });
+}
+function renderDestinationFilters(){
+ const kind=$('transport').value,rows=pricedDestinations[kind]||[],selectedRegion=$('destination-region').value;
+ const names=destinationChoices(rows,kind);
+ const groupings=[...new Map(names.map(name=>[name,classifyQuoteDestination(name)])).entries()];
+ const regions=[...new Set(groupings.map(([,g])=>g.region))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+ const regionSelect=$('destination-region');
+ regionSelect.innerHTML='<option value="">全部区域</option>'+regions.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+ if(regions.includes(selectedRegion))regionSelect.value=selectedRegion;
+ const region=regionSelect.value,countrySelect=$('destination-country'),oldCountry=countrySelect.value;
+ const countries=[...new Set(groupings.filter(([,g])=>!region||g.region===region).map(([,g])=>g.country))].sort((a,b)=>a.localeCompare(b,'zh-CN'));
+ countrySelect.innerHTML='<option value="">全部国家 / 地区</option>'+countries.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+ if(countries.includes(oldCountry))countrySelect.value=oldCountry;
+ renderDestinationStations();
+}
+function renderDestinationStations(){
+ const kind=$('transport').value,region=$('destination-region').value,country=$('destination-country').value;
+ const names=destinationChoices(pricedDestinations[kind]||[],kind,{region,country});
+ $('cost-destination-list').innerHTML=names.map(v=>`<option value="${esc(v)}"></option>`).join('');
+ $('cost-destination-help').textContent=names.length?`当前筛选有 ${names.length} 个已录价目的站；可搜索选择，或直接输入其他目的站。`:'当前筛选暂无已确认采购价；可手动输入其他目的站进行核算。';
+}
+function setCostMode(kind){
+ if(kind===$('transport').value)return;
+ $('transport').value=kind;
+ $('destination-region').value='';$('destination-country').value='';$('destination').value='';
+ mode();paintCostMode();renderDestinationFilters();invalidate();
+}
+document.querySelectorAll('[data-cost-mode]').forEach(b=>b.addEventListener('click',()=>setCostMode(b.dataset.costMode)));
+$('destination-region').addEventListener('change',()=>{
+ $('destination-country').value='';$('destination').value='';renderDestinationFilters();invalidate();
+});
+$('destination-country').addEventListener('change',()=>{
+ $('destination').value='';renderDestinationStations();invalidate();
+});
+async function loadDestinationChoices(){
+ async function fetchStations(table){
+  const result=[];
+  for(let offset=0;;offset+=500){
+   const batch=await cloudRequest(`${table}?select=id,destination,status,supersedes_id&order=created_at.desc,id.asc&limit=500&offset=${offset}`);
+   result.push(...batch);
+   if(batch.length<500)return result;
+  }
+ }
+ const [fcl,lcl]=await Promise.all([fetchStations('freight_fcl_rail_rates'),fetchStations('freight_rail_plans')]);
+ pricedDestinations={fcl,lcl};
+ renderDestinationFilters();
+}
+
 $('goods').addEventListener('input',()=>{mode();invalidate();});$('goods').addEventListener('change',()=>{mode();invalidate();});mode();
 const tables={domestic:'freight_domestic_rates',plans:'freight_rail_plans',fcl:'freight_fcl_rail_rates',trucks:'freight_trucking_rates',rentals:'freight_container_rental_rates'};
 async function loadData(input){const keys=input.transport==='fcl'?['fcl',...(input.truck?['trucks']:[]),...(input.rent?['rentals']:[])]:['domestic','plans'];const results=await Promise.all(keys.map(async k=>[k,await all(tables[k])]));data=Object.fromEntries(results);}
@@ -104,5 +159,5 @@ $('history').onclick=e=>{if(e.target.dataset.history===undefined)return;const h=
 async function saveSnapshot(){if(selected.snapshotId)return selected.snapshotId;const snapshot=structuredClone(selected),saved=await cloudRequest('freight_cost_snapshots',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify({route:snapshot.inputs.route,inputs:snapshot.inputs,result:snapshot.result})});if(saved.length!==1)throw Error('保存数量异常');selected.snapshotId=saved[0].id;await loadHistory();return selected.snapshotId;}
 $('save').onclick=async()=>{if(!selected)return;$('save').disabled=true;try{await saveSnapshot();$('notice').textContent='已保存输入、采购版本及本次测算快照。';}catch(error){$('notice').textContent=error.message;}finally{$('save').disabled=!selected;}};
 $('publish').onclick=async()=>{if(!selected?.result.complete||!selected.websitePrice)return;$('publish').disabled=true;try{const snapshotId=await saveSnapshot(),row=websiteQuoteDraft(selected,snapshotId);const saved=await cloudRequest('freight_public_quotes',{method:'POST',headers:{Prefer:'return=representation'},body:JSON.stringify(row)});if(saved.length!==1)throw Error('官网价格发布数量异常');$('notice').textContent='已生成官网销售价格草稿，请前往「官网销售价格」审核发布。';}catch(error){$('notice').textContent=error.message;}finally{$('publish').disabled=!selected?.result.complete;}};
-async function start(){if(!syncAuthShell())return;try{suppliers=await listSuppliers();await loadHistory();$('notice').textContent='价格在点击核算时读取。';}catch(error){$('notice').textContent=error.message;}}
+async function start(){if(!syncAuthShell())return;try{suppliers=await listSuppliers();await Promise.all([loadHistory(),loadDestinationChoices().catch(error=>{$('cost-destination-help').textContent='站点列表暂不可用，可直接输入目的站。';})]);$('notice').textContent='价格在点击核算时读取；站点列表按已确认采购价筛选。';}catch(error){$('notice').textContent=error.message;}}
 $('login-form').onsubmit=async e=>{e.preventDefault();try{const f=new FormData(e.target);await login(f.get('email'),f.get('password'));e.target.reset();await start();}catch(error){$('notice').textContent=error.message;}};start();
