@@ -27,6 +27,8 @@ export async function restorePageSession(){
 }
 let refreshing=null;
 async function token() {
+ // All mounted tasks share the shell's refresh promise and rotating token pair.
+ if(typeof window!=='undefined'&&window.parent!==window&&window.parent.eurasiagoWorkspace?.token)return window.parent.eurasiagoWorkspace.token();
  if(!session) throw new Error('请先登录。');
  if(Date.now() >= session.expires_at-60000) {
   if(!refreshing)refreshing=(async()=>{
@@ -38,6 +40,7 @@ async function token() {
  }
  return session.access_token;
 }
+export function workspaceToken(){return token();}
 export function currentUser() {return session?.user;}
 export function syncAuthShell() {
  const user=currentUser(),loginPanel=document.getElementById('login-panel'),workspace=document.getElementById('workspace'),account=document.getElementById('account'),logoutButton=document.getElementById('logout');

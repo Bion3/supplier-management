@@ -7,6 +7,14 @@
   root.classList.remove('auth-user');
   location.replace('/login.html?next='+encodeURIComponent(location.pathname+location.search+location.hash));
  }
+ if(window.parent!==window){
+  // Only the authenticated, same-origin task shell may embed a business page.
+  try{if(window.parent.eurasiagoWorkspace)root.classList.add('workspace-embedded');}catch{}
+ }else if(location.pathname!=='/workspace.html'){
+  window.stop();
+  location.replace('/workspace.html?page='+encodeURIComponent(location.pathname+location.search+location.hash));
+  return;
+ }
  requireLogin();
  window.addEventListener('pageshow',async event=>{
   if(!event.persisted){requireLogin();return;}
