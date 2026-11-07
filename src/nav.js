@@ -1,4 +1,17 @@
 import {logout} from './cloud.js';
+import {taskURL} from './workspace-model.js';
+const embedded=window.parent!==window&&!!window.parent.eurasiagoWorkspace;
+if(embedded){
+ document.documentElement.classList.add('workspace-embedded');
+ document.addEventListener('click',event=>{
+  const anchor=event.target.closest('a[href]');
+  if(!anchor||event.defaultPrevented||event.button!==0||event.ctrlKey||event.metaKey||event.shiftKey||event.altKey||anchor.hasAttribute('download')||anchor.target&&anchor.target!=='_self')return;
+  // Leave in-page anchors alone so expandable lists and editors keep working.
+  if(anchor.getAttribute('href').startsWith('#'))return;
+  const url=taskURL(anchor.href,location.origin);
+  if(url){event.preventDefault();window.parent.eurasiagoWorkspace.open(url);}
+ });
+}
 const pages=[
  {group:'首页',items:[['/hub.html','系统首页'],['/assistant.html','业务助手'],['/daily-dashboard.html','每日任务驾驶舱']]},
  {group:'基础资料',items:[['/','供应商档案']]},
@@ -12,7 +25,7 @@ const pricePages={'/trucking.html':['国内运输','国内拖车费'],'/containe
 const currentPath=path==='/crm.html'&&new URLSearchParams(location.search).get('view')==='peers'?'/crm.html?view=peers':path;
 const activePath=pricePages[path]?'/pricing.html':currentPath;
 const header=document.querySelector('body>header');
-if(header){
+if(header&&!embedded){
  const active=pricePages[path]?.[1]||pages.flatMap(x=>x.items).find(([href])=>href===currentPath)?.[1]||document.title;
  let saved={};try{saved=JSON.parse(localStorage.getItem('eurasiago-nav-groups')||'{}')||{};if(typeof saved!=='object'||Array.isArray(saved))saved={};}catch{}
  const link=(href,label)=>`<a href="${href}" ${href===currentPath?'aria-current="page"':''}>${label}</a>`;
@@ -22,7 +35,7 @@ if(header){
  }).join('');
  header.className='app-header';document.body.classList.add('has-sidebar');
  header.innerHTML=`<a class="app-brand" href="/hub.html"><span class="app-mark">E</span><span><b>国际物流管理系统</b><small>${active}</small></span></a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="system-directory" aria-label="展开系统目录">目录</button><nav id="system-directory" class="system-nav" aria-label="系统目录">${pages.map(section=>section.group==='首页'?`<div class="nav-home">${items(section)}</div>`:`<details class="nav-group" data-nav-group="${section.group}" ${section.items.some(([href])=>href===activePath)||saved[section.group]?'open':''}><summary>${section.group}</summary><div class="nav-children">${items(section)}</div></details>`).join('')}</nav>`;
- const signout=document.createElement('button');signout.type='button';signout.className='nav-signout';signout.textContent='退出登录';signout.addEventListener('click',async()=>{signout.disabled=true;try{await logout();}catch{location.replace('/login.html');}});header.querySelector('.system-nav').append(signout);
+ const signout=document.createElement('button');signout.type='button';signout.className='nav-signout';signout.textContent='退出登录';signout.addEventListener('click',async()=>{if(window.eurasiagoWorkspace?.beforeLogout&&!window.eurasiagoWorkspace.beforeLogout())return;signout.disabled=true;try{await logout();}catch{location.replace('/login.html');}});header.querySelector('.system-nav').append(signout);
  const toggle=header.querySelector('.nav-toggle'),nav=header.querySelector('.system-nav');
  function close(){toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','展开系统目录');nav.classList.remove('open');}
  toggle.addEventListener('click',()=>{const open=toggle.getAttribute('aria-expanded')!=='true';toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'收起系统目录':'展开系统目录');nav.classList.toggle('open',open);});

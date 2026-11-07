@@ -1,4 +1,5 @@
 import {cloudRequest,currentUser} from './cloud.js';
+import {openTask} from './workspace-model.js';
 export async function openAcquisitionMail(kind,rows,button){
  if(!rows.length)throw Error('请先选择客户。');
  const userId=currentUser()?.id;if(!userId)throw Error('请先登录。');
@@ -14,6 +15,6 @@ export async function openAcquisitionMail(kind,rows,button){
   }
   if(currentUser()?.id!==userId)throw Error('账号已变化，请重新选择。');
   sessionStorage.setItem('mail-acquisition-selection',JSON.stringify({userId,companyIds:[...new Set(ids)],createdAt:Date.now()}));
-  location.assign('/mail.html?from=acquisition');
+  openTask('/mail.html?from=acquisition&batch='+Date.now());
  }finally{if(button){button.textContent=old;button.disabled=false;}}
 }
