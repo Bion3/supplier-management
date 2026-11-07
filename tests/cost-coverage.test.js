@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {estimateFcl,estimateLcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
+import {estimateFcl,estimateFclVariants,estimateLcl,diagnoseFclMatches,loadingMatches} from '../src/cost-unified-model.js';
 import {domesticCost} from '../src/domestic-model.js';
 import {calculate} from '../src/cost-model.js';
 import {classifyQuoteDestination,destinationChoices} from '../src/cost-destination-options.js';
@@ -201,10 +201,42 @@ test('confirmed procurement with ordinary notes no longer requires manual terms 
  assert.equal(result.result.complete,true);
  assert.equal(result.result.cost,16800);
 });
-test('explicit customer selling price cannot be silently marked up as purchase cost',()=>{
+test('all entered confirmed supplier prices are treated as procurement for internal comparisons',()=>{
  const r=source(true,8400);
  r.quote.notes='客户版售价，采购成交价待确认';
  const result=estimateFcl({...input,termsReviewed:true},{fcl:[r]});
- assert.equal(result.result.complete,false);
- assert.match(result.result.pending.join(';'),/客户售价/);
+ assert.equal(result.result.complete,true);
+ assert.equal(result.result.price,18480);
+});
+
+test('factory district and generic city match correct trucking tariff loading place, not empty-pickup city',()=>{
+ assert.equal(loadingMatches('上海市,浦东新区','上海'),true);
+ assert.equal(loadingMatches('上海市,浦东新区','上海市,浦东新区'),true);
+ assert.equal(loadingMatches('江苏省,苏州市,吴中区','上海'),false);
+ assert.equal(loadingMatches('江苏省,苏州市,吴中区','吴中区'),true);
+});
+test('auto-compare FCL uses pickup, rail and container rental segments and ranks by complete known cost',()=>{
+ const railSoc={...source(),id:'rail-soc',quote:{...source().quote,equipment:'SOC',price:8100}};
+ const railCoc={...source(),id:'rail-coc',quote:{...source().quote,equipment:'COC',price:9800}};
+ const truck={id:'truck-sh',origin:'上海',destination:'西安',supplier_id:'supplier-t',status:'confirmed',quote:{price:7350,currency:'CNY',unit:'40HQ',container:'40HQ',loadingPlace:'上海市,浦东新区',validUntil:'2026-11-30',fees:[],priceBasis:'采购价'}};
+ const rent={id:'rental',origin:'西安',destination:'汉堡',supplier_id:'supplier-r',status:'confirmed',quote:{price:1800,currency:'USD',unit:'柜',container:'40HQ',service:'整柜',fees:[],validUntil:'2026-11-30'}};
+ const query={...input,station:'',origin:'上海',equipment:'',quantity:1,date:'2026-11-10'};
+ const result=estimateFclVariants(query,{fcl:[railSoc,railCoc],trucks:[truck],rentals:[rent]});
+ assert.equal(result.length,2);
+ assert.equal(result[0].result.complete,true);
+ assert.equal(result[0].result.cost,1050+8100+1800);
+ assert.equal(result[0].result.price,(1050+8100+1800)*1.1);
+ assert.match(result[0].label,/上海 → 西安 → 汉堡/);
+ assert.equal(result[0].inputs.truck,true);
+ assert.equal(result[0].inputs.rent,true);
+ assert.notEqual(result[0].id,result[1].id);
+});
+test('missing optional route segment is visibly partial, never silently counted as zero-cost complete',()=>{
+ const railSoc={...source(),id:'rail-soc',quote:{...source().quote,equipment:'SOC',price:8100}};
+ const query={...input,station:'',origin:'上海',equipment:'',quantity:1,date:'2026-11-10'};
+ const result=estimateFclVariants(query,{fcl:[railSoc],trucks:[],rentals:[]});
+ assert.equal(result.length,1);
+ assert.equal(result[0].result.complete,false);
+ assert.match(result[0].result.pending.join(';'),/国内拖车|租箱/);
+ assert.equal(result[0].result.cost,8100);
 });
