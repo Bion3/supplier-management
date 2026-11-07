@@ -67,7 +67,11 @@ export function estimateFcl(input,data,choices={}){
   if(!unitOK){pending.push(label+'：计价单位未确认或不支持，未计金额');return;}
   const value=usd(q.price,q.currency,label);if(value!==null)lines.push({name:label,value:value*i.quantity,basis:`${q.currency} ${q.price} / ${q.unit} × ${i.quantity}柜`,quoteId:r.id,supplier_id:r.supplier_id});
   for(const f of q.fees||[]){const labelFee=label+' / '+f.name;if(f.unit!=='柜'&&f.unit!=='票'&&box(f.unit)!==box(i.box)){pending.push(labelFee+'：计费条件需人工核对');continue;}const fee=usd(f.amount,f.currency,labelFee);if(fee!==null)lines.push({name:labelFee,value:fee*(f.unit==='票'?1:i.quantity),basis:`${f.currency} ${f.amount} / ${f.unit}`,quoteId:r.id,supplier_id:r.supplier_id});}
-  if(!i.termsReviewed&&(q.notes||q.source?.rawRemarks))pending.push(label+'：请核对原报价操作条款及另计费用');
+  // Confirmed, structured procurement is usable without an additional checkbox.
+  // Only an actual sale-price designation or an explicit unpriced fee blocks completion.
+  if(key==='rail'&&/客户版售价|客户售价|销售价|对客售价/.test(String(q.notes||'')+' '+String(q.source?.rawRemarks||''))){
+   pending.push(label+'：原始文件注明客户售价，需区分采购价后才能按成本加成');
+  }
  }
  if(i.truck)segment('truck','国内拖车');segment('rail','整箱铁路');if(i.equipment==='SOC'&&i.rent)segment('rent','租箱基础费（不含超期）');
  for(const f of i.extraFees||[]){if(!f.name?.trim())throw Error('请填写补充费用名称');const n=usd(f.amount,f.currency,f.name);if(n!==null)lines.push({name:f.name,value:n*(f.unit==='柜'?i.quantity:1),basis:'本次手工补充 '+f.currency+' '+f.amount+' / '+f.unit});}
