@@ -1,7 +1,7 @@
 import {compareFclSuppliers,compareLclPlans} from './cost-supplier-compare.js';
 import {quoteAuditRows,segmentLink} from './cost-quote-audit.js';
 import {login,listSuppliers,cloudRequest,syncAuthShell} from './cloud.js';
-import {estimateFcl,estimateLcl,diagnoseFclMatches} from './cost-unified-model.js';
+import {estimateFcl,estimateFclVariants,estimateLcl,diagnoseFclMatches} from './cost-unified-model.js';
 import {websiteQuoteDraft} from './public-quote-model.js';
 import {addPagerAfter} from './pagination.js';
 import {classifyQuoteDestination,destinationChoices} from './cost-destination-options.js';
@@ -12,7 +12,7 @@ const supplier=id=>suppliers.find(s=>s.id===id)?.name||'供应商待确认';
 $('date').value=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 async function all(table){const rows=[];for(let offset=0;;offset+=500){const batch=await cloudRequest(`${table}?select=*&order=created_at.desc,id.asc&limit=500&offset=${offset}`);rows.push(...batch);if(batch.length<500)return rows;}}
 function read(){const out={};for(const id of ['transport','scope','origin','station','destination','date','box','equipment','pickupPlace','profitMode','webValidUntil'])out[id]=$(id).value.trim();for(const id of ['pieces','weight','volume','quantity','fx','profit','eurFx','webRange','webMinimum'])out[id]=$(id).value===''?null:Number($(id).value);for(const id of ['truck','rent','preview'])out[id]=$(id).checked;if($('pickupMode').value==='manual')out.pickupOverride={amount:$('pickupAmount').value===''?null:Number($('pickupAmount').value),currency:$('pickupCurrency').value,reason:$('pickupReason').value.trim()};if(out.equipment==='COC')out.rent=false;return out;}
-function mode(){const fcl=$('transport').value==='fcl';document.querySelectorAll('[data-lcl]').forEach(el=>{el.hidden=fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=fcl);});document.querySelectorAll('[data-fcl]').forEach(el=>{el.hidden=!fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=!fcl);});$('rent').disabled=!fcl||$('equipment').value==='COC';$('pickup-place-wrap').hidden=!fcl||!$('truck').checked;const origin=$('origin-field');origin.hidden=fcl&&!$('truck').checked;origin.querySelector('input').disabled=fcl&&!$('truck').checked;paintCostMode();}
+function mode(){const fcl=$('transport').value==='fcl';document.querySelectorAll('[data-lcl]').forEach(el=>{el.hidden=fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=fcl);});document.querySelectorAll('[data-fcl]').forEach(el=>{el.hidden=!fcl;el.querySelectorAll('input,select').forEach(control=>control.disabled=!fcl);});$('rent').disabled=!fcl||$('equipment').value==='COC';$('pickup-place-wrap').hidden=!fcl||!$('truck').checked;const origin=$('origin-field');origin.hidden=false;origin.querySelector('input').disabled=false;paintCostMode();}
 function invalidate(){$('supplier-comparison').hidden=true;$('comparison-rows').innerHTML='';$('match-diagnostics').hidden=true;$('match-diagnostics').textContent='';selected=null;activeInput=null;choices={};$('result').textContent='输入已改变，请重新匹配价格并核算。';$('save').disabled=true;$('publish').disabled=true;$('segments').innerHTML='';$('alternatives').hidden=true;}
 function paintCostMode(){
  document.querySelectorAll('[data-cost-mode]').forEach(button=>{
@@ -106,7 +106,7 @@ async function loadDestinationChoices(){
 
 $('goods').addEventListener('input',()=>{mode();invalidate();});$('goods').addEventListener('change',()=>{mode();invalidate();});mode();
 const tables={domestic:'freight_domestic_rates',plans:'freight_rail_plans',fcl:'freight_fcl_rail_rates',trucks:'freight_trucking_rates',rentals:'freight_container_rental_rates'};
-async function loadData(input){const keys=input.transport==='fcl'?['fcl',...(input.truck?['trucks']:[]),...(input.rent?['rentals']:[])]:['domestic','plans'];const results=await Promise.all(keys.map(async k=>[k,await all(tables[k])]));data=Object.fromEntries(results);}
+async function loadData(input){const keys=input.transport==='fcl'?['fcl','trucks','rentals']:['domestic','plans'];const results=await Promise.all(keys.map(async k=>[k,await all(tables[k])]));data=Object.fromEntries(results);}
 function segments(){if(selected?.inputs.transport==='lcl'&&selected.inputs.scope!=='station'){const rows=[...new Map((selected.inputs.pickupChoices||[]).map(c=>[c.id,c])).values()];$('segments').innerHTML=`<label>提货价 / 共享模板<select data-pickup><option value="">自动匹配</option>${rows.map(c=>`<option value="${c.id}" ${selected.inputs.pickupQuote?.quoteId===c.id?'selected':''}>${esc(c.quote.templateName||supplier(c.quote.supplier_id))} · ${c.complete?'适用':'待核对'}</option>`).join('')}</select></label>`;return;}if(!selected?.available){$('segments').innerHTML='';return;}
  const labels={truck:'国内拖车报价',rail:'整箱铁路报价',rent:'SOC租箱报价'};
  $('segments').innerHTML=Object.entries(selected.available).filter(([key])=>key==='rail'||key==='truck'&&activeInput.truck||key==='rent'&&activeInput.rent&&activeInput.equipment==='SOC').map(([key,rows])=>`<label>${labels[key]}<select data-segment="${key}"><option value="" ${!rows.length?'selected':''}>${rows.length?'自动选择首条适用报价':'未匹配适用报价'}</option>${rows.map(r=>`<option value="${r.id}" ${selected.inputs.sources[key]?.id===r.id?'selected':''}>${esc(supplier(r.supplier_id))} · ${esc(r.quote.currency||'币种待定')} ${esc(r.quote.price??'待定')} / ${esc(r.quote.unit||'单位待定')} · ${esc(r.quote.container)}${r.status!=='confirmed'?' · 待确认':''}</option>`).join('')}</select></label>`).join('');
@@ -115,7 +115,10 @@ function renderSupplierComparison(){
  const panel=$('supplier-comparison'),target=$('comparison-rows');
  if(!selected||!activeInput){panel.hidden=true;$('segments').hidden=false;target.innerHTML='';return;}
  const money=n=>n===null||!Number.isFinite(n)?'待核价':'USD '+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
- if(activeInput.transport==='fcl'){
+ if(activeInput.transport==='fcl'&&matches.length){
+  panel.hidden=false;$('segments').hidden=true;
+  target.innerHTML='<div class="cost-compare-group"><h4>自动组合方案 · '+matches.length+'个（已核算优先，按参考成本排序）</h4><div class="table-wrap"><table><thead><tr><th>运输方案</th><th>已知采购成本 USD</th><th>参考卖价 USD</th><th>状态</th><th>选择</th></tr></thead><tbody>'+matches.map(m=>'<tr'+(selected===m?' class="compare-selected"':'')+'><td>'+esc(m.label)+'<small>'+esc(m.matchScope||'')+'</small></td><td>'+esc(m.result.cost.toFixed(2))+'</td><td>'+esc(m.result.price.toFixed(2))+'</td><td>'+esc(m.result.complete?'所选费用完整':'参考：'+m.result.pending.join('；'))+'</td><td><button class="secondary" type="button" data-compare-plan="'+esc(m.id)+'" '+(selected===m?'disabled':'')+'>'+(selected===m?'当前选用':'选用')+'</button></td></tr>').join('')+'</tbody></table></div></div>';
+ }else if(activeInput.transport==='fcl'){
   const groups=compareFclSuppliers(activeInput,data,choices);
   panel.hidden=!groups.length;
   $('segments').hidden=groups.length>0;
@@ -138,19 +141,19 @@ $('comparison-rows').addEventListener('click',event=>{
  if(button.dataset.comparePlan){
   const plan=matches.find(x=>x.id===button.dataset.comparePlan);
   if(!plan)return;
-  selected=plan;$('options').value=plan.id;
+  selected=plan;$('options').value=String(matches.indexOf(plan));
  }else{
   const key=button.dataset.compareKind,quoteId=button.dataset.compareId;
   const current=selected.available?.[key]?.some(x=>x.id===quoteId);
   if(!current)return;
-  choices[key]=quoteId;activeInput.termsReviewed=false;
+  choices[key]=quoteId;
   selected=estimateFcl(activeInput,data,choices);
  }
  segments();show();
 });
 function show(){
  if(selected?.inputs.transport==='fcl'){
-  const d=diagnoseFclMatches(activeInput||selected.inputs,data);
+  const d=diagnoseFclMatches(selected.inputs,data);
   const pending=selected.result?.pending||[];
   const diagnostics=[...d.reasons];
   if(pending.some(x=>x.includes('国内拖车：未匹配')))diagnostics.push('国内拖车没有匹配：请核对提空箱地、装箱地、起运站以及箱型');
@@ -174,21 +177,21 @@ function show(){
  '</tbody></table></div>'+
  (audit.unmatched.length?'<div class="audit-unmatched"><strong>其他待处理问题</strong><ul>'+audit.unmatched.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>':'')+
  '<p class="audit-footnote">费用只统计本票已匹配且可计入的金额。缺失费用没有被估为0；采购价过期、供应商未确认和附加条款需另行复核。</p></section>';
- const auditSummary='<div class="audit-overview '+(r.complete?'audit-complete':'audit-incomplete')+'"><strong>'+(r.complete?'当前选用费用段已核算':'报价核算未完成 · 请先补全费用')+'</strong><span>'+(r.complete?'仍需审核费用范围与服务条款后才能给客户正式报价':'有 '+audit.missing+' 段缺价、'+audit.review+' 段待核对；下方逐项说明原因与补全入口。未补全前不生成官网销售价。')+'</span></div>';
+ const auditSummary='<div class="audit-overview '+(r.complete?'audit-complete':'audit-incomplete')+'"><strong>'+(r.complete?'已找到可核算方案':'已找到参考方案（部分费用待补）')+'</strong><span>'+(r.complete?'采购价统一参与试算，可选择其他方案比较成本和卖价。':'已计入所有匹配到的采购价；缺少的费用单独提示，不视为0元。')+'</span></div>';
  const validityHtml=validityRows?`<details class="cost-validity"><summary>采购价有效期（仅提示，不影响测算）</summary><table><thead><tr><th>费用项目</th><th>采购价有效期</th><th>匹配日期状态</th></tr></thead><tbody>${validityRows}</tbody></table></details>`:'';
  const qty=s.transport==='lcl'?r.railQty:s.quantity,mid=r.complete&&qty>0?r.price/qty:null,range=s.webRange??5,low=mid===null?null:mid*(1-range/100),high=mid===null?null:mid*(1+range/100);selected.websitePrice=mid===null?null:{quantity:qty,unit:s.transport==='lcl'?'billable_cbm':'container',mid,low,high};
- $('result').innerHTML=`<p class="audit-route"><strong>${esc(selected.label)}</strong></p>${auditSummary}<div class="stats"><article>${r.complete?'采购成本':'已知成本（未完整）'} USD<strong>${Number(r.cost).toFixed(2)}</strong></article><article>${r.complete?'官网目标售价':'暂估官网售价'} USD<strong>${Number(r.price).toFixed(2)}</strong></article><article>${r.complete?'预计利润':'暂估利润'} USD<strong>${Number(r.profit).toFixed(2)}</strong></article></div>${mid!==null?`<div class="website-price"><strong>官网销售价区间</strong><span>USD ${low.toFixed(2)}–${high.toFixed(2)} / ${s.transport==='lcl'?'计费方':'柜'}</span><small>官网只显示销售价，不公开采购成本和利润。</small></div>`:''}${auditTable}${validityHtml}${r.pending.length?`<p class="pending">待核对：${r.pending.map(esc).join('；')}。缺失费用未计入，暂估结果不能作为完整报价。</p>`:'<p>所选范围内费用已完整。</p>'}<details><summary>展开费用明细与采购来源（${r.lines.length}项）</summary><div class="table-wrap"><table><thead><tr><th>费用</th><th>计算依据</th><th>供应商</th><th>USD</th></tr></thead><tbody>${r.lines.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.basis)}</td><td>${esc(l.supplier_id?supplier(l.supplier_id):'—')}</td><td>${Number(l.value).toFixed(2)}</td></tr>`).join('')}</tbody></table></div><p>1 USD = CNY ${esc(s.fx)}${s.eurFx?'；1 EUR = USD '+esc(s.eurFx):''}。仅核算所选运输段；境外清关、配送及未列明费用未包含。</p>${s.railPlanId?`<p>拼箱铁路采购版本：${esc(s.railPlanId)}</p>`:''}${sources.map(row=>{const q=row.quote||row;return `<details><summary>${esc(row.origin||q.origin||'')} → ${esc(row.destination||q.destination||'')} · ${esc(supplier(row.supplier_id||q.supplier_id))}</summary><p>采购版本：${esc(row.id||q.quoteId||q.source?.filename||(typeof q.source==='string'?q.source:'—'))}</p><p class="cost-terms">${esc(q.notes||'无附加操作说明')}</p></details>`;}).join('')}</details>${s.transport==='fcl'&&sources.some(row=>row.quote?.notes||row.quote?.source?.rawRemarks)?`<label class="cost-switches"><input id="terms-reviewed" type="checkbox" ${s.termsReviewed?'checked':''}>已核对所选报价的包含费用、操作条款及另计项目</label>`:''}`;
+ $('result').innerHTML=`<p class="audit-route"><strong>${esc(selected.label)}</strong></p>${auditSummary}<div class="stats"><article>${r.complete?'采购成本':'已知成本（未完整）'} USD<strong>${Number(r.cost).toFixed(2)}</strong></article><article>${r.complete?'官网目标售价':'暂估官网售价'} USD<strong>${Number(r.price).toFixed(2)}</strong></article><article>${r.complete?'预计利润':'暂估利润'} USD<strong>${Number(r.profit).toFixed(2)}</strong></article></div>${mid!==null?`<div class="website-price"><strong>官网销售价区间</strong><span>USD ${low.toFixed(2)}–${high.toFixed(2)} / ${s.transport==='lcl'?'计费方':'柜'}</span><small>官网只显示销售价，不公开采购成本和利润。</small></div>`:''}${auditTable}${validityHtml}${r.pending.length?`<p class="pending">待核对：${r.pending.map(esc).join('；')}。缺失费用未计入，暂估结果不能作为完整报价。</p>`:'<p>所选范围内费用已完整。</p>'}<details><summary>展开费用明细与采购来源（${r.lines.length}项）</summary><div class="table-wrap"><table><thead><tr><th>费用</th><th>计算依据</th><th>供应商</th><th>USD</th></tr></thead><tbody>${r.lines.map(l=>`<tr><td>${esc(l.name)}</td><td>${esc(l.basis)}</td><td>${esc(l.supplier_id?supplier(l.supplier_id):'—')}</td><td>${Number(l.value).toFixed(2)}</td></tr>`).join('')}</tbody></table></div><p>1 USD = CNY ${esc(s.fx)}${s.eurFx?'；1 EUR = USD '+esc(s.eurFx):''}。仅核算所选运输段；境外清关、配送及未列明费用未包含。</p>${s.railPlanId?`<p>拼箱铁路采购版本：${esc(s.railPlanId)}</p>`:''}${sources.map(row=>{const q=row.quote||row;return `<details><summary>${esc(row.origin||q.origin||'')} → ${esc(row.destination||q.destination||'')} · ${esc(supplier(row.supplier_id||q.supplier_id))}</summary><p>采购版本：${esc(row.id||q.quoteId||q.source?.filename||(typeof q.source==='string'?q.source:'—'))}</p><p class="cost-terms">${esc(q.notes||'无附加操作说明')}</p></details>`;}).join('')}</details>`;
  renderSupplierComparison();
  $('save').disabled=false;
  $('publish').disabled=!r.complete||mid===null;
- const review=$('terms-reviewed');if(review)review.onchange=()=>{activeInput.termsReviewed=review.checked;selected=estimateFcl(activeInput,data,choices);show();};
+
 }
-$('segments').onchange=e=>{if(e.target.hasAttribute('data-pickup')){activeInput.pickupQuoteId=e.target.value;delete activeInput.pickupOverride;const previous=selected.id;matches=estimateLcl(activeInput,data);selected=matches.find(m=>m.id===previous)||matches[0];segments();show();return;}const key=e.target.dataset.segment;if(!key||!activeInput)return;choices[key]=e.target.value;activeInput.termsReviewed=false;selected=estimateFcl(activeInput,data,choices);segments();show();};
+$('segments').onchange=e=>{if(e.target.hasAttribute('data-pickup')){activeInput.pickupQuoteId=e.target.value;delete activeInput.pickupOverride;const previous=selected.id;matches=estimateLcl(activeInput,data);selected=matches.find(m=>m.id===previous)||matches[0];segments();show();return;}const key=e.target.dataset.segment;if(!key||!activeInput)return;choices[key]=e.target.value;selected=estimateFcl(activeInput,data,choices);segments();show();};
 $('goods').onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;$('compute').disabled=true;const input=read(),fingerprint=JSON.stringify(input);invalidate();try{$('notice').textContent='正在读取最新采购价格…';await loadData(input);if(JSON.stringify(read())!==fingerprint){$('notice').textContent='输入已变化，请重新核算。';return;}activeInput=input;
- if(input.transport==='fcl'){selected=estimateFcl(input,data,choices);matches=[];}else{matches=estimateLcl(input,data);selected=matches[0]||null;}for(const item of [selected,...matches].filter(Boolean))Object.assign(item.inputs,{webRange:input.webRange,webMinimum:input.webMinimum,webValidUntil:input.webValidUntil});
- $('options').innerHTML=matches.map(m=>`<option value="${m.id}">${esc(m.label)} · USD ${m.result.cost.toFixed(2)}${m.result.complete?'':' · 费用未完整'}</option>`).join('');$('alternatives').hidden=matches.length<2;segments();show();$('notice').textContent='已按路线及规格匹配采购价格；有效期展示在报价结果下方，不作为匹配限制。';
+ if(input.transport==='fcl'){matches=estimateFclVariants(input,data,{limit:35});selected=matches[0]||null;if(!selected&&input.station?.trim()){selected=estimateFcl(input,data,choices);matches=[selected];}}else{matches=estimateLcl(input,data);selected=matches[0]||null;}for(const item of [selected,...matches].filter(Boolean))Object.assign(item.inputs,{webRange:input.webRange,webMinimum:input.webMinimum,webValidUntil:input.webValidUntil});
+ $('options').innerHTML=matches.map((m,i)=>`<option value="${i}">${esc(m.label)} · USD ${m.result.cost.toFixed(2)}${m.result.complete?'':' · 参考'}</option>`).join('');$('alternatives').hidden=matches.length<2;segments();show();$('notice').textContent='已按路线及规格匹配采购价格；有效期展示在报价结果下方，不作为匹配限制。';
  }catch(error){selected=null;$('segments').innerHTML='';$('result').textContent=error.message;$('save').disabled=true;$('notice').textContent='测算未完成，请检查输入或价格库。';}finally{busy=false;$('compute').disabled=false;}};
-$('options').onchange=()=>{selected=matches.find(m=>m.id===$('options').value);segments();show();};
+$('options').onchange=()=>{selected=matches[Number($('options').value)]||matches[0];segments();show();};
 function renderHistory(){const p=pager.update(history.length,historyPage);historyPage=p.page;$('history').innerHTML=history.slice(p.start,p.end).map((h,j)=>`<button class="secondary" data-history="${p.start+j}">${esc(h.route)} · ${esc(new Date(h.created_at).toLocaleString())}</button>`).join('')||'暂无历史测算';}
 async function loadHistory(){history=await all('freight_cost_snapshots');renderHistory();}
 $('history').onclick=e=>{if(e.target.dataset.history===undefined)return;const h=history[Number(e.target.dataset.history)];invalidate();selected={id:'history',label:h.route,inputs:structuredClone(h.inputs),result:structuredClone(h.result),snapshotId:h.id};const s=selected.inputs;for(const id of ['transport','scope','origin','station','destination','date','box','equipment','pickupPlace','pieces','weight','volume','quantity','fx','eurFx','profitMode','profit','webRange','webMinimum','webValidUntil'])if(s[id]!==undefined)$(id).value=s[id]??'';if(!s.transport)$('transport').value='lcl';for(const id of ['truck','rent','preview'])if(s[id]!==undefined)$(id).checked=s[id];mode();$('notice').textContent='显示历史快照；重新核算将获取当前采购价。';show();const review=$('terms-reviewed');if(review)review.disabled=true;};
