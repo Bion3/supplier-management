@@ -94,18 +94,32 @@ export function estimateFclVariants(input,data,{limit=30}={}){
   (box(r.quote?.container)===box(input.box||'40HQ')||(box(input.box||'40HQ')==='40HQ'&&r.quote?.container==='40尺'))&&
   (r.quote?.unit==='柜'||box(r.quote?.unit)===box(input.box||'40HQ')));
  const combinations=new Map();
+ // A hub/equipment pair can have many suppliers; evaluate each group once.
+ const groups=new Map();
  for(const rail of rows){
   if(input.station?.trim()&&!placeMatches(rail.origin,input.station))continue;
   if(input.equipment?.trim()&&rail.quote.equipment!==input.equipment)continue;
-  const hub=rail.origin,equipment=rail.quote.equipment;
+  const equipment=rail.quote.equipment;
   if(!['SOC','COC'].includes(equipment))continue;
+  const key=rail.origin+'|'+equipment;
+  if(!groups.has(key))groups.set(key,{hub:rail.origin,equipment});
+ }
+ for(const {hub,equipment} of groups.values()){
   const truck=!!input.origin?.trim()&&!placeMatches(input.origin,hub);
   const candidateInput={...input,transport:'fcl',station:hub,equipment,truck,rent:equipment==='SOC',
    quantity:input.quantity||1,box:input.box||'40HQ'};
   const found=candidates(candidateInput,data);
   const rails=found.rail, trucks=truck?found.truck:[null], rents=equipment==='SOC'?found.rent:[null];
   // For absent price groups, still show a transparent partial-cost route.
-  const priceSort=(a,b)=>(Number(a?.quote?.price)||Infinity)-(Number(b?.quote?.price)||Infinity);
+  const usdCost=row=>{
+   const q=row?.quote;
+   if(!q||!Number.isFinite(Number(q.price))||Number(q.price)<0)return Infinity;
+   if(q.currency==='USD')return Number(q.price);
+   if(q.currency==='CNY')return Number(q.price)/input.fx;
+   if(q.currency==='EUR'&&Number(input.eurFx)>0)return Number(q.price)*input.eurFx;
+   return Infinity;
+  };
+  const priceSort=(a,b)=>usdCost(a)-usdCost(b);
   const railChoices=rails.length?[...rails].sort(priceSort).slice(0,5):[null];
   const truckChoices=trucks.length?[...trucks].sort(priceSort).slice(0,5):[null];
   const rentChoices=rents.length?[...rents].sort(priceSort).slice(0,3):[null];
@@ -130,6 +144,8 @@ export function estimateFclVariants(input,data,{limit=30}={}){
  }
  return [...combinations.values()]
   .sort((a,b)=>Number(b.result.complete)-Number(a.result.complete)
+   // Do not compare incomplete subtotals as if they were the same service.
+   ||(a.result.complete&&b.result.complete?a.result.cost-b.result.cost:0)
    ||b.result.lines.length-a.result.lines.length
    ||a.result.cost-b.result.cost
    ||a.label.localeCompare(b.label,'zh-CN')).slice(0,limit);
