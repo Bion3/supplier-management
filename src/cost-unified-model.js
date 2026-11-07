@@ -11,7 +11,17 @@ export function procurementValidity(row,date){
  const status=from&&date<from?'尚未生效':until&&date>until?'已过期':!from||!until?'日期未完整':'有效期内';
  return {from,until,status,needsReview:status!=='有效期内'};
 }
-export function loadingMatches(quoted,requested){const tokens=String(requested||'').split(/[,，/]/).map(x=>x.trim()).filter(Boolean);return tokens.length>0&&placeMatches(quoted,tokens.at(-1));}
+export function loadingMatches(quoted,requested){
+ const clean=s=>String(s||'').replace(/[\s,，]/g,'').replace(/省|市|区|县/g,'').toLowerCase();
+ const exact=String(requested||'').split(/[,，/]).map(x=>x.trim()).filter(Boolean);
+ if(!exact.length)return false;
+ if(placeMatches(quoted,exact.at(-1)))return true;
+ const requestedText=clean(requested), quotedText=clean(quoted);
+ // If only a city is entered, match its districts without treating another
+ // city's factory as valid merely because an empty container is picked there.
+ const cityOnly=exact.length===1&&/^[\p{Script=Han}]{2,6}(?:市)?$/u.test(exact[0]);
+ return cityOnly&&requestedText.length>=2&&quotedText.startsWith(requestedText);
+}
 function normalizeFclInput(input,data){
  const i={...input,box:input.box||'40HQ',equipment:input.equipment||'SOC',quantity:input.quantity===null||input.quantity===''||input.quantity===undefined?1:input.quantity};
  if(i.station?.trim())return i;
@@ -61,22 +71,65 @@ export function estimateFcl(input,data,choices={}){
   validity.push({name:label,quoteId:r.id,...procurementValidity(r,i.date)});
   if(q.price===0)pending.push(label+'：采购金额为零，需人工确认');
   if(key==='rail'&&box(q.container)!==box(i.box))pending.push(label+'：原价仅注明40尺，需确认适用40HQ');
-  if(key==='truck'&&q.priceBasis!=='采购价')pending.push(label+'：采购价口径待确认');
   if(key==='rail'&&q.equipment==='COC'&&/平衡费.{0,80}(单询|另询|待询)/s.test(q.notes||'')&&!([...(q.fees||[]),...(i.extraFees||[])].some(f=>/平衡费/.test(f.name||'')&&Number.isFinite(f.amount)&&f.amount>=0)))pending.push(label+'：COC提还箱平衡费单询，未录入金额');
   const unitOK=key==='truck'?q.unit==='柜'||box(q.unit)===box(i.box):q.unit==='柜'||box(q.unit)===box(i.box);
   if(!unitOK){pending.push(label+'：计价单位未确认或不支持，未计金额');return;}
   const value=usd(q.price,q.currency,label);if(value!==null)lines.push({name:label,value:value*i.quantity,basis:`${q.currency} ${q.price} / ${q.unit} × ${i.quantity}柜`,quoteId:r.id,supplier_id:r.supplier_id});
   for(const f of q.fees||[]){const labelFee=label+' / '+f.name;if(f.unit!=='柜'&&f.unit!=='票'&&box(f.unit)!==box(i.box)){pending.push(labelFee+'：计费条件需人工核对');continue;}const fee=usd(f.amount,f.currency,labelFee);if(fee!==null)lines.push({name:labelFee,value:fee*(f.unit==='票'?1:i.quantity),basis:`${f.currency} ${f.amount} / ${f.unit}`,quoteId:r.id,supplier_id:r.supplier_id});}
-  // Confirmed, structured procurement is usable without an additional checkbox.
-  // Only an actual sale-price designation or an explicit unpriced fee blocks completion.
-  if(key==='rail'&&/客户版售价|客户售价|销售价|对客售价/.test(String(q.notes||'')+' '+String(q.source?.rawRemarks||''))){
-   pending.push(label+'：原始文件注明客户售价，需区分采购价后才能按成本加成');
-  }
+
  }
  if(i.truck)segment('truck','国内拖车');segment('rail','整箱铁路');if(i.equipment==='SOC'&&i.rent)segment('rent','租箱基础费（不含超期）');
  for(const f of i.extraFees||[]){if(!f.name?.trim())throw Error('请填写补充费用名称');const n=usd(f.amount,f.currency,f.name);if(n!==null)lines.push({name:f.name,value:n*(f.unit==='柜'?i.quantity:1),basis:'本次手工补充 '+f.currency+' '+f.amount+' / '+f.unit});}
  return {id:'fcl',label:`${i.station} → ${i.destination} · ${i.quantity}×${i.box} · ${i.equipment}`,inputs:{...structuredClone(i),route:[i.truck?i.origin:null,i.station,i.destination].filter(Boolean).join(' → '),sources},result:{...finish(lines,pending,i),validity},available};
 }
+
+/** Produce comparable FCL packages from one pickup location and one destination.
+ * Use the same procurement calculator for every package. A missing segment
+ * never becomes a zero-cost complete quote; sort complete options first.
+ * A single known origin city may match district-level factory tariffs, but
+ * those remain city-level estimates until the actual loading district is set. */
+export function estimateFclVariants(input,data,{limit=30}={}){
+ const rows=currentLeaves(data.fcl||[]).filter(r=>r.status==='confirmed'&&
+  placeMatches(r.destination,input.destination)&&r.quote?.scope==='站到站'&&
+  (box(r.quote?.container)===box(input.box||'40HQ')||(box(input.box||'40HQ')==='40HQ'&&r.quote?.container==='40尺'))&&
+  (r.quote?.unit==='柜'||box(r.quote?.unit)===box(input.box||'40HQ')));
+ const combinations=new Map();
+ for(const rail of rows){
+  if(input.station?.trim()&&!placeMatches(rail.origin,input.station))continue;
+  if(input.equipment?.trim()&&rail.quote.equipment!==input.equipment)continue;
+  const hub=rail.origin,equipment=rail.quote.equipment;
+  if(!['SOC','COC'].includes(equipment))continue;
+  const truck=!!input.origin?.trim()&&!placeMatches(input.origin,hub);
+  const candidateInput={...input,transport:'fcl',station:hub,equipment,truck,rent:equipment==='SOC',
+   quantity:input.quantity||1,box:input.box||'40HQ'};
+  const found=candidates(candidateInput,data);
+  const rails=found.rail, trucks=truck?found.truck:[null], rents=equipment==='SOC'?found.rent:[null];
+  // For absent price groups, still show a transparent partial-cost route.
+  const railChoices=(rails.length?rails:[null]).slice(0,12);
+  const truckChoices=(trucks.length?trucks:[null]).slice(0,12);
+  const rentChoices=(rents.length?rents:[null]).slice(0,12);
+  for(const r of railChoices)for(const t of truckChoices)for(const rental of rentChoices){
+   const choice={...r?{rail:r.id}:{},...t?{truck:t.id}:{},...rental?{rent:rental.id}:{}};
+   // If the caller did not specify the factory district, exclude alternatives
+   // that require selecting one from their score; keep them for comparisons.
+   const result=estimateFcl(candidateInput,data,choice);
+   const key=[hub,equipment,r?.id||'',t?.id||'',rental?.id||''].join('|');
+   if(combinations.has(key))continue;
+   result.inputs.route=[input.origin&&truck?input.origin:null,hub,input.destination].filter(Boolean).join(' → ');
+   result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ');
+   result.matchScope=truck&&!String(input.origin||'').includes(',')?'城市匹配，实际工厂区县以拖车价为准':'指定地点';
+   result.result.pending=result.result.pending.filter(p=>!p.includes('供应商待确认'));
+   result.result.complete=result.result.pending.length===0;
+   combinations.set(key,result);
+  }
+ }
+ return [...combinations.values()]
+  .sort((a,b)=>Number(b.result.complete)-Number(a.result.complete)
+   ||b.result.lines.length-a.result.lines.length
+   ||a.result.cost-b.result.cost
+   ||a.label.localeCompare(b.label,'zh-CN')).slice(0,limit);
+}
+
 export function estimateLcl(i,data){
  validateInput(i);
  const plans=(data.plans||[]).filter(p=>!i.station||placeMatches(p.origin,i.station));
