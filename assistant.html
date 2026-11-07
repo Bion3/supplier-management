@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>业务助手 · Eurasiago</title><link rel="stylesheet" href="/src/style.css"><link rel="stylesheet" href="/src/assistant.css"></head>
+<body class="assistant-page"><header></header><main class="assistant-main">
+ <nav class="assistant-breadcrumb" aria-label="当前位置"><a href="/hub.html">工作空间</a><span>/</span><span aria-current="page">业务助手</span></nav>
+ <div class="assistant-heading"><div><h1>业务助手</h1><p>找客户、看任务、核对报价，让常用操作更顺手。</p></div><span class="assistant-badge">基础版</span></div>
+ <section class="assistant-shortcuts" aria-label="业务操作">
+  <button type="button" data-mode="customers" data-prompt="查德国有邮箱的待开发客户" aria-pressed="true" aria-controls="assistant-content"><span class="assistant-mode-title"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><b>找客户</b></span><span>地区、邮箱与开发状态</span></button>
+  <button type="button" data-mode="tasks" data-prompt="今天任务进度" aria-pressed="false" aria-controls="assistant-content"><span class="assistant-mode-title"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 2 2 3-4M11 6h10M3 13h4m4 0h10M3 20h4m4 0h10"/></svg><b>查任务</b></span><span>进度、结果与异常</span></button>
+  <button type="button" data-mode="cost" data-prompt="检查报价费用" aria-pressed="false" aria-controls="assistant-content"><span class="assistant-mode-title"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2m4 0h2m-8 4h2m4 0h2"/></svg><b>查报价</b></span><span>费用组合与缺失项</span></button>
+  <button type="button" data-mode="mail" data-prompt="查看邮件任务和回复" aria-pressed="false" aria-controls="assistant-content"><span class="assistant-mode-title"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg><b>邮件跟进</b></span><span>待发送、异常与客户回复</span></button>
+ </section>
+ <div class="assistant-columns"><div id="assistant-content" class="assistant-workspace">
+  <section id="assistant-query" class="assistant-query"><form id="assistant-form"><label for="assistant-input">你想查什么？</label><div class="assistant-search-row"><div class="assistant-search-field"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="assistant-input" maxlength="500" placeholder="例如：查德国有邮箱的待开发客户" required></div><button id="assistant-send" type="submit">查询</button></div></form><div id="assistant-examples" class="assistant-examples" aria-label="查询示例"></div></section>
+  <div class="assistant-status-line"><p id="assistant-notice" role="status">按当前账号权限查询业务记录</p></div>
+  <section id="assistant-result" class="assistant-result" aria-live="polite"><div class="assistant-empty"><span class="assistant-empty-mark" aria-hidden="true">⌕</span><h2>从一个业务问题开始</h2><p>选择上方操作，或输入国家、邮箱和开发状态查询客户。</p><div class="assistant-empty-links"><a href="/crm.html">客户资源 →</a><a href="/daily-dashboard.html">任务驾驶舱 →</a></div></div></section>
+
+ </div><aside class="assistant-side"><section><h2>常用入口</h2><a href="/crm.html">客户资源<span aria-hidden="true">↗</span></a><a href="/daily-dashboard.html">任务驾驶舱<span aria-hidden="true">↗</span></a><a href="/cost.html">成本测算<span aria-hidden="true">↗</span></a><a href="/mail.html">开发邮件<span aria-hidden="true">↗</span></a></section><section><h2>使用提示</h2><dl id="assistant-tips"><dt>条件尽量具体</dt><dd>例如“德国 + 有邮箱 + 待开发”。</dd><dt>结果可继续处理</dt><dd>查看客户详情，或进入对应业务模块。</dd></dl><a href="/knowledge.html">货代知识库<span aria-hidden="true">↗</span></a></section></aside></div>
+ <p class="assistant-footnote">支持常用关键词和固定业务流程，未识别的问题可进入对应模块继续处理。</p>
+</main><script type="module" src="/src/nav.js"></script><script type="module" src="/src/assistant.js"></script></body></html>

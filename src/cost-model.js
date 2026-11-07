@@ -5,6 +5,9 @@ const amount=(x,label)=>{if(x===null||x===undefined||x==='')return null;if(!Numb
 export function calculate(s){
  positive(s.fx,'汇率');positive(s.capacity,'预计计费方');positive(s.domesticRatio,'干线重抛比');positive(s.railRatio,'铁路重抛比');positive(s.volume,'体积');positive(s.weight,'重量');
  const pending=[],warnings=[],lines=[],domesticQty=Math.max(s.volume,s.weight/s.domesticRatio);let railQty,unit;
+ if(s.volume>25||s.weight>7000){pending.push('铁路拼箱单票超过25 CBM或7吨：需人工确认加收 USD 20/计费方或拆分两票，不能按常规价格直接发布');warnings.push('单票超限：可能加价或需拆分出运，超额费用未自动计入');}
+ if(Number(s.pieceLength)>3||Number(s.pieceWidth)>1.5||Number(s.pieceHeight)>1.5||Number(s.pieceWeight)>3000){pending.push('单件尺寸或重量超限：需铁路公司确认装载及附加作业费');}
+ if(['special','restricted'].includes(s.cargoRisk)){pending.push('特殊/限制货物需人工核实承运条件，普通参考价不适用');}
  const add=(name,value,basis)=>{if(value===null)pending.push(name);else lines.push({name,value,basis});};
  const applyDomestic=(name,q)=>{const r=domesticCost(q,s.volume,s.weight,s.fx,s.date);const noRate=r.pending.some(p=>/运费缺价|计价规则待确认|阶梯重叠|货物不在阶梯范围|方价缺失|吨价缺失/.test(p));add(name,noRate?null:r.usd,r.basis+'；采购版本 '+(q.quoteId||q.source||''));pending.push(...r.pending.map(p=>name+'：'+p));warnings.push(...(r.warnings||[]).map(p=>name+'：'+p));};
  const pickup=amount(s.pickup,'提货费');

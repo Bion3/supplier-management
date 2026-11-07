@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {estimateFcl,estimateLcl,diagnoseFclMatches} from '../src/cost-unified-model.js';
 import {domesticCost} from '../src/domestic-model.js';
 import {calculate} from '../src/cost-model.js';
+import {classifyQuoteDestination,destinationChoices} from '../src/cost-destination-options.js';
+import {readFileSync} from 'node:fs';
 const source=(valid=true,price=8400)=>({id:'rail-1',origin:'西安',destination:'汉堡',supplier_id:'supplier-1',status:'confirmed',quote:{container:'40HQ',equipment:'COC',scope:'站到站',unit:'柜',price,currency:'USD',fees:[],validFrom:valid?'2026-10-01':'',validUntil:valid?'2026-11-30':''}});
 const input={transport:'fcl',station:'西安',origin:'西安',destination:'汉堡',date:'2026-10-25',quantity:2,box:'40HQ',equipment:'COC',truck:false,rent:false,fx:7,eurFx:null,profitMode:'markup',profit:10,termsReviewed:true};
 test('confirmed valid FCL rail rate is calculated per container',()=>{
@@ -139,4 +141,70 @@ test('missing own-plan rail unit cannot silently use container-pool conversion',
  assert.equal(v.result.lines.some(x=>x.name==='铁路运费'),false);
  assert.match(v.result.pending.join(';'),/铁路计费方单价未录入/);
  assert.equal(v.result.complete,false);
+});
+
+test('large or special LCL cargo remains pending and cannot produce publishable quote',()=>{
+ const base={fx:7,capacity:60,domesticRatio:300,railRatio:500,volume:10,weight:5000,pickup:0,
+ linehaulQuote:{internalNoLinehaul:true},
+ pickupQuote:{status:'confirmed',rule:'fixed',fixed:0,minimum:0,currency:'USD',deliveryIncluded:true},
+ railUnitCost:{unit:175,ratio:500,minimum:0,fees:150,pending:[]},
+ mode:'external',profitMode:'markup',profit:10};
+ const normal=calculate(base);assert.equal(normal.complete,true);
+ for(const change of [{volume:26},{weight:7001},{pieceLength:3.1},{pieceWidth:1.6},{pieceHeight:1.6},{pieceWeight:3001},{cargoRisk:'restricted'},{cargoRisk:'special'}]){
+   const result=calculate({...base,...change});
+   assert.equal(result.complete,false,JSON.stringify(change));
+   assert.ok(result.pending.length,JSON.stringify(change));
+ }
+ const exact=calculate({...base,volume:25,weight:7000,pieceLength:3,pieceWidth:1.5,pieceHeight:1.5,pieceWeight:3000});
+ assert.equal(exact.complete,true);
+});
+
+test('internal FCL and LCL destination lists filter by country/region and discard old versions',()=>{
+ const rows=[
+  {id:'fcl-1',destination:'莫斯科',status:'confirmed'},
+  {id:'fcl-2',destination:'汉堡（快线）',status:'confirmed'},
+  {id:'fcl-3',destination:'马拉',status:'confirmed'},
+  {id:'fcl-4',destination:'布达佩斯',status:'confirmed'},
+  {id:'fcl-5',destination:'旧报价站',status:'confirmed'},
+  {id:'fcl-6',destination:'未录价',status:'draft'},
+  {id:'fcl-7',destination:'莫斯科',status:'confirmed',supersedes_id:'fcl-5'},
+ ];
+ assert.deepEqual(classifyQuoteDestination('莫斯科'),{region:'俄罗斯及独联体',country:'俄罗斯'});
+ assert.deepEqual(classifyQuoteDestination('马拉'),{region:'欧洲',country:'波兰'});
+ assert.deepEqual(classifyQuoteDestination('不明站'),{region:'未分类',country:'待核实'});
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'欧洲',country:'德国'}),['汉堡（快线）']);
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'欧洲',country:'波兰'}),['马拉']);
+ assert.deepEqual(destinationChoices(rows,'fcl',{region:'俄罗斯及独联体'}),['莫斯科']);
+ assert.equal(destinationChoices(rows,'fcl').includes('旧报价站'),false);
+ assert.equal(destinationChoices(rows,'fcl').includes('未录价'),false);
+});
+test('internal quote page uses FCL/LCL tabs and one searchable grouped destination picker',()=>{
+ const html=readFileSync(new URL('../cost.html',import.meta.url),'utf8');
+ const code=readFileSync(new URL('../src/cost-auto.js',import.meta.url),'utf8');
+ for(const key of ['data-cost-mode="fcl"','data-cost-mode="lcl"','id="destination"','id="cost-destination-panel"','id="cost-destination-groups"','id="cost-destination-toggle"'])assert.ok(html.includes(key),key);
+ for(const retired of ['id="destination-region"','id="destination-country"','id="cost-destination-list"'])assert.equal(html.includes(retired),false,retired);
+ assert.match(code,/function renderDestinationGroups\(/);
+ assert.match(code,/grouped\.get\(region\)\.get\(country\)\.push\(name\)/);
+ assert.match(code,/destinationChoices\(pricedDestinations\[kind\]/);
+ assert.match(code,/data-choose-destination/);
+ assert.match(code,/function toggleDestinationPanel\(/);
+ assert.match(code,/async function loadDestinationChoices\(/);
+ assert.match(code,/\$\('destination'\)\.value=''/);
+ assert.match(code,/e\.key==='Escape'/);
+ assert.match(code,/e\.key==='ArrowDown'/);
+});
+
+test('confirmed procurement with ordinary notes no longer requires manual terms acknowledgment',()=>{
+ const r=source(true,8400);
+ r.quote.notes='普通站到站运输操作须知；按报价条件执行。';
+ const result=estimateFcl({...input,termsReviewed:false},{fcl:[r]});
+ assert.equal(result.result.complete,true);
+ assert.equal(result.result.cost,16800);
+});
+test('explicit customer selling price cannot be silently marked up as purchase cost',()=>{
+ const r=source(true,8400);
+ r.quote.notes='客户版售价，采购成交价待确认';
+ const result=estimateFcl({...input,termsReviewed:true},{fcl:[r]});
+ assert.equal(result.result.complete,false);
+ assert.match(result.result.pending.join(';'),/客户售价/);
 });

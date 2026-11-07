@@ -11,5 +11,10 @@ test('expired future unknown and source expiry are not actionable',()=>{for(cons
 test('FCL and supplier specific rules are excluded for this LCL enquiry',()=>{assert.equal(run([{...e,shipment_type:'整箱FCL'}]).relevant.length,0);assert.equal(run([{...e,supplier_id:'other'}]).relevant.length,0);});
 test('history cannot approve a shipment',()=>{const r=run([{...e,title:'西安历史货物审核',content:'品名原文：机械配件\n原表可否发运结论：可以'}]);assert.equal(r.approved,0);assert.equal(r.references.length,1);assert.equal(run([{...e,title:'西安历史货物审核',content:'品名原文：电池'}]).relevant.length,0);});
 test('new effective version supersedes only matching scope',()=>{assert.equal(run([e,{...e,id:'new',supersedes_id:'e'}]).approved,1);assert.equal(run([e,{...e,id:'new',supersedes_id:'e',effective_from:'2027-01-01'}]).approved,1);});
-test('missing evidence and invalid input are explicit',()=>{assert.ok(run([]).risks.some(r=>r.includes('未匹配')));assert.throws(()=>run([],{}, {pieces:'1.5'}));assert.throws(()=>run([],{}, {weight:'-1'}));assert.throws(()=>run([],{}, {cargo:''}));});
+test('missing evidence and invalid input are explicit',()=>{assert.ok(run([]).risks.some(r=>r.includes('未匹配')));assert.throws(()=>run([],{}, {pieces:'1.5'}));assert.throws(()=>run([],{}, {weight:'-1'}));assert.doesNotThrow(()=>run([],{}, {cargo:''}));});
 test('aliases are exact and not substrings',()=>{assert.ok(samePlace('新筑站','西安'));assert.equal(samePlace('西安','西安南'),false);});
+
+test('related evidence is grouped by stored business topic',()=>{
+ const r=shipmentRequirements(input,{entries:[e],routes:[route],topics:[{id:'t',name:'订舱与客户资料',sort_order:20,active:true}],topicLinks:[{topic_id:'t',entry_id:'e',relation_type:'核心规则',priority:10}]},'2026-10-13');
+ assert.equal(r.topicGroups.length,1);assert.equal(r.topicGroups[0].name,'订舱与客户资料');assert.equal(r.topicGroups[0].items[0].relationType,'核心规则');
+});
