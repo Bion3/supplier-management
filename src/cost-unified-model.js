@@ -119,7 +119,10 @@ export function estimateFclVariants(input,data,{limit=30}={}){
    result.id='fcl-option-'+key;
    result.inputs.route=[input.origin&&truck?input.origin:null,hub,input.destination].filter(Boolean).join(' → ');
    result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ');
-   result.matchScope=truck&&!String(input.origin||'').includes(',')?'城市匹配，实际工厂区县以拖车价为准':'指定地点';
+   const matchedTruck=result.inputs.sources?.truck;
+   const loadingPlace=matchedTruck?.quote?.loadingPlace||'';
+   result.matchScope=truck?(loadingPlace?'装箱地 '+loadingPlace+' · 提空箱 '+matchedTruck.origin:'国内拖车待补'):'铁路站到站';
+
    result.result.pending=result.result.pending.filter(p=>!p.includes('供应商待确认'));
    result.result.complete=result.result.pending.length===0;
    combinations.set(key,result);
