@@ -193,3 +193,18 @@ test('internal quote page uses FCL/LCL tabs and one searchable grouped destinati
  assert.match(code,/e\.key==='Escape'/);
  assert.match(code,/e\.key==='ArrowDown'/);
 });
+
+test('confirmed procurement with ordinary notes no longer requires manual terms acknowledgment',()=>{
+ const r=source(true,8400);
+ r.quote.notes='普通站到站运输操作须知；按报价条件执行。';
+ const result=estimateFcl({...input,termsReviewed:false},{fcl:[r]});
+ assert.equal(result.result.complete,true);
+ assert.equal(result.result.cost,16800);
+});
+test('explicit customer selling price cannot be silently marked up as purchase cost',()=>{
+ const r=source(true,8400);
+ r.quote.notes='客户版售价，采购成交价待确认';
+ const result=estimateFcl({...input,termsReviewed:true},{fcl:[r]});
+ assert.equal(result.result.complete,false);
+ assert.match(result.result.pending.join(';'),/客户售价/);
+});
