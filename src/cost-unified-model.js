@@ -115,6 +115,7 @@ export function estimateFclVariants(input,data,{limit=30}={}){
    const result=estimateFcl(candidateInput,data,choice);
    const key=[hub,equipment,r?.id||'',t?.id||'',rental?.id||''].join('|');
    if(combinations.has(key))continue;
+   result.id='fcl-option-'+key;
    result.inputs.route=[input.origin&&truck?input.origin:null,hub,input.destination].filter(Boolean).join(' → ');
    result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ');
    result.matchScope=truck&&!String(input.origin||'').includes(',')?'城市匹配，实际工厂区县以拖车价为准':'指定地点';
