@@ -13,7 +13,7 @@ export function procurementValidity(row,date){
 }
 export function loadingMatches(quoted,requested){
  const clean=s=>String(s||'').replace(/[\s,，]/g,'').replace(/省|市|区|县/g,'').toLowerCase();
- const exact=String(requested||'').split(/[,，/]).map(x=>x.trim()).filter(Boolean);
+ const exact=String(requested||'').split(/[,，/]/).map(x=>x.trim()).filter(Boolean);
  if(!exact.length)return false;
  if(placeMatches(quoted,exact.at(-1)))return true;
  const requestedText=clean(requested), quotedText=clean(quoted);
