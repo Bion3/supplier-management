@@ -20,7 +20,7 @@ export function loadingMatches(quoted,requested){
  // If only a city is entered, match its districts without treating another
  // city's factory as valid merely because an empty container is picked there.
  const cityOnly=exact.length===1&&/^[\p{Script=Han}]{2,6}(?:市)?$/u.test(exact[0]);
- return cityOnly&&requestedText.length>=2&&quotedText.startsWith(requestedText);
+ return requestedText.length>=4&&quotedText.includes(requestedText)||cityOnly&&requestedText.length>=2&&quotedText.startsWith(requestedText);
 }
 function normalizeFclInput(input,data){
  const i={...input,box:input.box||'40HQ',equipment:input.equipment||'SOC',quantity:input.quantity===null||input.quantity===''||input.quantity===undefined?1:input.quantity};
@@ -66,7 +66,7 @@ export function estimateFcl(input,data,choices={}){
  const usd=(value,currency,label)=>{if(value===null||value===''||!Number.isFinite(value)||value<0){pending.push(label+'：金额待确认');return null;}if(currency==='USD')return value;if(currency==='CNY')return value/i.fx;if(currency==='EUR'&&Number.isFinite(i.eurFx)&&i.eurFx>0)return value*i.eurFx;pending.push(label+'：币种或EUR汇率待确认');return null;};
  function segment(key,label){
   const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
-  sources[key]=structuredClone(r);const q=r.quote;if(!r.supplier_id)pending.push(label+'：供应商待确认');
+  sources[key]=structuredClone(r);const q=r.quote;
   if(r.status!=='confirmed')pending.push(label+'：待确认参考报价');
   validity.push({name:label,quoteId:r.id,...procurementValidity(r,i.date)});
   if(q.price===0)pending.push(label+'：采购金额为零，需人工确认');
@@ -105,16 +105,17 @@ export function estimateFclVariants(input,data,{limit=30}={}){
   const found=candidates(candidateInput,data);
   const rails=found.rail, trucks=truck?found.truck:[null], rents=equipment==='SOC'?found.rent:[null];
   // For absent price groups, still show a transparent partial-cost route.
-  const railChoices=(rails.length?rails:[null]).slice(0,12);
-  const truckChoices=(trucks.length?trucks:[null]).slice(0,12);
-  const rentChoices=(rents.length?rents:[null]).slice(0,12);
+  const priceSort=(a,b)=>(Number(a?.quote?.price)||Infinity)-(Number(b?.quote?.price)||Infinity);
+  const railChoices=rails.length?[...rails].sort(priceSort).slice(0,5):[null];
+  const truckChoices=trucks.length?[...trucks].sort(priceSort).slice(0,5):[null];
+  const rentChoices=rents.length?[...rents].sort(priceSort).slice(0,3):[null];
   for(const r of railChoices)for(const t of truckChoices)for(const rental of rentChoices){
    const choice={...r?{rail:r.id}:{},...t?{truck:t.id}:{},...rental?{rent:rental.id}:{}};
    // If the caller did not specify the factory district, exclude alternatives
    // that require selecting one from their score; keep them for comparisons.
-   const result=estimateFcl(candidateInput,data,choice);
    const key=[hub,equipment,r?.id||'',t?.id||'',rental?.id||''].join('|');
    if(combinations.has(key))continue;
+   const result=estimateFcl(candidateInput,data,choice);
    result.id='fcl-option-'+key;
    result.inputs.route=[input.origin&&truck?input.origin:null,hub,input.destination].filter(Boolean).join(' → ');
    result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ');
