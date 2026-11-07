@@ -223,12 +223,16 @@ test('auto-compare FCL uses pickup, rail and container rental segments and ranks
  const query={...input,station:'',origin:'上海',equipment:'',quantity:1,date:'2026-11-10'};
  const result=estimateFclVariants(query,{fcl:[railSoc,railCoc],trucks:[truck],rentals:[rent]});
  assert.equal(result.length,2);
- assert.equal(result[0].result.complete,true);
- assert.equal(result[0].result.cost,1050+8100+1800);
- assert.equal(result[0].result.price,(1050+8100+1800)*1.1);
+ assert.equal(result.every(x=>x.result.complete),true);
+ // COC 9800 + trucking 1050 is cheaper than SOC 8100 + 1800 rental + trucking 1050.
+ assert.equal(result[0].result.cost,9800+1050);
+ assert.equal(result[0].result.price,(9800+1050)*1.1);
+ assert.equal(result[0].inputs.equipment,'COC');
+ assert.equal(result[1].result.cost,1050+8100+1800);
+ assert.equal(result[1].inputs.equipment,'SOC');
+ assert.equal(result[1].inputs.rent,true);
  assert.match(result[0].label,/上海 → 西安 → 汉堡/);
  assert.equal(result[0].inputs.truck,true);
- assert.equal(result[0].inputs.rent,true);
  assert.notEqual(result[0].id,result[1].id);
 });
 test('missing optional route segment is visibly partial, never silently counted as zero-cost complete',()=>{
@@ -239,4 +243,24 @@ test('missing optional route segment is visibly partial, never silently counted 
  assert.equal(result[0].result.complete,false);
  assert.match(result[0].result.pending.join(';'),/国内拖车|租箱/);
  assert.equal(result[0].result.cost,8100);
+});
+
+test('FCL hub comparison does not repeat identical routes for every supplier record',()=>{
+ const socA={...source(),id:'soc-A',quote:{...source().quote,equipment:'SOC',price:8000}};
+ const socB={...source(),id:'soc-B',quote:{...source().quote,equipment:'SOC',price:8100}};
+ const q={...input,station:'',origin:'西安',equipment:'',quantity:1};
+ const results=estimateFclVariants(q,{fcl:[socA,socB],trucks:[],rentals:[]});
+ assert.equal(results.length,2);
+ assert.equal(new Set(results.map(x=>x.id)).size,2);
+ assert.equal(results[0].result.cost,8000);
+ assert.equal(results[1].result.cost,8100);
+});
+test('FCL sorting compares normalized USD-equivalent trucking cost across currencies',()=>{
+ const base={...source(),id:'soc',quote:{...source().quote,equipment:'COC',price:8000}};
+ const rmb={id:'rmb-truck',origin:'上海',destination:'西安',status:'confirmed',quote:{price:7000,currency:'CNY',unit:'40HQ',container:'40HQ',loadingPlace:'上海市,浦东新区'}};
+ const usd={...rmb,id:'usd-truck',quote:{...rmb.quote,price:1100,currency:'USD'}};
+ const results=estimateFclVariants({...input,station:'',equipment:'COC',origin:'上海',quantity:1}, {fcl:[base],trucks:[usd,rmb],rentals:[]});
+ assert.equal(results.length,2);
+ assert.equal(results[0].result.cost,9000);
+ assert.equal(results[1].result.cost,9100);
 });
