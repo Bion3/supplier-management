@@ -13,3 +13,8 @@ test('history cannot approve a shipment',()=>{const r=run([{...e,title:'西安�
 test('new effective version supersedes only matching scope',()=>{assert.equal(run([e,{...e,id:'new',supersedes_id:'e'}]).approved,1);assert.equal(run([e,{...e,id:'new',supersedes_id:'e',effective_from:'2027-01-01'}]).approved,1);});
 test('missing evidence and invalid input are explicit',()=>{assert.ok(run([]).risks.some(r=>r.includes('未匹配')));assert.throws(()=>run([],{}, {pieces:'1.5'}));assert.throws(()=>run([],{}, {weight:'-1'}));assert.doesNotThrow(()=>run([],{}, {cargo:''}));});
 test('aliases are exact and not substrings',()=>{assert.ok(samePlace('新筑站','西安'));assert.equal(samePlace('西安','西安南'),false);});
+
+test('related evidence is grouped by stored business topic',()=>{
+ const r=shipmentRequirements(input,{entries:[e],routes:[route],topics:[{id:'t',name:'订舱与客户资料',sort_order:20,active:true}],topicLinks:[{topic_id:'t',entry_id:'e',relation_type:'核心规则',priority:10}]},'2026-10-13');
+ assert.equal(r.topicGroups.length,1);assert.equal(r.topicGroups[0].name,'订舱与客户资料');assert.equal(r.topicGroups[0].items[0].relationType,'核心规则');
+});
