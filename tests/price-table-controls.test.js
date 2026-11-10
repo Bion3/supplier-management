@@ -27,3 +27,21 @@ test('batch edits create draft versions and preserve original rate',()=>{
  assert.deepEqual(source,before);
  assert.throws(()=>buildBatchVersions([source],{container:'40HQ',price:null,validFrom:'2026-12-01'},fclVersion),/有效期/);
 });
+
+import {costRouteGroup,filterCostRoutes} from '../src/price-table-controls.js';
+test('route groups use destination, preserve unknowns and domestic categories',()=>{
+ assert.equal(costRouteGroup({origin:'莫斯科',destination:'汉堡'}),'欧洲');
+ assert.equal(costRouteGroup({destination:'明斯克'}),'俄罗斯 / 白俄罗斯');
+ assert.equal(costRouteGroup({destination:'阿拉木图'}),'中亚');
+ assert.equal(costRouteGroup({destination:'德黑兰'}),'伊朗 / 中东');
+ assert.equal(costRouteGroup({destination:'未识别站'}),'其他 / 未归类');
+ assert.equal(costRouteGroup({destination:'西安'},'trucking'),'国内运输');
+});
+test('route and station selection selects all matching supplier rows without changing costs',()=>{
+ const rows=[rate('1'),rate('2'),{...rate('3'),origin:'郑州'},{...rate('4'),destination:'莫斯科'}];
+ const snapshot=structuredClone(rows);
+ assert.deepEqual(filterCostRoutes(rows,{group:'欧洲',origin:'西安'}).map(r=>r.id),['1','2']);
+ assert.equal(filterCostRoutes(rows,{destination:'莫斯科'}).length,1);
+ assert.equal(filterCostRoutes(rows,{}).length,4);
+ assert.deepEqual(rows,snapshot);
+});
