@@ -16,12 +16,18 @@ function clear(){extraFilters.clear();rows=[];page=1;$('inbox-search').value='';
 async function load(){
  if(!currentUser())return;
  const g=++generation,epoch=sessionEpoch;$('notice').textContent='正在加载收件箱…';
+ // The status request must not delay rendering mail data.
+ appRequest('/api/inbox-sync').then(state=>{
+  if(g!==generation||epoch!==sessionEpoch||!currentUser())return;
+  $('inbox-status').textContent=(state.last_sync?'上次同步：'+new Date(state.last_sync).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'等待首次同步')+(state.error?' · '+state.error:'')+(state.error?' · 同步异常，请点击立即同步重试':Date.now()-new Date(state.last_sync).getTime()>30*60000?' · 同步已超过30分钟，请立即同步':' · 后台每15分钟同步');
+ }).catch(e=>{
+  if(g!==generation||epoch!==sessionEpoch||!currentUser())return;
+  $('inbox-status').textContent='同步状态暂不可用：'+e.message;
+ });
  try{
-  const [data,state]=await Promise.allSettled([cloudRequest('freight_mail_inbox?select=*&order=received_at.desc&limit=200'+($('inbox-filter').value==='normal'?'&mail_kind=eq.normal':$('inbox-filter').value==='bounce'?'&mail_kind=like.bounce_*':'')),appRequest('/api/inbox-sync')]);
+  const data=await cloudRequest('freight_mail_inbox?select=*&order=received_at.desc&limit=200'+($('inbox-filter').value==='normal'?'&mail_kind=eq.normal':$('inbox-filter').value==='bounce'?'&mail_kind=like.bounce_*':''));
   if(g!==generation||epoch!==sessionEpoch)return;
-  if(data.status==='rejected')throw data.reason;
-  rows=data.value;
-  $('inbox-status').textContent=state.status==='fulfilled'?(state.value.last_sync?'上次同步：'+new Date(state.value.last_sync).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'}):'等待首次同步')+(state.value.error?' · '+state.value.error:'')+(state.value.error?' · 同步异常，请点击立即同步重试':Date.now()-new Date(state.value.last_sync).getTime()>30*60000?' · 同步已超过30分钟，请立即同步':' · 后台每15分钟同步'):'同步状态暂不可用：'+state.reason.message;
+  rows=data;
   render();$('notice').textContent='收件箱已刷新。';
  }catch(e){if(g!==generation||epoch!==sessionEpoch)return;if(!currentUser()){clear();authUI();}$('notice').textContent=e.message;}
 }
