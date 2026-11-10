@@ -28,12 +28,12 @@ export function buildBatchVersions(rows,changes,version){
 }
 export function installBatchPricing({getFiltered,getSelected,getRows,getLatest,version,save,reload,render,suppliers,withEquipment=false,header}) {
  const existing=document.querySelector('#workspace .fcl-toolbar');
- const target=existing?.parentElement||document.querySelector('#workspace .panel');
+ const target=existing?.closest('.panel')||document.querySelector('#workspace .panel');
  if(!target) return;
  const toolbar=document.createElement('div');
  toolbar.className='toolbar pricing-batch-toolbar';
  toolbar.innerHTML='<button type="button" class="secondary" data-filtered>选中筛选结果</button><button type="button" class="secondary" data-clear>清空选择</button><button type="button" class="secondary" data-edit>批量修改</button><span data-count></span>';
- const filterBar=target.querySelector('.fcl-toolbar');filterBar?.insertAdjacentElement('afterend',toolbar);
+ const filterBar=target.querySelector('.fcl-toolbar');(filterBar?.closest('.cost-more-filters')||filterBar)?.insertAdjacentElement('afterend',toolbar);
  const selection=getSelected();
  const sync=()=>{
   toolbar.querySelector('[data-count]').textContent='已选 '+selection.size+' 条（跨页）';
@@ -88,4 +88,42 @@ export function installBatchPricing({getFiltered,getSelected,getRows,getLatest,v
  document.addEventListener('change',sync);document.addEventListener('input',sync);
  sync();
  return {sync};
+}
+
+
+// Navigation only: procurement values and historical records remain untouched.
+export function costRouteGroup(row,kind='') {
+ if(['domestic','trucking'].includes(kind))return '国内运输';
+ const destination=String(row.destination||'').toLowerCase();
+ const groups=[
+ ['俄罗斯 / 白俄罗斯',/俄罗斯|白俄罗斯|莫斯科|圣彼得堡|叶卡|新西伯利亚|克列西哈|明斯克|布列斯特|moscow|moskva|petersburg|yekaterinburg|novosibirsk|minsk|brest/],
+ ['中亚',/哈萨克|乌兹别克|吉尔吉斯|塔吉克|土库曼|阿拉木图|阿斯塔纳|塔什干|比什凯克|杜尚别|阿什哈巴德|阿腾科里|almaty|astana|tashkent|bishkek|altynkol/],
+ ['伊朗 / 中东',/伊朗|德黑兰|阿富汗|海拉顿|海拉特|土耳其|伊斯坦布尔|tehran|iran|istanbul|hairatan|herat/],
+ ['欧洲',/德国|波兰|荷兰|比利时|法国|英国|意大利|西班牙|捷克|匈牙利|汉堡|杜伊斯堡|马拉|华沙|罗兹|鹿特丹|安特卫普|巴黎|伦敦|米兰|布拉格|布达佩斯|汉诺威|hamburg|duisburg|malaszewicze|warsaw|lodz|rotterdam|antwerp|paris|london|milan|prague|budapest|tilbury/]
+ ];
+ return groups.find(([,re])=>re.test(destination))?.[0]||'其他 / 未归类';
+}
+export function filterCostRoutes(rows,{group='',origin='',destination=''}={},kind='') {
+ return rows.filter(r=>(!group||costRouteGroup(r,kind)===group)&&(!origin||r.origin===origin)&&(!destination||r.destination===destination));
+}
+export function installCostRouteBrowser({kind,onChange}) {
+ const workspace=document.getElementById('workspace');
+ const toolbar=workspace?.querySelector('.panel .toolbar');
+ if(!toolbar)return {apply:rows=>rows};
+ const state={group:'',origin:'',destination:''};
+ const box=document.createElement('section');box.className='cost-route-browser';
+ const title=document.createElement('strong');title.textContent='按航线维护费用';box.append(title);
+ const controls={};
+ for(const [key,label] of [['group','航线分类'],['origin',['trucking','rental'].includes(kind)?'起始地 / 提箱地':'起运站'],['destination','目的地']]){
+  const field=document.createElement('label');field.textContent=label;const select=document.createElement('select');select.setAttribute('aria-label',label);field.append(select);box.append(field);controls[key]=select;
+  select.onchange=()=>{state[key]=select.value;if(key==='group'){state.origin='';state.destination='';}if(key==='origin')state.destination='';onChange();};
+ }
+ const reset=document.createElement('button');reset.type='button';reset.className='secondary';reset.textContent='清除分类';reset.onclick=()=>{Object.keys(state).forEach(k=>state[k]='');onChange();};box.append(reset);
+ const count=document.createElement('small');count.setAttribute('aria-live','polite');box.append(count);toolbar.before(box);
+ const details=document.createElement('details');details.className='cost-more-filters';const summary=document.createElement('summary');summary.textContent='更多筛选';details.append(summary);toolbar.before(details);details.append(toolbar);
+ const updateSummary=()=>{const n=[...details.querySelectorAll('input,select')].filter(el=>el.value&& !['all','active'].includes(el.value)).length;summary.textContent='更多筛选'+(n?' · 已设置 '+n+' 项':'');};details.addEventListener('input',updateSummary);updateSummary();
+ const lead=workspace.querySelector('.heading p');if(lead)lead.textContent='先选航线和起运站，再查看、更新或批量维护费用。';
+ workspace.classList.add('cost-route-layout');
+ function options(key,values){const select=controls[key];select.replaceChildren(new Option('全部',''));const counts=new Map();for(const value of values)if(value)counts.set(value,(counts.get(value)||0)+1);for(const [value,n] of [...counts].sort(([a],[b])=>a.localeCompare(b,'zh-CN')))select.add(new Option(value+' · '+n,value));if(state[key]&&!counts.has(state[key]))state[key]='';select.value=state[key];}
+ return {apply(rows){options('group',rows.map(r=>costRouteGroup(r,kind)));const grouped=filterCostRoutes(rows,{group:state.group},kind);options('origin',grouped.map(r=>r.origin));const origins=filterCostRoutes(grouped,{origin:state.origin},kind);options('destination',origins.map(r=>r.destination));const result=filterCostRoutes(rows,state,kind);count.textContent=result.length+' 条费用';return result;}};
 }
