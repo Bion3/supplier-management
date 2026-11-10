@@ -16,7 +16,8 @@ export function regionInfo(company){
 export function filterRecipients(contacts,companies,filters={}){
  const byCompany=new Map();for(const c of contacts){if(!byCompany.has(c.company_id))byCompany.set(c.company_id,[]);byCompany.get(c.company_id).push(c);}const groupMap=new Map(companies.map(c=>[c.id,companyGroups(c,byCompany.get(c.id)||[])]));
  const map=new Map(companies.map(c=>[c.id,c])),q=(filters.query||'').trim().toLowerCase();
- const eligible=new Set(eligibleContacts(contacts).map(c=>c.value.trim().toLowerCase()));
+ const blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));
+ const eligible=new Set(eligibleContacts(contacts.filter(c=>!mailExclusionReason(map.get(c.company_id)))).filter(c=>!blocked.has(c.value.trim().toLowerCase())).map(c=>c.id));
  return contacts.filter(c=>{const co=map.get(c.company_id),groups=groupMap.get(c.company_id)||[];
  return c.channel==='邮箱'&&(!q||[c.value,c.name,co?.company_name,co?.current_routes,JSON.stringify(co?.historical_routes),groups.join(' ')].join(' ').toLowerCase().includes(q))
  &&(!filters.stage||companyStage(co||{})===filters.stage)&&(!filters.focus||co?.is_key_customer===true)&&(!filters.source||companySourceTypes(co||{}).includes(filters.source))
@@ -24,7 +25,7 @@ export function filterRecipients(contacts,companies,filters={}){
  &&(!filters.region||regionInfo(co).value===filters.region)&&(!filters.verification||c.status===filters.verification)
  &&(!filters.allowed||(filters.allowed==='yes'?c.email_allowed!==false:c.email_allowed===false))
  &&(!filters.group||(filters.group==='__ungrouped'?!groups.length:groups.includes(filters.group)))
- &&(!filters.sendable||(c.status==='有效'&&eligible.has(c.value.trim().toLowerCase())&&!mailExclusionReason(co)))
+ &&(!filters.sendable||(eligible.has(c.id)&&!mailExclusionReason(co)))
  &&(!filters.selectedOnly||filters.selected?.has(c.id));});
 }
 export function groupNames(value){const groups=[...new Set(String(value||'').split(/[,，]/).map(x=>x.trim()).filter(Boolean))];if(!groups.length||groups.some(x=>x.length>50))throw Error('请填写分组名称，每个名称最多50字，可用逗号分隔。');return groups;}

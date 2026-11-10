@@ -15,27 +15,29 @@ let draftBulk=null,mailView="recipients";
 try{const saved=sessionStorage.getItem("mail-active-panel");if(["recipients","compose","drafts"].includes(saved))mailView=saved;}catch{}
 let companies=[],contacts=[],templates=[],messages=[],selected=new Set(),page=1,previewRows=[],savedDrafts=[],configured=false,epoch=0,previewBusy=false;
 let progressTimer=null,progressGeneration=0;
+let recipientLoadState='idle',recipientLoadError='';
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;render();},30);
 const editor=createMailEditor($('body'),$('editor-toolbar'),message=>{$('editor-error').textContent=message;});
 let rules={...defaultRules};
 const names=()=>new Map(companies.map(c=>[c.id,c]));
 const mailColumns={
- freight_companies:'id,company_name,status,role,region,addresses,current_routes,historical_routes,source_refs,notes,development_stage,is_key_customer',
+ freight_companies:'id,company_name,status,role,region,addresses,current_routes,historical_routes,source_refs,development_stage,is_key_customer',
  freight_contacts:'id,company_id,name,channel,value,status,email_allowed,mail_groups',
 };
 async function all(table,order='id.asc'){
  const rows=[],size=1000,columns=mailColumns[table]||'*';
  for(let offset=0;;offset+=size){
   let batch;
-  try{batch=table==='freight_contacts'
-   ?await cloudRequest('rpc/freight_mail_contacts_page',{method:'POST',body:JSON.stringify({p_offset:offset,p_limit:size})})
+  try{batch=table==='freight_contacts'||table==='freight_companies'
+   ?await cloudRequest(`rpc/freight_mail_${table==='freight_contacts'?'contacts':'companies'}_after`,{method:'POST',body:JSON.stringify({p_after:rows.at(-1)?.id||'',p_limit:size})})
    :await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}`);}
   catch(error){throw Error(`${{freight_companies:'公司资料',freight_contacts:'客户邮箱',freight_mail_templates:'邮件模板',freight_mail_messages:'发送记录'}[table]||table}读取失败（第 ${Math.floor(offset/size)+1} 页）：${error.message}`);}
   rows.push(...batch);if(batch.length<size)return rows;
  }
 }
 function authUI(){syncAuthShell();}
-async function load(){const e=++epoch;try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),all('freight_mail_messages','created_at.desc,id.desc'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected=new Set([...selected].filter(id=>contacts.some(c=>c.id===id)));applyHandoff();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){$('notice').textContent=err.message;authUI();}}}
+async function load(){const e=++epoch;recipientLoadState='loading';recipientLoadError='';$('recipient-count').textContent='正在加载客户邮箱…';renderRecipientState();try{const data=await Promise.all([all('freight_companies'),all('freight_contacts'),all('freight_mail_templates'),all('freight_mail_messages','created_at.desc,id.desc'),appRequest('/api/mail')]);if(e!==epoch)return;[companies,contacts,templates,messages]=data;configured=data[4].configured;rules=data[4].rules||{...defaultRules};fillRuleSettings();selected=new Set([...selected].filter(id=>contacts.some(c=>c.id===id)));applyHandoff();$('connection').textContent=configured?'专用密码已配置，可发送测试邮件验证连接。':'尚未配置 SMTP_PASSWORD；模板、预览和草稿可使用，发送暂不可用。';$('test-mail').disabled=!configured;recipientLoadState='ready';renderTemplates();renderFilterOptions();render();$('notice').textContent='邮件数据已同步。';}catch(err){if(e===epoch){recipientLoadState='error';recipientLoadError=err.message;$('recipient-count').textContent='读取失败';renderRecipientState();$('notice').textContent=err.message;authUI();}}}
+function renderRecipientState(count){const loading=recipientLoadState==='loading',error=recipientLoadState==='error';$('recipient-feedback').hidden=!(loading||error||recipientLoadState==='ready'&&count===0);$('recipient-table').hidden=loading||error||count===0;$('recipient-pager').hidden=loading||error||count===0;$('recipient-state').textContent=loading?'正在加载客户邮箱…':error?`客户邮箱读取失败：${recipientLoadError}。请点击重试。`:filters().selectedOnly?'当前没有已选邮箱。':'没有符合条件的邮箱，请调整筛选或清空筛选条件。';$('retry-recipients').hidden=!error;$('reset-empty-filters').hidden=loading||error||count!==0;for(const id of ['select-page','select-filtered','select-all-page'])$(id).disabled=loading||error;}
 function cell(text){const td=document.createElement('td');td.textContent=text;return td;}
 function button(text,fn){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){$('notice').textContent=e.message;}finally{b.disabled=false;}});return b;}
 function renderTemplates(){const purpose=$('purpose').value;$('template').replaceChildren();for(const t of templatePool(templates,purpose)){const o=document.createElement('option');o.value=t.id;o.textContent=t.name;$('template').append(o);}useTemplate();renderTemplatePool();}
@@ -62,6 +64,7 @@ function setMailView(view){
 for(const button of document.querySelectorAll('[data-mail-view]'))button.addEventListener('click',()=>setMailView(button.dataset.mailView));
 function render(){
  const company=names(),rows=filtered();
+ renderRecipientState(rows.length);
  const pages=Math.max(1,Math.ceil(rows.length/pager.size));page=Math.min(Math.max(1,page),pages);$('recipient-count').textContent=`筛选 ${rows.length} 条 / 已选 ${selected.size}`;$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page===1;$('next').disabled=page===pages;
  const plan=currentPlan(),ready=plan.rows.length;
  $('composer-summary').textContent=`已选 ${selected.size} 条 · 可发送 ${ready} 个不同邮箱`;
@@ -69,7 +72,7 @@ function render(){
  $('prepare-send').disabled=ready===0;
  $('clear-selection').disabled=selected.size===0;
  pager.update(rows.length,page);
- const pageRows=rows.slice((page-1)*pager.size,page*pager.size),checkState=selectionState(selected,pageRows);Object.assign($('select-all-page'),checkState);
+ const pageRows=rows.slice((page-1)*pager.size,page*pager.size),checkState=selectionState(selected,pageRows);Object.assign($('select-all-page'),checkState);if(recipientLoadState!=='ready')$('select-all-page').disabled=true;
  $('recipients').replaceChildren();for(const c of pageRows){
   const co=company.get(c.company_id),tr=document.createElement('tr'),choose=cell(''),checkbox=document.createElement('input');checkbox.type='checkbox';checkbox.checked=selected.has(c.id);checkbox.disabled=false;checkbox.setAttribute('aria-label','选择 '+c.value);checkbox.addEventListener('change',()=>{if(checkbox.checked)selected.add(c.id);else selected.delete(c.id);render();});choose.append(checkbox);if(selected.has(c.id))tr.className='recipient-selected';
   const verify=cell(c.status);if(c.status!=='有效'&&validEmail(c.value)&&c.email_allowed!==false)verify.append(button('标记有效',async()=>{await updateContactRows([c.id],{status:'有效'});render();}));
@@ -132,6 +135,7 @@ $('login-form').querySelector('button').id='login-button';
 $('logout').addEventListener('click',async()=>{++epoch;stopProgressPolling();try{await logout();}catch{}companies=[];contacts=[];messages=[];templates=[];selectedTemplates.clear();$('template-pool').replaceChildren();$('template').replaceChildren();selected.clear();previewRows=[];savedDrafts=[];$('preview-dialog').close();$('mail-settings').close();editor.clear();$('subject').value='';setMailView('recipients');authUI();render();});
 $('refresh').addEventListener('click',load);$('purpose').addEventListener('change',renderTemplates);$('template').addEventListener('change',useTemplate);
 for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group','view-mode','one-per-company','recent-days'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
+$('retry-recipients').addEventListener('click',load);$('reset-empty-filters').addEventListener('click',()=>$('reset-filters').click());
 $('reset-filters').addEventListener('click',()=>{for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group'])$(id).value='';$('view-mode').value='sendable';page=1;render();});
 for(const id of ['preview','compose-preview'])$(id).addEventListener('click',()=>{try{preparePreview();}catch(e){$('notice').textContent=e.message;}});
 $('clear-selection').addEventListener('click',()=>{selected.clear();render();});
