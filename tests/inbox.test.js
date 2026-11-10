@@ -28,3 +28,19 @@ test('persistent throttling stops after bounded retries, retains the cursor, and
  await assert.rejects(makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,clock:()=>time,pause:async ms=>{time+=ms;},enqueue:async()=>queued++}).sync(),/限流/);
  assert.equal(attempts,4);assert.equal(queued,1);assert.ok(finished.error.includes('99991400'));assert.ok(!('page_token' in finished));
 });
+
+test('busy inbox worker does not multiply the scheduled queue',async()=>{
+ let queued=0,requests=0;
+ const fetcher=async(url,opts)=>{requests++;assert.equal(JSON.parse(opts.body).p_action,'claim');return Response.json({busy:true});};
+ const result=await makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,enqueue:async()=>{queued++;}}).sync();
+ assert.deepEqual(result,{busy:true});assert.equal(requests,1);assert.equal(queued,0);
+});
+test('persistent provider throttling uses a longer queue cooldown',async()=>{
+ let time=Date.now(),scheduled;
+ const fetcher=async(url,opts)=>{
+  if(url.includes('freight_inbox_worker')){const p=JSON.parse(opts.body);if(p.p_action==='claim')return Response.json({cycle:0});return Response.json({});}
+  return Response.json({code:99991400},{status:400});
+ };
+ await assert.rejects(makeInboxService({snapshot:authSnapshot(),secret:'fixture',fetcher,clock:()=>time,pause:async ms=>{time+=ms;},enqueue:async(_topic,_payload,opts)=>{scheduled=opts;}}).sync(),/限流/);
+ assert.equal(scheduled.delaySeconds,3600);
+});
