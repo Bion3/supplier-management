@@ -6,8 +6,8 @@ export function backupConfig(snapshot){const p=JSON.parse(snapshot),app=p.config
 export function inboxRow(m){const ms=Number(m.internal_date);if(!m.message_id||!Number.isFinite(ms))throw Error('邮件时间或编号无效');return {id:m.message_id,thread_id:m.thread_id||'',from_email:m.head_from?.mail_address?.trim().toLowerCase()||'',from_name:m.head_from?.name||'',subject:m.subject||'',body_text:Buffer.from(m.body_plain_text||'','base64url').toString('utf8').slice(0,200000),received_at:new Date(ms).toISOString(),unread:(m.label_ids||[]).includes('UNREAD'),reply_refs:[m.in_reply_to,m.references].filter(Boolean).join(' '),attachments:(m.attachments||[]).map(a=>({id:a.id,filename:a.filename,is_inline:a.is_inline})),risk:m.security_level||{}};}
 export function makeInboxService({fetcher=fetch,snapshot=process.env.FEISHU_CLI_CREDENTIAL_BACKUP,secret=process.env.FEISHU_SYNC_SECRET,enqueue,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms)),clock=Date.now}={}){
  async function rpc(action,lease,data={}){const r=await fetcher(db,{method:'POST',headers:{apikey,'Content-Type':'application/json'},body:JSON.stringify({p_secret:secret,p_action:action,p_lease:lease,p_data:data}),signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('收信数据库请求失败');return r.json();}
- async function next(){if(enqueue)await enqueue('freight-inbox',{}, {delaySeconds:900,retentionSeconds:7*86400,idempotencyKey:'inbox-'+Math.floor(Date.now()/900000)});}
- async function sync(){if(!snapshot||!secret)throw Error('飞书收信配置缺失');const lease=randomUUID(),state=await rpc('claim',lease);if(state.busy){await next();return {busy:true};}let count=0;
+ async function next(delaySeconds=900){if(enqueue)await enqueue('freight-inbox',{}, {delaySeconds,retentionSeconds:7*86400,idempotencyKey:'inbox-'+delaySeconds+'-'+Math.floor(Date.now()/(delaySeconds*1000))});}
+ async function sync(){if(!snapshot||!secret)throw Error('飞书收信配置缺失');const lease=randomUUID(),state=await rpc('claim',lease);if(state.busy){return {busy:true};}let count=0;
   try{const config=backupConfig(snapshot);let token=state.cipher?JSON.parse(decrypt(state.cipher,config.key)):config.token;
    if(!state.cipher)await rpc('token',lease,{cipher:encrypt(JSON.stringify(token),config.key)});
    async function refreshToken(){if(Date.now()>=token.refreshExpiresAt)throw Error('飞书授权已过期，需要重新授权');const response=await fetcher('https://accounts.feishu.cn/oauth/v3/token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({grant_type:'refresh_token',refresh_token:token.refreshToken,client_id:config.app.appId,client_secret:config.secret}),signal:AbortSignal.timeout(30000)});const d=await response.json();if(!response.ok||d.error||d.code||!d.access_token)throw Error('飞书授权刷新失败，需要检查或重新授权');token={...token,accessToken:d.access_token,refreshToken:d.refresh_token||token.refreshToken,expiresAt:Date.now()+(d.expires_in||7200)*1000,refreshExpiresAt:d.refresh_token_expires_in?Date.now()+d.refresh_token_expires_in*1000:token.refreshExpiresAt};await rpc('token',lease,{cipher:encrypt(JSON.stringify(token),config.key)});}
@@ -40,7 +40,7 @@ export function makeInboxService({fetcher=fetch,snapshot=process.env.FEISHU_CLI_
    const rows=[];
    for(const id of ids){const d=await mail('messages/'+encodeURIComponent(id)+'?format=plain_text_full');rows.push(inboxRow(d.message));}
    if(rows.length)await rpc('upsert',lease,{messages:rows});count=rows.length;await rpc('finish',lease,{page_token:list.has_more?list.page_token:null,cycle:list.has_more?state.cycle:state.cycle+1});await next();return {synced:count,has_more:!!list.has_more};
-  }catch(e){await rpc('finish',lease,{error:e.message}).catch(()=>{});await next().catch(()=>{});throw e;}
+  }catch(e){await rpc('finish',lease,{error:e.message}).catch(()=>{});await next(/99991400|限流/.test(e.message)?3600:900).catch(()=>{});throw e;}
  }
  return {sync,status:()=>rpc('status',null)};
 }
