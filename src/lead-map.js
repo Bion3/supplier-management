@@ -11,14 +11,14 @@ function mapProgressResult(result){for(const r of result.results||[])contactProg
 const CITIES={hamburg:{name:'Hamburg',country:'Germany',center:[53.5511,9.9937]},rotterdam:{name:'Rotterdam',country:'Netherlands',center:[51.9244,4.4777]},duisburg:{name:'Duisburg',country:'Germany',center:[51.4344,6.7623]},warsaw:{name:'Warsaw',country:'Poland',center:[52.2297,21.0122]},budapest:{name:'Budapest',country:'Hungary',center:[47.4979,19.0402]}};
 let center=CITIES.hamburg.center.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
 const chosen=new Set(),selectedVerify=new Set(),PAGE_SIZE=20;
-let knownTasks=[];
+let knownTasks=[],customPointSelected=false;
 const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 const uuid=/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 function ensureMap(){
  if(!window.L){$('map-search-status').textContent='地图组件加载失败。请检查网络访问；表格仍可用于筛选。';return null;}
  const m=L.map('lead-map',{zoomControl:true}).setView(center,10);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors',crossOrigin:true}).addTo(m);
- m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];$('map-city').value='custom';void searchCompanies();});
+ m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];customPointSelected=true;$('map-city').value='custom';showCustomLocation();void searchCompanies();});
  return m;
 }
 const map=ensureMap(),markers=map?L.layerGroup().addTo(map):null;
@@ -219,12 +219,10 @@ const normalizeSearchTerm=term=>term.trim().toLowerCase();
 async function submitRegionCollection(){
  const status=$('map-search-status'),button=$('map-collect');
  const cityKey=$('map-city').value,km=Number($('map-radius').value),term=normalizeSearchTerm($('map-keyword').value);
- const city=CITIES[cityKey];
- if(!city){
-   status.textContent='请先选择列表中的城市；地图选点可筛选已有企业，跨城市采集需要选择城市。';return false;
- }
- if(distance(center[0],center[1],city.center[0],city.center[1])>50){
-  status.textContent='中心点已离开所选城市，请重新选择该城市后采集。';return false;
+ const city=CITIES[cityKey]||{name:$('map-custom-city').value.trim(),country:$('map-custom-country').value.trim()};
+ const [lat,lng]=center;
+ if(!city.name||!city.country||(cityKey==='custom'&&!customPointSelected)){
+  status.textContent='请在地图上选择采集中心，并填写国家或地区与城市名称。';return false;
  }
  if(km>50){status.textContent='100 公里自动采集尚未开放，请先选择 10、25 或 50 公里。';return false;}
  if(term.length<2||term.length>80){status.textContent='请输入 2–80 字的行业关键词，例如 logistics、import、wholesale。';return false;}
@@ -242,12 +240,12 @@ async function submitRegionCollection(){
   }
   const recent=await cloudRequest('lead_map_search_jobs?select=id,status,city,center_lat,center_lng,radius_km,keyword,customer_type,created_at&city=eq.'+encodeURIComponent(city.name)+'&order=created_at.desc&limit=10');
   const type=$('map-type').value||'all';
-  const duplicate=recent.find(j=>j.center_lat===center[0]&&j.center_lng===center[1]&&j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
+  const duplicate=recent.find(j=>j.center_lat===lat&&j.center_lng===lng&&j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
   let jobId=duplicate?.id;
   if(!duplicate){
    const created=await cloudRequest('lead_map_search_jobs',{method:'POST',
      headers:{Prefer:'return=representation'},body:JSON.stringify({
-     task_id:task.id,city:city.name,center_lat:center[0],center_lng:center[1],
+     task_id:task.id,city:city.name,center_lat:lat,center_lng:lng,
      radius_km:km,keyword:term,customer_type:type,status:'queued'})});
    jobId=(Array.isArray(created)?created[0]:created)?.id;
    if(!jobId)throw Error('任务保存成功状态未知，请刷新采集任务后重试');
@@ -279,8 +277,12 @@ $('map-type').onchange=search;
 $('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){clearTimeout(keywordTimer);void searchCompanies();}});
 let keywordTimer;
 $('map-keyword').addEventListener('input',()=>{clearTimeout(keywordTimer);keywordTimer=setTimeout(searchCompanies,250);});
-$('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].center.slice();void searchCompanies();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
-$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.center.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';void searchCompanies();};
+function showCustomLocation(){
+ const custom=$('map-city').value==='custom';
+ for(const id of ['map-custom-country-label','map-custom-city-label'])$(id).hidden=!custom;
+}
+$('map-city').onchange=()=>{showCustomLocation();const val=$('map-city').value;if(CITIES[val]){customPointSelected=false;center=CITIES[val].center.slice();void searchCompanies();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
+$('map-reset').onclick=()=>{$('map-city').value='hamburg';showCustomLocation();customPointSelected=false;center=CITIES.hamburg.center.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';void searchCompanies();};
 $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
 $('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
