@@ -116,9 +116,11 @@ test('mapped acquisition can create regional tasks outside Hamburg',async()=>{
  assert.doesNotMatch(js,/自动采集试点仅支持 Hamburg/);
 });
 
-test('search button triggers new region collection when local search has no matches',async()=>{
+test('keyword search loads the current region without enqueueing collection',async()=>{
  const {readFile}=await import('node:fs/promises');
  const js=await readFile(new URL('../src/lead-map.js',import.meta.url),'utf8');
- assert.match(js,/map-search-button'\)\.onclick=async/);
- assert.match(js,/submitRegionCollection\(\{prompt:false\}\)/);
+ const search=js.slice(js.indexOf('async function searchCompanies'),js.indexOf("onclick=searchCompanies"));
+ assert.match(search,/await loadRegion/);
+ assert.doesNotMatch(search,/submitRegionCollection/);
+ assert.match(js,/query\+'&offset='\+offset/);
 });

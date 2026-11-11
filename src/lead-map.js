@@ -18,7 +18,7 @@ function ensureMap(){
  if(!window.L){$('map-search-status').textContent='地图组件加载失败。请检查网络访问；表格仍可用于筛选。';return null;}
  const m=L.map('lead-map',{zoomControl:true}).setView(center,10);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:18,attribution:'© OpenStreetMap contributors',crossOrigin:true}).addTo(m);
- m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];$('map-city').value='custom';search();});
+ m.on('click',ev=>{center=[ev.latlng.lat,ev.latlng.lng];$('map-city').value='custom';void searchCompanies();});
  return m;
 }
 const map=ensureMap(),markers=map?L.layerGroup().addTo(map):null;
@@ -151,8 +151,19 @@ $('map-save-list').onclick=async()=>{
 $('map-show-lists').onclick=async()=>{$('map-saved-panel').hidden=false;try{await loadSavedLists();}catch(e){$('map-saved-list-entries').textContent='读取名单失败：'+e.message;}};
 $('map-saved-close').onclick=()=>{$('map-saved-panel').hidden=true;};
 
-function search(){setViewport();page=1;render();}
-$('map-search-button').onclick=async()=>{search();if(!rows.length&&CITIES[$('map-city').value]){await submitRegionCollection({prompt:false});}else{$('map-search-status').textContent='已找到 '+rows.length+' 家匹配的已采集企业。可按联系方式进一步筛选。';}};
+function search(){radius=Number($('map-radius').value);setViewport();page=1;render();}
+async function searchCompanies(force=false){
+ const status=$('map-search-status');
+ search();
+ try{
+  if(!await loadRegion(force===true))return;
+  search();
+  status.textContent=rows.length
+   ? '找到 '+rows.length+' 家已采集企业，可直接勾选。点击「采集外部企业」可查找新线索。'
+   : '当前条件下暂无结果。可调整筛选，或点击「采集外部企业」查找新线索。';
+ }catch(error){status.textContent='读取区域企业失败：'+error.message+'。请重试。';}
+}
+$('map-search-button').onclick=searchCompanies;
 // Automatically hand completed regional searches to the existing durable website queue.
 // The browser only submits the initial bounded batch; Vercel processes it in the background.
 const AUTO_ENRICH_MAX=25;
@@ -180,7 +191,7 @@ async function autoEnrichCompletedJob(job){
   if(note)note.textContent='自动补全派发未成功：'+e.message+'。可使用「一键补全联系方式」重试。';
  }
 }
-const MAP_JOB_TASK_CITY='hamburg';
+const activeCollectionIds=new Set();
 async function loadMapJobs(){
  const list=$('map-job-list');if(!list)return;
  try{
@@ -188,7 +199,7 @@ async function loadMapJobs(){
   const cityQuery=activeCity?'&city=eq.'+encodeURIComponent(activeCity.name):'';
   const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12'+cityQuery);
   list.replaceChildren();
-  if(!jobs.length){list.textContent='尚无后台采集任务。输入 Hamburg 区域、半径和关键词，点击「采集本区域新企业」。';return;}
+  if(!jobs.length){list.textContent='尚无后台采集任务。选择城市、半径和关键词后，可点击「采集外部企业」。';return;}
   const statuses={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'失败'};
   for(const j of jobs){
    const row=document.createElement('div');row.className='map-job-row';
@@ -196,13 +207,16 @@ async function loadMapJobs(){
    const stats=document.createElement('small');
    stats.textContent='扫描入库处理 '+j.processed+' 条 · 新增 '+j.inserted+' · 补坐标 '+j.located_existing+(j.error_message?' · 原因：'+j.error_message:'');
    row.append(details,stats);list.append(row);
-   if(j.status==='completed')void autoEnrichCompletedJob(j);
+   if(j.status==='completed'){
+    if(activeCollectionIds.delete(j.id))void searchCompanies(true);
+    void autoEnrichCompletedJob(j);
+   }else if(j.status==='failed')activeCollectionIds.delete(j.id);
   }
  }catch(e){list.textContent='读取采集任务失败：'+e.message;}
 }
 $('map-refresh-jobs').onclick=async()=>{await loadMapJobs();await loadDb();};
 const normalizeSearchTerm=term=>term.trim().toLowerCase();
-async function submitRegionCollection({prompt=true}={}){
+async function submitRegionCollection(){
  const status=$('map-search-status'),button=$('map-collect');
  const cityKey=$('map-city').value,km=Number($('map-radius').value),term=normalizeSearchTerm($('map-keyword').value);
  const city=CITIES[cityKey];
@@ -214,7 +228,6 @@ async function submitRegionCollection({prompt=true}={}){
  }
  if(km>50){status.textContent='100 公里自动采集尚未开放，请先选择 10、25 或 50 公里。';return false;}
  if(term.length<2||term.length>80){status.textContent='请输入 2–80 字的行业关键词，例如 logistics、import、wholesale。';return false;}
- if(prompt&&!confirm('为 '+city.name+' 周边 '+km+' 公里采集「'+term+'」企业？后台异步处理，结果进入待核实候选池。'))return false;
  button.disabled=true;
  try{
   // Reuse a same-city Overture task when one exists; create it when exploring a new city.
@@ -227,9 +240,9 @@ async function submitRegionCollection({prompt=true}={}){
    if(!task?.id)throw Error('城市任务创建失败');
    knownTasks.push(task);
   }
-  const recent=await cloudRequest('lead_map_search_jobs?select=id,status,city,radius_km,keyword,customer_type,created_at&city=eq.'+encodeURIComponent(city.name)+'&order=created_at.desc&limit=10');
+  const recent=await cloudRequest('lead_map_search_jobs?select=id,status,city,center_lat,center_lng,radius_km,keyword,customer_type,created_at&city=eq.'+encodeURIComponent(city.name)+'&order=created_at.desc&limit=10');
   const type=$('map-type').value||'all';
-  const duplicate=recent.find(j=>j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
+  const duplicate=recent.find(j=>j.center_lat===center[0]&&j.center_lng===center[1]&&j.radius_km===km&&j.keyword.toLowerCase()===term&&j.customer_type===type&&['queued','running'].includes(j.status));
   let jobId=duplicate?.id;
   if(!duplicate){
    const created=await cloudRequest('lead_map_search_jobs',{method:'POST',
@@ -239,6 +252,7 @@ async function submitRegionCollection({prompt=true}={}){
    jobId=(Array.isArray(created)?created[0]:created)?.id;
    if(!jobId)throw Error('任务保存成功状态未知，请刷新采集任务后重试');
   }
+  activeCollectionIds.add(jobId);
   if(duplicate?.status==='running'){
    status.textContent='同条件采集已经运行中。请刷新查看进度。';
   }else{
@@ -260,11 +274,13 @@ $('map-collect').onclick=()=>submitRegionCollection();
 $('map-contact-filter').onchange=search;
 $('map-hide-no-contact').onchange=search;
 $('map-sort').onchange=search;
-$('map-radius').onchange=search;
+$('map-radius').onchange=searchCompanies;
 $('map-type').onchange=search;
-$('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter')search();});
-$('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].center.slice();search();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
-$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.center.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';search();};
+$('map-keyword').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.isComposing){clearTimeout(keywordTimer);void searchCompanies();}});
+let keywordTimer;
+$('map-keyword').addEventListener('input',()=>{clearTimeout(keywordTimer);keywordTimer=setTimeout(searchCompanies,250);});
+$('map-city').onchange=()=>{const val=$('map-city').value;if(CITIES[val]){center=CITIES[val].center.slice();void searchCompanies();}else $('map-search-status').textContent='请在地图上点击设置搜索中心。';};
+$('map-reset').onclick=()=>{$('map-city').value='hamburg';center=CITIES.hamburg.center.slice();$('map-radius').value='50';$('map-type').value='';$('map-keyword').value='';$('map-contact-filter').value='any';$('map-hide-no-contact').checked=false;$('map-sort').value='contact';void searchCompanies();};
 $('map-prev').onclick=()=>{page=Math.max(1,page-1);render();};
 $('map-next').onclick=()=>{page++;render();};
 $('map-select-all').onclick=()=>{for(const r of rows.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE))if(r.source==='file')chosen.add(r.id);else if(r.dbId)selectedVerify.add(r.dbId);render();};
@@ -330,15 +346,47 @@ $('map-verify').onclick=async()=>{
  }catch(e){notice.textContent='官网核实启动失败：'+e.message;}
  finally{selectionStatus();}
 };
+let regionKey='', regionRequest;
+async function loadRegion(force=false){
+ const [lat,lng]=center,km=Number($('map-radius').value),key=[lat,lng,km].join(',');
+ if(!force&&regionRequest?.key===key)return regionRequest.promise;
+ if(!force&&regionKey===key&&!regionRequest)return true;
+ if(regionKey!==key){dbRows=[];regionKey='';render();}
+ $('map-search-status').textContent='正在读取区域企业…';
+ const request={key};
+ regionRequest=request;
+ request.promise=(async()=>{
+  const latSpan=km/110, lngSpan=latSpan/Math.max(0.00001,Math.cos((Math.abs(lat)+latSpan)*Math.PI/180));
+  const west=lng-lngSpan,east=lng+lngSpan;
+  const longitude=lngSpan>=180||Math.abs(lat)+latSpan>=90?'':west<-180?'&or=(map_lng.gte.'+(west+360)+',map_lng.lte.'+east+')':
+   east>180?'&or=(map_lng.gte.'+west+',map_lng.lte.'+(east-360)+')':
+   '&map_lng=gte.'+west+'&map_lng=lte.'+east;
+  const query='lead_discovery_leads?select=id,provider_place_id,company_name,website,address,map_lat,map_lng,map_category,review_status,contacts,verification_status'
+   +'&map_lat=gte.'+(lat-latSpan)+'&map_lat=lte.'+(lat+latSpan)+longitude+'&review_status=neq.rejected&order=id.asc&limit=500';
+  const leads=[];
+  try{
+   for(let offset=0;;offset+=500){
+    const batch=await cloudRequest(query+'&offset='+offset);
+    if(regionRequest!==request)return false;
+    leads.push(...batch);
+    if(batch.length<500)break;
+   }
+   dbRows=leads.map(x=>normalize({...x,id:x.provider_place_id||x.id,dbId:x.id},'database')).filter(Boolean);
+   regionKey=key;
+   return true;
+  }catch(error){if(regionRequest!==request)return false;throw error;}
+  finally{if(regionRequest===request)regionRequest=null;}
+ })();
+ return request.promise;
+}
 async function loadDb(){
  try{
-  const [leads,tasks]=await Promise.all([
-   cloudRequest('lead_discovery_leads?select=id,provider_place_id,company_name,website,address,country,city,map_lat,map_lng,map_category,review_status,contacts,verification_status&map_lat=not.is.null&map_lng=not.is.null&order=created_at.desc&limit=1000'),
+  const [,tasks]=await Promise.all([
+   loadRegion(true),
    cloudRequest('lead_discovery_tasks?select=id,country,city,source&source=eq.overture&order=created_at.desc&limit=100')]);
-  dbRows=leads.filter(x=>x.review_status!=='rejected').map(x=>normalize({id:x.provider_place_id||x.id,dbId:x.id,company_name:x.company_name,website:x.website,address:x.address,category:x.map_category,lat:x.map_lat,lng:x.map_lng,review_status:x.review_status,contacts:x.contacts,verification_status:x.verification_status},'database')).filter(Boolean);
   const sel=$('map-task');sel.replaceChildren(new Option('请选择对应城市的 Overture 任务',''));for(const t of tasks)sel.append(new Option(t.country+' / '+t.city+' · '+t.id.slice(0,8),t.id));
   knownTasks=tasks;const active=CITIES[$('map-city').value];const match=tasks.find(t=>t.city.toLowerCase()===active?.name.toLowerCase());if(match)sel.value=match.id;
-  search();
+  await searchCompanies();
   await loadMapJobs();
   if(!dbRows.length)$('map-save-status').textContent='现有候选记录暂无地理坐标。请上传新版 Overture 地区文件生成点位并保存，之后地图会自动从数据库读取。';
  }catch(e){$('map-count').textContent='读取数据失败：'+e.message+'。请从客户资源页面登录。';}
