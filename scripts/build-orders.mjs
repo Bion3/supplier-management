@@ -10,3 +10,5 @@ await writeFile('dist/src/orders.css',root.toString()+`\n.orders-app{background:
 console.log('Orders client bundled with scoped styles.');
 
 await rm('dist/src/orders-ui',{recursive:true,force:true});
+
+await build({entryPoints:['src/booking-import-worker.js'],outfile:'dist/src/booking-import-worker.js',bundle:true,format:'iife',target:'es2022',minify:true});
