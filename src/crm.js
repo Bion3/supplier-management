@@ -34,8 +34,7 @@ async function loadFacets(){const user=currentUser()?.id;if(facets||!user)return
 document.querySelector('.crm-filters').addEventListener('toggle',e=>{if(e.target.open)loadFacets();});
 async function load(){
  if(!currentUser())return;const g=++generation;loading=true;$('add-company').disabled=false;$('notice').textContent='正在读取第 '+page+' 页…';
- if(!stats&&!statsLoading)loadStats();
- try{const data=await rpcPage(pageRequest(filters(),page,size));if(g!==generation)return;const pages=pageCount(data.total,size);if(page>pages){page=pages;return load();}absorb(data);listIds=data.companies.map(c=>c.id);listTotal=data.total;render();$('notice').textContent='已加载本页 '+listIds.length+' 家，共 '+listTotal+' 家。';if(pendingOpen){const id=pendingOpen;pendingOpen=null;openDetail(id);}}
+ try{const data=await rpcPage(pageRequest(filters(),page,size));if(g!==generation)return;const pages=pageCount(data.total,size);if(page>pages){page=pages;return load();}absorb(data);listIds=data.companies.map(c=>c.id);listTotal=data.total;render();$('notice').textContent='已加载本页 '+listIds.length+' 家，共 '+listTotal+' 家。';if(!stats&&!statsLoading)void loadStats();if(pendingOpen){const id=pendingOpen;pendingOpen=null;openDetail(id);}}
  catch(e){if(g!==generation)return;$('notice').textContent=(listIds.length?'更新失败，保留上次列表：':'客户暂未加载成功，请重试：')+e.message;authUI();}
  finally{if(g===generation)loading=false;}
 }
@@ -54,7 +53,7 @@ function render(){
  if(peerView)$('role-filter').value='同行';
  gaps=contactGapIndex(companies,contacts);renderQuickViews();const latest=latestFollowups(followups),today=chinaDate();
  $('development-count').textContent=stats?.stages?.['待开发']??'—';$('key-count').textContent=stats?.key??'—';$('total').textContent=stats?.total??'—';$('pending').textContent=stats?.pending??'—';$('due-count').textContent=stats?.due??'—';
- const visible=listIds.map(id=>companies.find(c=>c.id===id)).filter(Boolean),pages=pageCount(listTotal,size);
+ const companyById=new Map(companies.map(c=>[c.id,c]));const visible=listIds.map(id=>companyById.get(id)).filter(Boolean),pages=pageCount(listTotal,size);
  $('count').textContent=`共 ${listTotal} 家`;$('rows').replaceChildren();
  const byCompany=new Map();for(const c of contacts){const list=byCompany.get(c.company_id)||[];list.push(c);byCompany.set(c.company_id,list);}
  filteredCompanies=visible;pageCompanies=visible;for(const c of pageCompanies){
