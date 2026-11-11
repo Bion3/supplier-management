@@ -191,13 +191,33 @@ async function autoEnrichCompletedJob(job){
   if(note)note.textContent='自动补全派发未成功：'+e.message+'。可使用「一键补全联系方式」重试。';
  }
 }
-const activeCollectionIds=new Set();
+let activeCollectionId=null, collectionSnapshot='', readingMapJobs=false;
+function collectionStatus(message){
+ const node=$('map-collection-progress');
+ node.hidden=!message;
+ if(node.textContent!==message)node.textContent=message;
+}
+async function updateCollectionProgress(job){
+ const labels={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'采集失败'};
+ collectionStatus(job.city+' · '+job.keyword+' · '+labels[job.status]+
+  ' · 已处理 '+job.processed+' 条 · 新增 '+job.inserted+' 家 · 跳过 '+job.skipped+' 条'+
+  (job.error_message?' · '+job.error_message:''));
+ const snapshot=[job.id,job.status,job.processed,job.inserted,job.located_existing].join(':');
+ if(snapshot===collectionSnapshot||job.status==='queued'||(!job.processed&&job.status==='running'))return;
+ try{
+  if(await loadRegion(true,true)){render();collectionSnapshot=snapshot;}
+ }catch(error){collectionStatus($('map-collection-progress').textContent+' · 企业列表更新失败，将自动重试');}
+}
 async function loadMapJobs(){
- const list=$('map-job-list');if(!list)return;
+ const list=$('map-job-list');if(!list||readingMapJobs)return;
+ readingMapJobs=true;
  try{
   const activeCity=CITIES[$('map-city').value];
-  const cityQuery=activeCity?'&city=eq.'+encodeURIComponent(activeCity.name):'';
-  const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12'+cityQuery);
+  const cityName=activeCity?.name||$('map-custom-city').value.trim();
+  const cityQuery=cityName?'&city=eq.'+encodeURIComponent(cityName):'';
+  const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,center_lat,center_lng,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12'+cityQuery);
+  const tracked=jobs.find(j=>j.id===activeCollectionId);
+  const nearby=jobs.find(j=>j.center_lat===center[0]&&j.center_lng===center[1]&&j.radius_km===Number($('map-radius').value));
   list.replaceChildren();
   if(!jobs.length){list.textContent='尚无后台采集任务。选择城市、半径和关键词后，可点击「采集外部企业」。';return;}
   const statuses={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'失败'};
@@ -207,12 +227,12 @@ async function loadMapJobs(){
    const stats=document.createElement('small');
    stats.textContent='扫描入库处理 '+j.processed+' 条 · 新增 '+j.inserted+' · 补坐标 '+j.located_existing+(j.error_message?' · 原因：'+j.error_message:'');
    row.append(details,stats);list.append(row);
-   if(j.status==='completed'){
-    if(activeCollectionIds.delete(j.id))void searchCompanies(true);
-    void autoEnrichCompletedJob(j);
-   }else if(j.status==='failed')activeCollectionIds.delete(j.id);
+   if(j.status==='completed')void autoEnrichCompletedJob(j);
   }
+  const current=tracked||nearby;
+  if(current)await updateCollectionProgress(current);
  }catch(e){list.textContent='读取采集任务失败：'+e.message;}
+ finally{readingMapJobs=false;}
 }
 $('map-refresh-jobs').onclick=async()=>{await loadMapJobs();await loadDb();};
 const normalizeSearchTerm=term=>term.trim().toLowerCase();
@@ -250,7 +270,9 @@ async function submitRegionCollection(){
    jobId=(Array.isArray(created)?created[0]:created)?.id;
    if(!jobId)throw Error('任务保存成功状态未知，请刷新采集任务后重试');
   }
-  activeCollectionIds.add(jobId);
+  activeCollectionId=jobId;
+  collectionStatus(city.name+' · '+term+' · '+(duplicate?.status==='running'?'正在采集':'等待后台执行'));
+  void loadMapJobs();
   if(duplicate?.status==='running'){
    status.textContent='同条件采集已经运行中。请刷新查看进度。';
   }else{
@@ -349,12 +371,12 @@ $('map-verify').onclick=async()=>{
  finally{selectionStatus();}
 };
 let regionKey='', regionRequest;
-async function loadRegion(force=false){
+async function loadRegion(force=false,quiet=false){
  const [lat,lng]=center,km=Number($('map-radius').value),key=[lat,lng,km].join(',');
  if(!force&&regionRequest?.key===key)return regionRequest.promise;
  if(!force&&regionKey===key&&!regionRequest)return true;
  if(regionKey!==key){dbRows=[];regionKey='';render();}
- $('map-search-status').textContent='正在读取区域企业…';
+ if(!quiet)$('map-search-status').textContent='正在读取区域企业…';
  const request={key};
  regionRequest=request;
  request.promise=(async()=>{
@@ -415,5 +437,5 @@ $('map-save').onclick=async()=>{
 loadDb();
 // Poll while the operator is on the map page. Once a region finishes,
 // enqueue the limited website-completion batch without another click.
-setInterval(()=>{if(!document.hidden&&currentUser())void loadMapJobs();},60000);
+setInterval(()=>{if(!document.hidden&&currentUser())void loadMapJobs();},5000);
 $('map-mail-selected').onclick=()=>openAcquisitionMail('lead',[...selectedVerify].map(id=>({id})),$('map-mail-selected')).catch(e=>{$('map-contact-status').textContent=e.message;});
