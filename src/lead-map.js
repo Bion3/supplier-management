@@ -159,8 +159,8 @@ async function searchCompanies(force=false){
   if(!await loadRegion(force===true))return;
   search();
   status.textContent=rows.length
-   ? '找到 '+rows.length+' 家已采集企业，可直接勾选。需要更多结果时，点击「补充采集」。'
-   : '当前条件下暂无结果。可调整筛选，或点击「补充采集」查找新企业。';
+   ? '找到 '+rows.length+' 家已采集企业，可直接勾选。点击「采集外部企业」可查找新线索。'
+   : '当前条件下暂无结果。可调整筛选，或点击「采集外部企业」查找新线索。';
  }catch(error){status.textContent='读取区域企业失败：'+error.message+'。请重试。';}
 }
 $('map-search-button').onclick=searchCompanies;
@@ -199,7 +199,7 @@ async function loadMapJobs(){
   const cityQuery=activeCity?'&city=eq.'+encodeURIComponent(activeCity.name):'';
   const jobs=await cloudRequest('lead_map_search_jobs?select=id,city,radius_km,keyword,customer_type,status,processed,inserted,located_existing,skipped,error_message,created_at&order=created_at.desc&limit=12'+cityQuery);
   list.replaceChildren();
-  if(!jobs.length){list.textContent='尚无后台采集任务。选择城市、半径和关键词后，可点击「补充采集」。';return;}
+  if(!jobs.length){list.textContent='尚无后台采集任务。选择城市、半径和关键词后，可点击「采集外部企业」。';return;}
   const statuses={queued:'等待后台执行',running:'正在采集',completed:'采集完成',failed:'失败'};
   for(const j of jobs){
    const row=document.createElement('div');row.className='map-job-row';
