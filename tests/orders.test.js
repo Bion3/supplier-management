@@ -21,3 +21,6 @@ test('complete piece weights and dimensions override declared totals',()=>{
  const cargo=[1940,1980,2020,1000].map((w,i)=>({cn:'设备',quantity:'1',weight:String(w),length:'340',width:i===3?'100':'107',height:i===3?'84':'137'}));
  const o=orderPatch({cargo,declaredWeight:'1',declaredVolume:'1'});assert.equal(o.weight,6940);assert.equal(o.volume,17.808);assert.equal(o.pieces,4);
 });
+
+import {newOrderNumber} from '../src/order-number.js';
+test('order numbers use Eurasiago and China business date at UTC midnight boundary',()=>{assert.equal(newOrderNumber(new Date('2026-11-10T16:00:00Z'),'12345678-abcd-4abc-8abc-123456789abc'),'Eurasiago-20261111-12345678ABCD4ABC');assert.match(newOrderNumber(),/^Eurasiago-\d{8}-[A-F0-9]{16}$/)});
