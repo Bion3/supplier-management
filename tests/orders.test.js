@@ -23,4 +23,4 @@ test('complete piece weights and dimensions override declared totals',()=>{
 });
 
 import {newOrderNumber} from '../src/order-number.js';
-test('order numbers use Eurasiago and China business date at UTC midnight boundary',()=>{assert.equal(newOrderNumber(new Date('2026-11-10T16:00:00Z'),'12345678-abcd-4abc-8abc-123456789abc'),'Eurasiago-20261111-12345678ABCD4ABC');assert.match(newOrderNumber(),/^Eurasiago-\d{8}-[A-F0-9]{16}$/)});
+test('order numbers use Eurasiago and China business date at UTC midnight boundary',()=>{assert.equal(newOrderNumber(new Date('2026-11-10T16:00:00Z'),'12345678-abcd-4abc-8abc-123456789abc'),'Eurasiago-261111-80M9XP');assert.match(newOrderNumber(),/^Eurasiago-\d{6}-[A-Z0-9]{6}$/)});
