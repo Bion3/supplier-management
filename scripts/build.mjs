@@ -7,6 +7,7 @@ for(const file of htmlFiles){
  const source=await readFile(file,'utf8');
  await writeFile(`dist/${file}`,source.replace('</head>',authBoot+'</head>'));
 }
+await cp('client.html','dist/client.html');
 await cp('login.html','dist/login.html');
 await cp('src','dist/src',{recursive:true});
 const html = await readFile('dist/index.html','utf8');

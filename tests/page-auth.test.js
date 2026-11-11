@@ -33,3 +33,4 @@ test('login return URL accepts only same-origin business pages',()=>{
  assert.equal(loginDestination('/mail.html?group=EU#drafts',origin),'/mail.html?group=EU#drafts');
  for(const url of ['https://evil.example/','//evil.example/','javascript:alert(1)','/api/session','/login.html'])assert.equal(loginDestination(url,origin),'/hub.html');
 });
+test('customer portal is a public shell while internal orders remain protected',async()=>{assert.equal((await protectPage(new Request(origin+'/client.html'),{proceed})).status,200);assert.equal((await protectPage(new Request(origin+'/orders.html'),{proceed})).status,303);});

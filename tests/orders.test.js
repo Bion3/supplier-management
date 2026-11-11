@@ -24,3 +24,4 @@ test('complete piece weights and dimensions override declared totals',()=>{
 
 import {newOrderNumber} from '../src/order-number.js';
 test('order numbers use Eurasiago and China business date at UTC midnight boundary',()=>{assert.equal(newOrderNumber(new Date('2026-11-10T16:00:00Z'),'12345678-abcd-4abc-8abc-123456789abc'),'Eurasiago-261111-80M9XP');assert.match(newOrderNumber(),/^Eurasiago-\d{6}-[A-Z0-9]{6}$/)});
+test('company association is stored as an access-control column, not only JSON',async()=>{let sent;const store=createOrderStore(async(p,o)=>{sent=JSON.parse(o.body);return [{id:'Eurasiago-test',data:sent.data,company_id:sent.company_id,version:2}]});const result=await store.save({id:'Eurasiago-test',version:1,companyId:'company-1',booking:{}});assert.equal(sent.company_id,'company-1');assert.equal(sent.data.companyId,undefined);assert.equal(result.companyId,'company-1');});

@@ -1,6 +1,6 @@
 import {build} from 'esbuild';
 import postcss from 'postcss';
-import {readFile,writeFile,rm} from 'node:fs/promises';
+import {readFile,writeFile,rm,appendFile} from 'node:fs/promises';
 await build({entryPoints:['src/orders-ui/entry.tsx'],outfile:'dist/src/orders.js',bundle:true,format:'esm',target:'es2022',minify:true,jsx:'automatic',define:{'process.env.NODE_ENV':'"production"'},plugins:[{name:'shared-auth',setup(b){b.onResolve({filter:/^\.\.\/cloud\.js$/},()=>({path:'/src/cloud.js',external:true}))}}]});
 // Scope the reviewed prototype stylesheet to this module so existing CRM navigation is preserved.
 const root=postcss.parse(await readFile('src/orders-ui/styles.css','utf8'));
@@ -12,3 +12,7 @@ console.log('Orders client bundled with scoped styles.');
 await rm('dist/src/orders-ui',{recursive:true,force:true});
 
 await build({entryPoints:['src/booking-import-worker.js'],outfile:'dist/src/booking-import-worker.js',bundle:true,format:'iife',target:'es2022',minify:true});
+
+await build({entryPoints:['src/orders-ui/client-entry.tsx'],outfile:'dist/src/client.js',bundle:true,format:'esm',target:'es2022',minify:true,jsx:'automatic',define:{'process.env.NODE_ENV':'\"production\"'}});
+
+await appendFile('dist/src/orders.css','\n.orders-app .client-login{max-width:500px;margin:40px auto}.orders-app .client-login label{display:block;margin:18px 0}.orders-app .client-login input{display:block;width:100%;margin-top:8px}');
