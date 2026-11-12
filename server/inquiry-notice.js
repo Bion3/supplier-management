@@ -27,7 +27,7 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    const customerEmail=typeof l.email==='string'?l.email.trim().toLowerCase():'';
    const validCustomer=/^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(customerEmail)&&customerEmail.length<=254&&customerEmail!==sender.toLowerCase();
    const customer=validCustomer?customerEmail:null;
-   const inquiryNo=`EGQ-${String(l.created_at||'').slice(2,10).replace(/-/g,'')}-${id.slice(0,8).toUpperCase()}`;
+   const inquiryNo=l.lead_no||`EGQ-${String(l.created_at||'').slice(2,10).replace(/-/g,'')}-${id.slice(0,8).toUpperCase()}`;
    const subject=`EurasiaGo Freight Inquiry [${inquiryNo}]`;
    // A website lead's 'message' is structured JSON. Do not print raw JSON,
    // escaped Unicode, or the complete form payload into customer email.
