@@ -1,0 +1,8 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {blankTrucking,validateTrucking,truckingVersion,latestTrucking} from '../src/overseas-delivery-model.js';
+const row=()=>({id:'original',origin:'Budapest',destination:'Plovdiv 4000',supplier_id:'supplier',status:'draft',quote:{...blankTrucking(),price:630,cargo:{packages:10,grossWeightKg:307,volumeCbm:8.457},customsRules:[{below50000:55}],source:{rawFreight:'EUR 630/ colli seal'}}});
+test('LCL reference does not require container or domestic loading place',()=>{assert.equal(validateTrucking(row()).quote.price,630);assert.throws(()=>validateTrucking({...row(),status:'confirmed'}),/启用前/);});
+test('confirmed LCL requires a defined purchase basis; FCL also requires box',()=>{const r=row();Object.assign(r.quote,{referenceOnly:false,priceBasis:'采购价',unit:'票'});r.status='confirmed';assert.equal(validateTrucking(r).status,'confirmed');r.quote.deliveryType='fcl';assert.throws(()=>validateTrucking(r),/箱型/);r.quote.container='40HQ';assert.equal(validateTrucking(r).status,'confirmed');});
+test('versions preserve source, cargo and customs, replacing old row in current view',()=>{const r=row(),n={...truckingVersion(r,{status:'inactive'}),id:'new'};assert.deepEqual(n.quote.customsRules,r.quote.customsRules);assert.deepEqual(n.quote.cargo,r.quote.cargo);assert.deepEqual(n.quote.source,r.quote.source);assert.deepEqual(latestTrucking([r,n]).map(r=>r.id),['new']);});
+test('reject invalid cargo or absent delivery type',()=>{const r=row();r.quote.cargo.packages=1.5;assert.throws(()=>validateTrucking(r),/件数/);r.quote.cargo.packages=10;delete r.quote.deliveryType;assert.throws(()=>validateTrucking(r),/整柜或拼箱/);});

@@ -21,7 +21,7 @@ const pages=[
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/index.html'?'/':location.pathname;
-const pricePages={'/trucking.html':['国内运输','国内拖车费'],'/container-rental.html':['集装箱与箱务','集装箱租箱价格'],'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费'],'/fcl-rail.html':['国际运输','整箱铁路运费']};
+const pricePages={'/overseas-delivery.html':['境外配送','境外配送成本'],'/trucking.html':['国内运输','国内拖车费'],'/container-rental.html':['集装箱与箱务','集装箱租箱价格'],'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费'],'/fcl-rail.html':['国际运输','整箱铁路运费']};
 const currentPath=path==='/crm.html'&&new URLSearchParams(location.search).get('view')==='peers'?'/crm.html?view=peers':path;
 const activePath=pricePages[path]?'/pricing.html':currentPath;
 const header=document.querySelector('body>header');

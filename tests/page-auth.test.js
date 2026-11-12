@@ -6,7 +6,7 @@ import {loginDestination} from '../src/login-model.js';
 const origin='https://app.example.test';
 const proceed=options=>new Response('protected-page',{headers:options?.headers});
 test('all business entrypoints redirect anonymously before returning page HTML',async()=>{
- for(const path of ['/','/index.html','/hub.html','/pricing.html','/mail.html','/inbox.html','/crm.html','/discovery.html','/cost.html','/rates.html','/rail-rates.html','/pickup-rates.html','/knowledge.html']){
+ for(const path of ['/','/index.html','/hub.html','/pricing.html','/overseas-delivery.html','/mail.html','/inbox.html','/crm.html','/discovery.html','/cost.html','/rates.html','/rail-rates.html','/pickup-rates.html','/knowledge.html']){
   let called=0;const r=await protectPage(new Request(origin+path),{verify:async()=>{called++;return null;},proceed});
   assert.equal(r.status,303,path);assert.equal(await r.text(),'');assert.ok(r.headers.get('location').startsWith('/login.html?next='));assert.equal(called,0);assert.match(r.headers.get('cache-control'),/no-store/);
  }
