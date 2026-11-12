@@ -1,5 +1,5 @@
 export {latestTrucking,validityOf} from './trucking-model.js';
-export const blankTrucking=(deliveryType='lcl')=>({deliveryType,loadingPlace:'',container:'',vehicle:'',currency:'EUR',price:null,unit:'',priceBasis:'参考价',referenceOnly:true,validFrom:'',validUntil:'',notes:'',fees:[],cargo:{},profitPreset:{mode:'markup',value:0}});
+export const blankTrucking=(deliveryType='lcl')=>({deliveryType,originCountry:'',destinationCountry:'',loadingPlace:'',container:'',vehicle:'',currency:'EUR',price:null,unit:'',priceBasis:'参考价',referenceOnly:true,validFrom:'',validUntil:'',notes:'',fees:[],cargo:{},profitPreset:{mode:'markup',value:0}});
 export function validateTrucking(row){
  const q=row.quote;
  if(!row.origin?.trim()||!row.destination?.trim())throw Error('请填写起运站 / 仓和目的地');
