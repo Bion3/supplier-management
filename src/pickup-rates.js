@@ -19,7 +19,7 @@ function renderTemplates(){
  const list=extraFilters.apply(current);filteredCosts=list;
  const paging=pager.update(list.length,page);page=paging.page;
  const head=$('rows').closest('table').querySelector('thead tr');
- head.innerHTML=['模板 / 使用范围','第1档 · ≤5 CBM / ≤2500kg','第2档 · ≤10 CBM / ≤5000kg','第3档 · ≤15 CBM / ≤7500kg','有效期 / 状态','操作'].map(x=>'<th>'+x+'</th>').join('');
+ head.innerHTML=['模板 / 使用范围','第1档 · ≤5 CBM / ≤2500kg','第2档 · ≤10 CBM / ≤5000kg','第3档 · ≤15 CBM / ≤7500kg','有效期至','状态','操作'].map(x=>'<th>'+x+'</th>').join('');
  $('rows').innerHTML=list.slice(paging.start,paging.end).map(r=>{
   const q=r.quote||{},tiers=[...(q.tiers||[])].sort((a,b)=>a.maxVolume-b.maxVolume||a.maxWeight-b.maxWeight);
   const points=[{volume:5,weight:2500},{volume:10,weight:5000},{volume:15,weight:7500}];
@@ -28,9 +28,9 @@ function renderTemplates(){
   const scope=q.areas?.length?q.areas.join('、'):'全部提货地 · 收货仓100公里内';
   return '<tr data-sale-row="'+esc(r.id)+'"><td><strong>'+esc(q.templateName||'通用提货价')+'</strong><small>'+esc(scope)+'</small></td>'+
   points.map(p=>'<td class="pickup-price"><strong>'+price(p)+'</strong><small>'+esc(q.currency||'USD')+' / 票</small></td>').join('')+
-  '<td><span class="pickup-status '+(r.status==='confirmed'?'is-active':'')+'">'+(r.status==='confirmed'?'已确认':r.status==='inactive'?'停用':'待确认')+'</span><small>'+esc(q.validUntil||'长期有效（待核实）')+'</small></td>'+
+  '<td><strong>'+esc(q.validUntil||'未填写')+'</strong><small>起：'+esc(q.validFrom||'未注明')+'</small></td><td><span class="pickup-status '+(r.status==='confirmed'?'is-active':'')+'">'+(r.status==='confirmed'?'已确认':r.status==='inactive'?'停用':'待确认')+'</span></td>'+
   '<td><button type="button" data-edit="'+esc(r.id)+'" class="secondary">修改模板</button></td></tr>';
- }).join('')||'<tr><td colspan="6">暂无有效的提货价格模板</td></tr>';
+ }).join('')||'<tr><td colspan="7">暂无有效的提货价格模板</td></tr>';
  bulkEnable.refresh();
 }
 
