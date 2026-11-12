@@ -27,7 +27,8 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    const customerEmail=typeof l.email==='string'?l.email.trim().toLowerCase():'';
    const validCustomer=/^[^\s@<>\r\n]+@[^\s@<>\r\n]+\.[^\s@<>\r\n]+$/.test(customerEmail)&&customerEmail.length<=254&&customerEmail!==sender.toLowerCase();
    const customer=validCustomer?customerEmail:null;
-   const subject=`EurasiaGo Freight Inquiry [${id.slice(0,8).toUpperCase()}]`;
+   const inquiryNo=l.lead_no||`EGQ-${String(l.created_at||'').slice(2,10).replace(/-/g,'')}-${id.slice(0,8).toUpperCase()}`;
+   const subject=`EurasiaGo Freight Inquiry [${inquiryNo}]`;
    // A website lead's 'message' is structured JSON. Do not print raw JSON,
    // escaped Unicode, or the complete form payload into customer email.
    let details={};
@@ -37,17 +38,28 @@ export function createInquiryNotice({createTransport,fetcher=fetch,password=proc
    const shipment=safe(details.service||'-',20);
    const quantity=safe(details.quantity||'-',20);
    const cargo=safe(l.cargo_desc||'-',180);
+   const container=safe(details.container||'-',30);
+   const equipment=safe(details.equipment||'-',30);
+   const dimensions=details.pieceDimensions||{};
+   const dimensionLabel=[dimensions.lengthM,dimensions.widthM,dimensions.heightM].every(v=>Number(v)>0)?`${dimensions.lengthM} × ${dimensions.widthM} × ${dimensions.heightM} m`:'-';
+   const volume=Number(l.volume_cbm)>0?String(l.volume_cbm):'-';
+   const weight=Number(l.weight_kg)>0?String(l.weight_kg):'-';
+   const scopeLabels={door_to_station:'门点至站 / Door to station',port_to_port:'站到站 / Station to station',station:'站到站 / Station to station'};
    const memo=safe(details.notes||'',500);
    const lineItems=[
-     ['Inquiry ID',id],
+     ['Inquiry No.',inquiryNo],
      ['Name',safe(l.contact_name,90)],
      ['Route',safe(l.origin,90)+' → '+safe(l.destination,90)],
      ['Mode',shipment],
-     ['Service scope',scope],
+     ['Service scope',scopeLabels[scope]||scope],
      ['Quantity',quantity],
-     ['Volume (CBM)',safe(l.volume_cbm||'-',20)],
-     ['Weight (KG)',safe(l.weight_kg||'-',20)],
+     ['Volume (CBM)',volume],
+     ['Weight (KG)',weight],
+     ['Container',shipment==='FCL'?container:'LCL'],
+     ...(shipment==='FCL'?[['Equipment',equipment]]:[]),
      ['Cargo',cargo],
+     ...(dimensionLabel!=='-'?[['Piece dimensions',dimensionLabel]]:[]),
+     ...(Number(dimensions.weightKg)>0?[['Piece weight (KG)',String(dimensions.weightKg)]]:[]),
      ...(memo?[['Remarks',memo]]:[])
    ];
    const text=[
