@@ -1,6 +1,6 @@
 import {createListFilters} from './list-filters.js';
 import {createPager} from './pagination.js';
-import {shipmentRequirements} from './shipment-model.js';
+import {searchKnowledge} from './knowledge-search-model.js';
 import {login,logout,currentUser,cloudRequest,listSuppliers,storageUpload,storageRemove,storageSignedURL,syncAuthShell} from './cloud.js';
 import {validateEntry,effectiveStatus,filterEntries,filePath} from './knowledge-model.js';
 import {chinaDate} from './crm-model.js';
@@ -61,38 +61,37 @@ function clearShipment(){const el=$('shipment-results');el.hidden=true;el.replac
 function shipmentOptions(){
  $('shipment-routes').replaceChildren(...routes.map(r=>option(r.name,r.code+' · '+r.name)));
  $('shipment-stations').replaceChildren(...[...new Set(stations.map(s=>s.name))].map(n=>option(n,n)));
- const current=$('shipment-supplier').value;$('shipment-supplier').replaceChildren(option('','不限'),...suppliers.map(s=>option(s.id,s.name)));$('shipment-supplier').value=current;
+ $('shipment-suppliers').replaceChildren(...suppliers.map(s=>option(s.name,s.name)));
 }
 $('toggle-maintenance').addEventListener('click',()=>{const panel=$('maintenance');panel.hidden=!panel.hidden;$('toggle-maintenance').setAttribute('aria-expanded',String(!panel.hidden));if(!panel.hidden)panel.scrollIntoView({behavior:'smooth',block:'start'});});
 $('shipment-form').addEventListener('input',()=>{clearShipment();$('shipment-error').textContent='';});
 function evidence(e){
- const wrap=document.createElement('div');wrap.className='evidence-row';const title=document.createElement('strong');title.textContent=e.title;
- const meta=para(`${e.resultStatus} · ${e.matchReason} · ${e.source||'来源待补充'} · 生效 ${e.effective_from||'未知'} / 失效 ${e.valid_until||'未注明'}`);meta.className='evidence-meta';
- wrap.append(title,...(e.hit?[para(e.hit)]:[]),meta,btn('查看原文与版本',()=>openDetail(e.id)));return wrap;
+ const card=document.createElement('article');card.className='panel knowledge-result';
+ const heading=document.createElement('h3');heading.textContent=e.title;
+ const meta=para([e.kind,e.resultStatus,e.station_name,e.route_name,e.supplier_name].filter(Boolean).join(' · '));meta.className='evidence-meta';
+ const excerpt=para(e.excerpt||'暂无摘要，点击查看原文与附件。');excerpt.className='knowledge-excerpt';
+ const scope=para('适用范围：'+(e.scope||'原资料未注明'));scope.className='knowledge-scope';
+ const source=para('来源：'+(e.source||e.source_name||'未注明')+' · 更新：'+(e.updated_at?.slice(0,10)||'未注明'));source.className='evidence-meta';
+ card.append(heading,meta,excerpt,scope,source);
+ if(e.topic_names){const topics=para(e.topic_names);topics.className='knowledge-topics';card.append(topics);}
+ card.append(btn('查看原文与附件',()=>openDetail(e.id)));return card;
 }
+$('reset-query').addEventListener('click',()=>{$('shipment-form').reset();clearShipment();$('shipment-error').textContent='';});
 $('shipment-form').addEventListener('submit',event=>{
  event.preventDefault();$('shipment-error').textContent='';
  try{
- const input=Object.fromEntries(new FormData(event.currentTarget));const result=shipmentRequirements(input,{entries,routes,stations,sources,topics,topicLinks},chinaDate());
+ const input=Object.fromEntries(new FormData(event.currentTarget));
+ const result=searchKnowledge(input,{entries,routes,stations,sources,suppliers,topics,topicLinks},chinaDate());
  const box=$('shipment-results');box.replaceChildren();box.hidden=false;
- const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=[input.origin||input.destination?[input.origin||'起运站不限',input.destination||'目的站不限'].join(' → '):'',input.route,input.mode].filter(Boolean).join(' · ')||'操作清单';
- const summary=[input.cargo,input.hs?'HS '+input.hs:'',suppliers.find(s=>s.id===input.supplier_id)?.name].filter(Boolean).join(' · ')||(Object.values(input).some(Boolean)?'按所选条件查询':'通用操作清单');
- intro.append(h,para(summary),para(`按 ${result.date} 核对版本 · ${result.approved} 条已核实要求 · ${result.relevant.length} 条相关依据`));
- const copy=btn('复制操作清单',async()=>{const text=[h.textContent,summary,...result.topicGroups.flatMap(g=>[g.name,...g.items.filter(e=>e.hit||e.approved||e.relationType==='核心规则').slice(0,5).map(e=>'• '+e.title+(e.hit?' / '+e.hit:''))]),'本票操作清单',...result.todo.map((x,i)=>(i+1)+'. '+x),'待确认事项',...result.risks.map(x=>'• '+x),'具体接货与时限需按当前承运方确认。'].join('\n');try{await navigator.clipboard.writeText(text);copy.textContent='已复制';}catch{copy.textContent='复制失败，请手动选择结果复制';}});head.append(intro,copy);box.append(head);
- if(result.matches.length){const hit=document.createElement('section');hit.className='panel step-card';const heading=document.createElement('h3');heading.textContent='本票品名匹配 · 核对适用条件';hit.append(heading,...result.matches.map(evidence));box.append(hit);}
- if(result.topicGroups.length){const overview=document.createElement('section');overview.className='topic-overview';const heading=document.createElement('h3');heading.textContent='相关业务主题';overview.append(heading);const list=document.createElement('div');list.className='topic-chips';for(const group of result.topicGroups){const chip=document.createElement('span');chip.textContent=`${group.name} ${group.items.length}`;list.append(chip);}overview.append(list);box.append(overview);}
- const checklist=document.createElement('section');checklist.className='panel step-card';const label=document.createElement('h3');label.textContent='本票操作清单';const steps=document.createElement('ol');for(const action of result.todo){const li=document.createElement('li');li.textContent=action;steps.append(li);}checklist.append(label,steps);box.append(checklist);
- const more=document.createElement('details');more.className='result-details';const caption=document.createElement('summary');caption.textContent='展开各业务主题的详细规则、操作和来源';more.append(caption);box.append(more);
- const warning=document.createElement('section');warning.className='result-warning';const wh=document.createElement('h3');wh.textContent='待确认事项';const warningList=document.createElement('ul');for(const r of result.risks){const li=document.createElement('li');li.textContent=r;warningList.append(li);}warning.append(wh,warningList);more.append(warning);
- for(const group of result.topicGroups){
-  const card=document.createElement('section');card.className='panel theme-card';const heading=document.createElement('h3');heading.textContent=group.name;card.append(heading,para(group.description));
-  const counts={};for(const item of group.items)counts[item.relationType]=(counts[item.relationType]||0)+1;const meta=para(Object.entries(counts).map(([k,v])=>`${k} ${v}`).join(' · '));meta.className='evidence-meta';card.append(meta);
-  const highlights=group.items.filter(e=>e.hit||e.approved||e.relationType==='核心规则'||e.relationType==='冲突/例外').slice(0,3);for(const item of highlights)card.append(evidence(item));
-  const rest=group.items.filter(e=>!highlights.includes(e));if(rest.length){const details=document.createElement('details'),sum=document.createElement('summary');sum.textContent=`查看其余 ${rest.length} 条操作、历史案例和来源`;details.append(sum,...rest.map(evidence));card.append(details);}
-  more.append(card);
- }
- if(!result.topicGroups.length){const empty=para('当前条件没有匹配到已归类知识，请补充品名、HS、线路或站点后再查。');empty.className='result-empty';more.append(empty);}
- if(result.otherStations.length){const d=document.createElement('details'),cap=document.createElement('summary');d.className='panel step-card';cap.textContent='其他站点品名参考（不作为本票要求） · '+result.otherStations.length;d.append(cap,...result.otherStations.map(evidence));box.append(d);}
- box.scrollIntoView({behavior:'smooth',block:'start'});
+ const head=document.createElement('div');head.className='result-head';const intro=document.createElement('div'),h=document.createElement('h2');h.textContent=`相关知识 · ${result.length} 条`;
+ const labels={cargo:'品名',hs:'HS',route:'航线',origin:'起运站',destination:'目的站',mode:'运输方式',supplier:'供应商'};
+ const summary=Object.entries(input).filter(([,v])=>v.trim()).map(([k,v])=>`${labels[k]}：${v}`).join(' · ')||'全部知识，按更新时间排列';
+ intro.append(h,para(summary));head.append(intro);box.append(head);
+ if(!result.length){const empty=para('没有找到相关知识。可减少查询条件，或尝试品名简称、HS前缀、站点别名。');empty.className='panel result-empty';box.append(empty);return;}
+ const note=para('以下为资料匹配结果，具体适用范围与确认状态请以每条原文为准。');note.className='evidence-meta';box.append(note);
+ const list=document.createElement('div');box.append(list);let shown=0;
+ const more=btn('查看更多',showMore);box.append(more);
+ function showMore(){const end=Math.min(shown+20,result.length);for(const e of result.slice(shown,end))list.append(evidence(e));shown=end;more.hidden=shown>=result.length;more.textContent=`查看更多（已显示 ${shown} / ${result.length}）`;}
+ showMore();
  }catch(e){$('shipment-error').textContent=e.message;}
 });

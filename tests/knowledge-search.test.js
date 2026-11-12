@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {searchKnowledge} from '../src/knowledge-search-model.js';
+const entries=[{id:'notice',title:'武汉汉欧｜HS 33重点核查',content:'商编33开头的货物会被重点检查。\n精油与电子烟烟弹需核实。',scope:'武汉汉欧铁路业务',station_id:'wh',route_id:'general',status:'待确认',updated_at:'2026-11-12'}, {id:'history',title:'历史货物审核：香水',content:'HS编码：3303000000',route_id:'eu',status:'已核实',valid_until:'2026-10-01'}, {id:'other',title:'成都零食免鉴定资料',content:'零食、饮品',station_id:'cd',status:'待确认'}];
+const data={entries,routes:[{id:'general',code:'GENERAL',name:'通用操作与资料'},{id:'eu',name:'中国—欧洲铁路',category:'铁路'}],stations:[{id:'wh',name:'武汉',english_name:'Wuhan'},{id:'cd',name:'成都'}]};
+const search=q=>searchKnowledge(q,data,'2026-11-12');
+test('HS-only finds station notice and historical knowledge without shipment fields',()=>{assert.deepEqual(search({hs:'33'}).map(e=>e.id),['notice','history']);});
+test('full HS code finds an applicable chapter prefix, but not a sibling code',()=>{assert.deepEqual(search({hs:'3301000000'}).map(e=>e.id),['notice']);assert.equal(search({hs:'34'}).length,0);});
+test('supplier text finds an unlinked supplier notice; multiple fields intersect',()=>{assert.equal(search({supplier:'汉欧',origin:'Wuhan',hs:'3301',mode:'铁路'})[0].id,'notice');assert.equal(search({supplier:'汉欧',origin:'成都'}).length,0);});
+test('cargo keyword searches content and excludes unrelated generic instructions',()=>{const rows=search({cargo:'精油'});assert.equal(rows.length,1);assert.match(rows[0].excerpt,/精油/);assert.equal(rows[0].todo,undefined);});
+test('blank fields browse all, including historical and expired records with status',()=>{assert.equal(search({}).length,3);assert.equal(search({hs:'3303'}).find(e=>e.id==='history').resultStatus,'已过期');});
+test('invalid HS is explained instead of silently returning broad matches',()=>{assert.throws(()=>search({hs:'abc'}),/HS编码/);});
