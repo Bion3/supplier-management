@@ -1,3 +1,4 @@
+import {installLanguage} from './ui-language.js';
 import {logout} from './cloud.js';
 import {taskURL} from './workspace-model.js';
 const embedded=window.parent!==window&&!!window.parent.eurasiagoWorkspace;
@@ -43,5 +44,7 @@ if(header&&!embedded){
  nav.addEventListener('click',event=>{if(event.target.closest('a'))close();});
  for(const group of nav.querySelectorAll('details'))group.addEventListener('toggle',()=>{saved[group.dataset.navGroup]=group.open;try{localStorage.setItem('eurasiago-nav-groups',JSON.stringify(saved));}catch{}});
 }
-if(pricePages[path]){const context=document.createElement('nav');context.className='price-breadcrumb';context.setAttribute('aria-label','当前位置');context.innerHTML=`<a href="/pricing.html">采购价格中心</a><span> / ${pricePages[path][0]} / ${pricePages[path][1]}</span>`;document.querySelector('main')?.prepend(context);}
+if(pricePages[path]){const context=document.createElement('nav');context.className='price-breadcrumb';context.setAttribute('aria-label','当前位置');context.innerHTML=`<a href="/pricing.html">采购价格中心</a><span> / </span><span>${pricePages[path][0]}</span><span> / </span><span>${pricePages[path][1]}</span>`;document.querySelector('main')?.prepend(context);}
 
+
+installLanguage();

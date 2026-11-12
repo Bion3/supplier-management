@@ -1,9 +1,10 @@
+import {originalUIText} from './ui-language.js';
 import {taskURL} from './workspace-model.js';
 import {workspaceToken} from './cloud.js';
 
 const tabs=document.getElementById('task-tabs'),panels=document.getElementById('task-panels'),status=document.getElementById('task-status');
 const tasks=[];let active=null,nextId=0;
-const labels=new Map([...document.querySelectorAll('header a[href]')].map(a=>[a.getAttribute('href'),a.textContent.trim()]));
+const labels=new Map([...document.querySelectorAll('header a[href]')].map(a=>[a.getAttribute('href'),originalUIText(a).trim()]));
 const api={open,token:workspaceToken,beforeLogout(){
  if(tasks.some(task=>task.dirty)&&!confirm('退出登录会关闭所有任务，请确认已保存需要的内容。继续退出？'))return false;
  window.onbeforeunload=null;return true;
