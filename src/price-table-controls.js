@@ -112,18 +112,23 @@ export function installCostRouteBrowser({kind,onChange}) {
  if(!toolbar)return {apply:rows=>rows};
  const state={group:'',origin:'',destination:''};
  const box=document.createElement('section');box.className='cost-route-browser';
- const title=document.createElement('strong');title.textContent='按航线维护费用';box.append(title);
+ const nativeGroup=toolbar.querySelector('#line-group-filter');
+ const search=toolbar.querySelector('#search,#rail-search');
+ if(search){const label=search.closest('label');label.classList.add('cost-primary-search');box.append(label);}
  const controls={};
  for(const [key,label] of [['group','航线分类'],['origin',['trucking','rental'].includes(kind)?'起始地 / 提箱地':'起运站'],['destination','目的地']]){
+  if(key==='group'&&nativeGroup){box.append(nativeGroup.closest('label'));continue;}
   const field=document.createElement('label');field.textContent=label;const select=document.createElement('select');select.setAttribute('aria-label',label);field.append(select);box.append(field);controls[key]=select;
   select.onchange=()=>{state[key]=select.value;if(key==='group'){state.origin='';state.destination='';}if(key==='origin')state.destination='';onChange();};
  }
- const reset=document.createElement('button');reset.type='button';reset.className='secondary';reset.textContent='清除分类';reset.onclick=()=>{Object.keys(state).forEach(k=>state[k]='');onChange();};box.append(reset);
+ const reset=document.createElement('button');reset.type='button';reset.className='secondary';reset.textContent='重置';reset.onclick=()=>{Object.keys(state).forEach(k=>state[k]='');for(const el of [...box.querySelectorAll('input,select'),...toolbar.querySelectorAll('input,select')]){if(Object.values(controls).includes(el))continue;if(el.tagName==='SELECT')el.selectedIndex=Math.max(0,[...el.options].findIndex(o=>o.defaultSelected));else el.value=el.defaultValue;}onChange();updateSummary();};box.append(reset);
  const count=document.createElement('small');count.setAttribute('aria-live','polite');box.append(count);toolbar.before(box);
  const details=document.createElement('details');details.className='cost-more-filters';const summary=document.createElement('summary');summary.textContent='更多筛选';details.append(summary);toolbar.before(details);details.append(toolbar);
- const updateSummary=()=>{const n=[...details.querySelectorAll('input,select')].filter(el=>el.value&& !['all','active'].includes(el.value)).length;summary.textContent='更多筛选'+(n?' · 已设置 '+n+' 项':'');};details.addEventListener('input',updateSummary);updateSummary();
+ const updateSummary=()=>{const n=[...details.querySelectorAll('input,select')].filter(el=>el.tagName==='SELECT'?el.selectedIndex!==Math.max(0,[...el.options].findIndex(o=>o.defaultSelected)):el.value!==el.defaultValue).length;summary.textContent='更多筛选'+(n?' · 已设置 '+n+' 项':'');};details.addEventListener('input',updateSummary);details.addEventListener('change',updateSummary);updateSummary();
+ // Keep the one canonical route filter and move existing controls, preserving listeners.
+ if(nativeGroup)nativeGroup.addEventListener('change',()=>{state.origin='';state.destination='';onChange();});
  const lead=workspace.querySelector('.heading p');if(lead)lead.textContent='先选航线和起运站，再查看、更新或批量维护费用。';
  workspace.classList.add('cost-route-layout');
- function options(key,values){const select=controls[key];select.replaceChildren(new Option('全部',''));const counts=new Map();for(const value of values)if(value)counts.set(value,(counts.get(value)||0)+1);for(const [value,n] of [...counts].sort(([a],[b])=>a.localeCompare(b,'zh-CN')))select.add(new Option(value+' · '+n,value));if(state[key]&&!counts.has(state[key]))state[key]='';select.value=state[key];}
+ function options(key,values){const select=controls[key];if(!select)return;select.replaceChildren(new Option('全部',''));const counts=new Map();for(const value of values)if(value)counts.set(value,(counts.get(value)||0)+1);for(const [value,n] of [...counts].sort(([a],[b])=>a.localeCompare(b,'zh-CN')))select.add(new Option(value+' · '+n,value));if(state[key]&&!counts.has(state[key]))state[key]='';select.value=state[key];}
  return {apply(rows){options('group',rows.map(r=>costRouteGroup(r,kind)));const grouped=filterCostRoutes(rows,{group:state.group},kind);options('origin',grouped.map(r=>r.origin));const origins=filterCostRoutes(grouped,{origin:state.origin},kind);options('destination',origins.map(r=>r.destination));const result=filterCostRoutes(rows,state,kind);count.textContent=result.length+' 条费用';return result;}};
 }
