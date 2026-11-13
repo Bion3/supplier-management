@@ -82,6 +82,7 @@ function renderDetail(){
  $('history').replaceChildren();for(const s of shipments.filter(x=>x.company_id===selected).sort((a,b)=>(b.train_date||'').localeCompare(a.train_date||''))){const tr=document.createElement('tr');tr.append(td(s.train_date),td(s.origin),td(s.destination),td(s.container_type),td(s.container_quantity));$('history').append(tr);}
 }
 async function openDetail(id){
+ void loadPortalAccount(id);
  $('edit-company').disabled=true;$('add-contact').disabled=true;selected=id;const dg=++detailGeneration;loadMailTimeline(id,dg);$('followup-form').reset();$('followup-error').textContent='正在读取客户详情…';$('detail-title').textContent='正在读取…';$('detail-note').textContent='';for(const id of ['contacts','followups','history'])$(id).replaceChildren();$('sources').textContent='正在读取来源…';if(!$('detail').open)$('detail').showModal();
  try{const full=await cloudRequest('freight_companies?id=eq.'+encodeURIComponent(id)+'&select=*&limit=1');if(dg!==detailGeneration||selected!==id)return;if(!full.length)throw Error('客户不存在或无权访问');companies=mergeRows(companies,full);$('edit-company').disabled=false;$('add-contact').disabled=false;$('followup-error').textContent='';renderDetail();const detailResults=await Promise.allSettled([all('freight_contacts?company_id=eq.'+encodeURIComponent(id)),all('freight_followups?company_id=eq.'+encodeURIComponent(id),'created_at.desc,id.desc'),all('freight_shipments?company_id=eq.'+encodeURIComponent(id))]);if(dg!==detailGeneration||selected!==id)return;for(const [i,result] of detailResults.entries()){if(result.status==='fulfilled'){if(i===0)contacts=[...contacts.filter(c=>c.company_id!==id),...result.value];if(i===1)followups=[...followups.filter(c=>c.company_id!==id),...result.value];if(i===2)shipments=[...shipments.filter(c=>c.company_id!==id),...result.value];}else $('followup-error').textContent='部分详情读取失败：'+result.reason.message;}renderDetail();const rows=await cloudRequest(`freight_sources?company_id=eq.${encodeURIComponent(id)}&select=*&order=sheet.asc,row_number.asc`);if(dg!==detailGeneration||selected!==id)return;$('sources').replaceChildren();appendAcquisitionSources(companies.find(c=>c.id===id));for(const r of rows){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${r.source_filename} · ${r.sheet}!${r.row_number}`;details.append(summary,paragraph(Object.entries(r.raw).map(([k,v])=>`${k}：${v}`).join('\n')));$('sources').append(details);}if(!rows.length&&!$('sources').children.length)$('sources').textContent='手动新增档案，无导入来源。';}
  catch(e){if(dg===detailGeneration)$('sources').textContent=e.message;}
@@ -153,3 +154,19 @@ async function loadMailTimeline(id,dg){
 }
 
 
+
+async function loadPortalAccount(id){
+ const status=$('portal-account-status'),members=$('portal-account-members');if(!status)return;
+ status.textContent='正在读取账户信息…';members.replaceChildren();
+ try{const data=await cloudRequest('rpc/freight_crm_portal_account',{method:'POST',body:JSON.stringify({p_crm_company_id:id})});
+ if(selected!==id)return;status.textContent=data?'客户门户企业：'+data.company_name:'尚未开通客户端账户';
+ for(const email of data?.members||[]){const p=document.createElement('p');p.textContent='已授权邮箱：'+email;members.append(p)}
+ }catch(e){if(selected===id)status.textContent='账户信息不可用：'+e.message}
+}
+$('portal-account-form').addEventListener('submit',async event=>{
+ event.preventDefault();if(!selected)return;const id=selected,email=$('portal-account-email').value.trim();
+ if(!confirm('确认将 '+email+' 授权到当前客户企业？该账号可查看该企业的订单及已关联询价。'))return;
+ const button=event.currentTarget.querySelector('button');button.disabled=true;
+ try{await cloudRequest('rpc/freight_crm_portal_assign',{method:'POST',body:JSON.stringify({p_crm_company_id:id,p_email:email})});$('portal-account-email').value='';await loadPortalAccount(id)}
+ catch(e){$('portal-account-status').textContent='授权失败：'+e.message}finally{button.disabled=false}
+});
