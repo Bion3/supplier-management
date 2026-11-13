@@ -3,6 +3,7 @@ export const taskPages=new Set(['/inquiries.html','/orders.html','/','/hub.html'
 export function taskURL(value,origin){
  try{const url=new URL(value,origin);if(url.pathname==='/index.html')url.pathname='/';return url.origin===origin&&taskPages.has(url.pathname)?url.pathname+url.search+url.hash:null;}catch{return null;}
 }
+taskPages.add('/master-data.html');
 export function openTask(url){
  if(window.parent!==window&&typeof window.parent.eurasiagoWorkspace?.open==='function'){if(!window.parent.eurasiagoWorkspace.open(url))throw Error('请先保存并关闭一个任务，再打开新任务。');}
  else location.assign(url);
