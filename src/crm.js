@@ -8,7 +8,7 @@ import {contactColumns} from './list-filters.js';
 import {installMailVerification} from './mail-verification.js';
 import {installCrmBulk} from './crm-bulk.js';
 import {createPager} from './pagination.js';
-import {login,logout,currentUser,cloudRequest,syncAuthShell} from './cloud.js';
+import {login,logout,currentUser,cloudRequest,syncAuthShell,workspaceToken} from './cloud.js';
 import {developmentStages,companyStage,companySourceTypes,latestFollowups,validateCompany,validateContact,chinaDate,initialContacts} from './crm-model.js';
 const $=id=>document.getElementById(id);
 let companies=[],contacts=[],shipments=[],followups=[],page=1,selected=null,editingCompany=null,editingContact=null,generation=0,detailGeneration=0,selectedCompanies=new Set(),filteredCompanies=[],pageCompanies=[];
@@ -169,4 +169,18 @@ $('portal-account-form').addEventListener('submit',async event=>{
  const button=event.currentTarget.querySelector('button');button.disabled=true;
  try{await cloudRequest('rpc/freight_crm_portal_assign',{method:'POST',body:JSON.stringify({p_crm_company_id:id,p_email:email})});$('portal-account-email').value='';await loadPortalAccount(id)}
  catch(e){$('portal-account-status').textContent='授权失败：'+e.message}finally{button.disabled=false}
+});
+
+$('portal-account-create').addEventListener('click',async()=>{
+ if(!selected)return;const id=selected,email=$('portal-account-email').value.trim();
+ if(!/^\S+@\S+\.\S+$/.test(email)){$('portal-account-status').textContent='请先填写有效的客户邮箱';return}
+ if(!confirm('为 '+email+' 创建新账号并生成一次性初始密码？请先确认邮箱属于当前客户。'))return;
+ const button=$('portal-account-create');button.disabled=true;$('portal-created-password').textContent='';
+ try{
+ const token=await workspaceToken();
+ const response=await fetch('https://hcorkkudgicarsmexnqf.supabase.co/functions/v1/crm-create-client-account',{method:'POST',headers:{'Content-Type':'application/json',apikey:'sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp',Authorization:'Bearer '+token},body:JSON.stringify({crm_company_id:id,email})});
+ const data=await response.json();if(!response.ok)throw Error(data.error||'创建失败');
+ $('portal-created-password').textContent='初始密码（仅本次显示，请安全交付客户）：'+data.temporary_password;
+ await loadPortalAccount(id);
+ }catch(e){$('portal-account-status').textContent='创建失败：'+e.message}finally{button.disabled=false}
 });
