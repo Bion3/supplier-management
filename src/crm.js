@@ -165,7 +165,7 @@ async function loadPortalAccount(id){
  for(const email of data?.members||[]){const p=document.createElement('p');p.textContent='已授权邮箱：'+email;members.append(p)}
  }catch(e){if(selected===id)status.textContent='账户信息不可用：'+e.message}
 }
-$('portal-account-form').addEventListener('submit',async event=>{
+$('portal-account-form')?.addEventListener('submit',async event=>{
  event.preventDefault();if(!selected)return;const id=selected,email=$('portal-account-email').value.trim();
  if(!confirm('确认将 '+email+' 授权到当前客户企业？该账号可查看该企业的订单及已关联询价。'))return;
  const button=event.currentTarget.querySelector('button');button.disabled=true;
