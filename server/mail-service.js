@@ -24,7 +24,9 @@ export function makeService({fetcher=fetch,createTransport,password=process.env.
  async function check(d,token){validateMail(d.subject,d.body);if(!validEmail(d.recipient))throw Error('收件邮箱格式无效。');
   if(d.purpose==='测试'){if(d.recipient.toLowerCase()!==sender)throw Error('测试邮件只允许发给发信邮箱自身。');}
   else{await checkCompany(d.company_id,token);const c=await request('/rest/v1/freight_contacts?id=eq.'+encodeURIComponent(d.contact_id||'')+'&select=*',token);if(c.length!==1||c[0].company_id!==d.company_id||c[0].channel!=='邮箱'||c[0].status!=='有效'||!c[0].email_allowed||c[0].value.trim().toLowerCase()!==d.recipient.toLowerCase())throw Error('收件人尚未核实或已停止邮件联系。');
-   for(let offset=0;;offset+=500){const banned=await request('/rest/v1/freight_contacts?channel=eq.'+encodeURIComponent('邮箱')+'&email_allowed=eq.false&select=value&order=id.asc&limit=500&offset='+offset,token);if(banned.some(c=>c.value.trim().toLowerCase()===d.recipient.toLowerCase()))throw Error('该邮箱已停止邮件联系。');if(banned.length<500)break;}
+   const banned=await request('/rest/v1/rpc/freight_mail_email_blocked',token,{method:'POST',body:JSON.stringify({p_email:d.recipient})});
+   if(typeof banned!=='boolean')throw Error('无法确认邮箱停发状态。');
+   if(banned)throw Error('该邮箱已停止邮件联系。');
   }
 
  }
