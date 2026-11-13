@@ -1,7 +1,7 @@
 import {verifySession,readSessionCookie,sessionCookie,PRIVATE_HEADERS} from './session-auth.js';
 export async function protectPage(request,{verify=verifySession,proceed}={}){
  const url=new URL(request.url);
- if(url.pathname==='/client.html'||url.pathname==='/login.html'||url.pathname==='/login'||url.pathname.startsWith('/api/')||url.pathname.startsWith('/src/')||['/favicon.ico','/robots.txt'].includes(url.pathname))return proceed();
+ if(url.pathname==='/client.html'||url.pathname==='/inquiries.html'||url.pathname==='/login.html'||url.pathname==='/login'||url.pathname.startsWith('/api/')||url.pathname.startsWith('/src/')||['/favicon.ico','/robots.txt'].includes(url.pathname))return proceed();
  const token=readSessionCookie(request);
  try{
   if(token&&await verify(token))return proceed({headers:PRIVATE_HEADERS});
