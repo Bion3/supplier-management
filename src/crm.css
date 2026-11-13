@@ -19,3 +19,17 @@ header a{color:white;font-size:14px} .actions{display:flex;gap:10px;flex-wrap:wr
 #customer-mail-timeline{margin-top:20px;padding-top:16px;border-top:1px solid #d6e1e4}#customer-mail-timeline details{padding:12px 0;border-bottom:1px solid #e3eaec}#customer-mail-timeline summary{cursor:pointer;overflow-wrap:anywhere}#customer-mail-timeline p{white-space:pre-wrap;overflow-wrap:anywhere}
 
 .crm-directory-tag{display:inline-block;padding:2px 7px;margin:4px 5px 0 0;border:1px solid #b5d5d0;border-radius:5px;background:#edf7f4;color:#12665e;font-size:12px;cursor:pointer}
+
+/* Customer workbench: prioritize search and the list; keep secondary info compact. */
+body.crm-page>main,html.workspace-embedded body.crm-page>main{padding-top:12px;padding-bottom:20px}
+.crm-page .crm-account{display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:11px;margin:0 0 5px;line-height:1.3}
+.crm-page .crm-account button{font-size:11px;padding:4px 8px;background:transparent;color:#607c80}
+.crm-page #workspace .heading{margin:0 0 8px;gap:12px}.crm-page #workspace .heading h1{font-size:22px;margin:0}.crm-page #workspace .heading p{display:none}.crm-page #workspace .heading button{padding:7px 12px;font-size:12px}
+.crm-page #workspace .stats{display:flex;flex-wrap:wrap;margin:8px 0 10px;padding:7px 10px;gap:8px 18px;border:0;background:transparent}
+.crm-page #workspace .stats article{display:flex;align-items:baseline;gap:7px;padding:0;border:0;background:transparent;font-size:12px;white-space:nowrap}.crm-page #workspace .stats strong{font-size:16px;margin:0}
+.crm-page #workspace .crm-views{display:flex;align-items:center;gap:16px;padding:8px 12px}.crm-page .crm-views>.crm-acquisition-links{margin:0;gap:6px}.crm-page .crm-views>.crm-acquisition-links a{font-size:12px;padding:5px 9px}
+.crm-page .crm-quick-menu{position:relative;padding:0;border:0}.crm-page .crm-quick-menu>summary{cursor:pointer;font-size:12px;color:#577476;padding:6px}.crm-page #crm-quick-views{position:absolute;top:32px;left:0;width:min(540px,75vw);padding:12px;background:white;border:1px solid #dce7e5;border-radius:8px;box-shadow:0 8px 24px #163d441c;z-index:15}.crm-page #crm-quick-views button{padding:6px 9px;font-size:12px}
+.crm-page #workspace .toolbar{grid-template-columns:minmax(200px,2fr) repeat(4,minmax(120px,1fr));padding:10px 12px;gap:10px}.crm-page #workspace .toolbar input,.crm-page #workspace .toolbar select{padding:7px 9px;height:36px;max-width:none;font-size:13px}.crm-page #workspace .toolbar label{gap:5px;font-size:12px}.crm-page #workspace .toolbar>div{grid-column:1/-1;display:flex;align-items:center;gap:10px}.crm-page #workspace .toolbar>div span{margin:0;padding:0;white-space:normal;font-size:12px}.crm-page #workspace .toolbar>div #count{margin-left:auto}.crm-page #apply-filters{padding:7px 14px;font-size:12px;white-space:nowrap}
+.crm-page #workspace .crm-selection{padding:7px 12px}.crm-page .crm-filters{padding:8px 12px}.crm-page #notice{font-size:12px;margin:5px 0}.crm-page .footnote{font-size:11px;margin-top:8px}
+@media(max-width:1000px){.crm-page #workspace .toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}.crm-page #workspace .toolbar label:first-child{grid-column:span 2}}
+@media(max-width:640px){.crm-page #workspace .toolbar{grid-template-columns:repeat(2,minmax(0,1fr))}.crm-page #workspace .toolbar label:first-child{grid-column:1/-1}.crm-page #workspace .heading .actions{flex-wrap:wrap}.crm-page #workspace .crm-views{flex-wrap:wrap}.crm-page #crm-quick-views{width:80vw;left:-70px}}
