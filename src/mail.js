@@ -1,6 +1,7 @@
 import {templatePool,assignTemplates} from './mail-templates.js';
 import {outreachPlan,handoffContacts} from './mail-acquisition-model.js';
 import {dailyOutreachPlan} from './mail-daily.js';
+import {loadMailDirectory} from './mail-directory.js';
 import {companyGroupOptions} from './crm-model.js';
 import {installDraftBulk} from './mail-drafts.js';
 import {installMailVerification} from './mail-verification.js';
@@ -26,12 +27,14 @@ const mailColumns={
  freight_contacts:'id,company_id,name,channel,value,status,email_allowed,mail_groups',
 };
 async function all(table,order='id.asc'){
+ if(table==='freight_contacts'||table==='freight_companies'){
+  try{return await loadMailDirectory(table==='freight_contacts'?'contacts':'companies',cloudRequest);}
+  catch(error){throw Error(`${table==='freight_contacts'?'客户邮箱':'公司资料'}读取失败（${error.message}）`);}
+ }
  const rows=[],size=1000,columns=mailColumns[table]||'*';
  for(let offset=0;;offset+=size){
   let batch;
-  try{batch=table==='freight_contacts'||table==='freight_companies'
-   ?await cloudRequest(`rpc/freight_mail_${table==='freight_contacts'?'contacts':'companies'}_after`,{method:'POST',body:JSON.stringify({p_after:rows.at(-1)?.id||'',p_limit:size})})
-   :await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}`);}
+  try{batch=await cloudRequest(`${table}?select=${columns}&order=${order}&limit=${size}&offset=${offset}`);}
   catch(error){throw Error(`${{freight_companies:'公司资料',freight_contacts:'客户邮箱',freight_mail_templates:'邮件模板',freight_mail_messages:'发送记录'}[table]||table}读取失败（第 ${Math.floor(offset/size)+1} 页）：${error.message}`);}
   rows.push(...batch);if(batch.length<size)return rows;
  }
