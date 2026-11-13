@@ -22,22 +22,38 @@ SECRET = os.environ.get("OVERTURE_INGEST_SECRET", "")
 def rpc(name, arguments):
     if len(SECRET) < 32:
         raise RuntimeError("Missing OVERTURE_INGEST_SECRET")
-    payload=json.dumps({"p_secret":SECRET,**arguments}).encode()
-    req=Request(BASE+"/rest/v1/rpc/"+name,data=payload,method="POST",
-                headers={"apikey":PUBLIC_KEY,"Content-Type":"application/json",
-                         "User-Agent":"EurasiagoMapBackground/1.0"})
+    payload = json.dumps({"p_secret": SECRET, **arguments}).encode()
+    request = Request(
+        BASE + "/rest/v1/rpc/" + name,
+        data=payload,
+        method="POST",
+        headers={
+            "apikey": PUBLIC_KEY,
+            "Content-Type": "application/json",
+            "User-Agent": "EurasiagoMapBackground/1.0",
+        },
+    )
+    claiming = name == "lead_map_worker_claim"
     for attempt in range(3):
         try:
-            with urlopen(req,timeout=45) as response:
+            with urlopen(request, timeout=20 if claiming else 45) as response:
                 return json.loads(response.read().decode("utf8"))
         except HTTPError as error:
-            detail=error.read(800).decode("utf8","replace")
-            if error.code not in (429,500,502,503,504):
-                raise RuntimeError(f"{name} rejected HTTP {error.code}: {detail}") from error
-            if attempt==2:raise
-        except (URLError,TimeoutError):
-            if attempt==2:raise
-        time.sleep(2*(attempt+1))
+            retryable = error.code == 429 or (
+                not claiming and error.code in (500, 502, 503, 504)
+            )
+            failure = f"HTTP {error.code}"
+        except (URLError, TimeoutError, json.JSONDecodeError) as error:
+            retryable = not claiming
+            failure = type(error).__name__
+        # A missing claim response can mean the server already reserved a job.
+        # Let the next scheduled run and the stale-job recovery handle it.
+        if not retryable or attempt == 2:
+            suffix = "；领取结果未知，等待下次运行和队列恢复" if claiming else ""
+            raise RuntimeError(f"{name}: {failure}{suffix}")
+        print(f"{name}: {failure}; retry {attempt + 1}/2", flush=True)
+        time.sleep(2 * (attempt + 1))
+
 
 def tiles(lat,lon,radius):
     # Entire circle covered by rectangular 0.48-degree tiles (CLI max = 0.6 degrees).
@@ -177,10 +193,15 @@ def main():
     deadline=time.monotonic()+45*60
     completed=0
     failed=0
+    claim_error=None
     for _ in range(3):
         if time.monotonic()>=deadline:
             break
-        job=rpc("lead_map_worker_claim",{})
+        try:
+            job=rpc("lead_map_worker_claim",{})
+        except RuntimeError as error:
+            claim_error=str(error)
+            break
         if not job or not job.get("id"):
             if not completed and not failed:print("No queued map searches.",flush=True)
             break
@@ -191,6 +212,7 @@ def main():
             failed+=1
             print("Job failed, will check remaining queued regions: "+str(error)[:180],flush=True)
     print(json.dumps({"region_jobs_completed":completed,"region_jobs_failed":failed}),flush=True)
+    if claim_error:raise RuntimeError(claim_error)
     if failed:raise RuntimeError(str(failed)+" map region job(s) failed")
 
 if __name__=="__main__":
