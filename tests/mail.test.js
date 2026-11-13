@@ -10,7 +10,7 @@ function fixture({password='fixture',verified=true,blocked=false,claim=true,erro
   if(url.endsWith('/auth/v1/user'))data={id:'user'};
   else if(url.includes('freight_mail_access'))data=[{user_id:'user'}];
   else if(url.includes('freight_mail_claim'))data=claim?[{...row,status:'sending'}]:[];
-  else if(url.includes('freight_contacts')&&url.includes('email_allowed=eq.false'))data=blocked?[{value:'CUSTOMER@example.com'}]:[];
+  else if(url.includes('rpc/freight_mail_email_blocked'))data=blocked;
   else if(url.includes('freight_contacts'))data=[{id:'c',company_id:'co',channel:'邮箱',status:verified?'有效':'待核实',email_allowed:true,value:row.recipient}];
   else if(opts.method==='PATCH'){const patch=JSON.parse(opts.body);patches.push(patch);if(logFail&&patch.status==='sent')return Response.json({}, {status:500});data=[{...row,...patch}];}
   else data=[row];
