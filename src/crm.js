@@ -18,7 +18,7 @@ const peerView=new URLSearchParams(location.search).get('view')==='peers';
 if(peerView){$('role-filter').value='同行';$('role-filter').disabled=true;document.querySelector('.heading h1').textContent='同行客户';document.title='同行客户 · 国际物流管理系统';document.querySelector('.heading p:last-child').textContent='统一维护货代、铁路、仓储、拖车及海外物流同行，筛选联系方式并记录跟进。';}
 let priorityView='',listIds=[],listTotal=0,stats=null,facets=null,statsRequest=0,loading=false,loadTimer,listController;
 const lowerPriority=c=>c._lower_priority===true;
-let statsLoading=false,verificationIds=new Set();let gaps=new Map();let size=30;let pendingOpen=new URLSearchParams(location.search).get('company');
+let statsLoading=false,statsLoadedAt=0,statsRetryAfter=0,verificationIds=new Set();let gaps=new Map();let size=30;let pendingOpen=new URLSearchParams(location.search).get('company');
 for(const id of ['stage-filter','company-stage']){if(id==='stage-filter')$(id).append(new Option('全部阶段',''));for(const value of developmentStages)$(id).append(new Option(value,value));}
 const pager=createPager('prev','next',(value,newSize)=>{page=value-0;size=newSize;load();},30);
 async function all(table,order='id.asc',columns='*'){
@@ -29,7 +29,21 @@ function authUI(){syncAuthShell();}
 function filters(){const value=Object.fromEntries(Object.entries(crmFilterFields).map(([key,id])=>[key,$(id).value.trim()]));if(peerView)value.role='同行';value.priority=priorityView;return {...value,...contactAddedRange($('contact-added-filter').value,$('contact-added-date').value)};}
 const rpcPage=(body,signal)=>cloudRequest('rpc/freight_crm_page',{method:'POST',body:JSON.stringify(body),signal});
 function absorb(data){const ids=new Set((data.companies||[]).map(c=>c.id)),oldContacts=new Map(contacts.map(c=>[c.id,c]));companies=mergeRows(companies,data.companies||[]);contacts=[...contacts.filter(c=>!ids.has(c.company_id)),...(data.contacts||[]).map(c=>({...oldContacts.get(c.id),...c}))];followups=[...followups.filter(c=>!ids.has(c.company_id)),...(data.followups||[])];}
-async function loadStats(){const user=currentUser()?.id,request=++statsRequest;if(!user)return;statsLoading=true;try{const data=await rpcPage({p_filters:peerView?{role:'同行'}:{},p_mode:'stats'});if(user!==currentUser()?.id||request!==statsRequest)return;stats=data;render();}catch(e){if(user===currentUser()?.id&&request===statsRequest)$('notice').textContent='客户列表可继续使用；统计暂不可用：'+e.message;}finally{statsLoading=false;}}
+async function loadStats(force=false){
+ const user=currentUser()?.id,now=Date.now();
+ // A stats query aggregates the whole CRM; avoid duplicate refreshes and retry storms.
+ if(!user||statsLoading||now<statsRetryAfter||(!force&&stats&&now-statsLoadedAt<120000))return;
+ const request=++statsRequest;statsLoading=true;
+ try{
+  const data=await rpcPage({p_filters:peerView?{role:'同行'}:{},p_mode:'stats'});
+  if(user!==currentUser()?.id||request!==statsRequest)return;
+  stats=data;statsLoadedAt=Date.now();statsRetryAfter=0;render();
+ }catch(e){
+  if(user!==currentUser()?.id||request!==statsRequest)return;
+  statsRetryAfter=Date.now()+60000;
+  if(!stats&&!loading)$('notice').textContent='客户列表与筛选可正常使用；统计服务繁忙，请稍后刷新。';
+ }finally{if(request===statsRequest)statsLoading=false;}
+}
 async function loadFacets(){const user=currentUser()?.id;if(facets||!user)return;try{const data=await rpcPage({p_filters:peerView?{role:'同行'}:{},p_mode:'facets'});if(user!==currentUser()?.id)return;facets=data;fillOwners();fillGroups();}catch(e){$('notice').textContent='分组筛选读取失败，可重新展开重试：'+e.message;}}
 document.querySelector('.crm-filters').addEventListener('toggle',e=>{if(e.target.open)loadFacets();});
 function filterProgress(message){$('filter-progress').textContent=message;}
@@ -104,7 +118,7 @@ formHandler('company-form','company-error',async data=>{const value=validateComp
 formHandler('contact-form','contact-error',async data=>{if(!selected)throw Error('请先选择公司。');const value=validateContact(data);const saved=await save('freight_contacts',editingContact?value:{id:crypto.randomUUID(),company_id:selected,...value},editingContact);contacts=editingContact?contacts.map(c=>c.id===editingContact?saved:c):[saved,...contacts];render();renderDetail();$('contact-editor').close();facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
 formHandler('followup-form','followup-error',async data=>{const result=String(data.result||'').trim(),next_action=String(data.next_action||'').trim();if(!result)throw Error('请填写沟通结果。');if(data.next_date&&!next_action)throw Error('安排下次联系时，请填写下一步动作。');const saved=await save('freight_followups',{company_id:selected,result,next_action,next_date:data.next_date||null,owner_id:currentUser().id});followups.unshift(saved);render();renderDetail();$('followup-form').reset();facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
-$('logout').addEventListener('click',async()=>{++generation;++detailGeneration;++statsRequest;clearTimeout(loadTimer);stats=null;facets=null;listIds=[];listTotal=0;try{await logout();}catch{}companies=[];contacts=[];shipments=[];followups=[];selected=null;selectedCompanies.clear();for(const id of ['detail','company-editor','contact-editor'])$(id).close();render();authUI();});
+$('logout').addEventListener('click',async()=>{++generation;++detailGeneration;++statsRequest;clearTimeout(loadTimer);stats=null;statsLoading=false;statsLoadedAt=0;statsRetryAfter=0;facets=null;listIds=[];listTotal=0;try{await logout();}catch{}companies=[];contacts=[];shipments=[];followups=[];selected=null;selectedCompanies.clear();for(const id of ['detail','company-editor','contact-editor'])$(id).close();render();authUI();});
 $('refresh').addEventListener('click',()=>{facets=null;load().then(()=>loadStats());if(document.querySelector('.crm-filters').open)loadFacets();});$('add-company').addEventListener('click',()=>openCompany());$('edit-company').addEventListener('click',async()=>{try{const id=selected,rows=await cloudRequest('freight_companies?id=eq.'+encodeURIComponent(id)+'&select=*&limit=1');if(selected!==id)return;if(!rows.length)throw Error('客户不存在或无权访问');companies=mergeRows(companies,rows);openCompany(rows[0]);}catch(e){$('followup-error').textContent=e.message;}});$('add-contact').addEventListener('click',()=>openContact());
 $('apply-filters').onclick=()=>{page=1;load();};
 $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();page=1;load();}});
