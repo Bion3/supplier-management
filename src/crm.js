@@ -180,9 +180,23 @@ $('portal-account-create').addEventListener('click',async()=>{
  const button=$('portal-account-create');button.disabled=true;$('portal-created-password').textContent='';
  try{
  const token=await workspaceToken();
- const response=await fetch('https://hcorkkudgicarsmexnqf.supabase.co/functions/v1/crm-create-client-account',{method:'POST',headers:{'Content-Type':'application/json',apikey:'sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp',Authorization:'Bearer '+token},body:JSON.stringify({crm_company_id:id,email})});
+ const response=await fetch('https://hcorkkudgicarsmexnqf.supabase.co/functions/v1/crm-create-client-account',{method:'POST',headers:{'Content-Type':'application/json',apikey:'sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp',Authorization:'Bearer '+token},body:JSON.stringify({crm_company_id:id,email,mode:'create'})});
  const data=await response.json();if(!response.ok)throw Error(data.error||'创建失败');
  $('portal-created-password').textContent='初始密码（仅本次显示，请安全交付客户）：'+data.temporary_password;
  await loadPortalAccount(id);
  }catch(e){$('portal-account-status').textContent='创建失败：'+e.message}finally{button.disabled=false}
+});
+
+$('portal-account-reset').addEventListener('click',async()=>{
+ if(!selected)return;const id=selected,email=$('portal-account-email').value.trim();
+ if(!/^\S+@\S+\.\S+$/.test(email)){$('portal-account-status').textContent='请先填写有效的客户邮箱';return}
+ if(!confirm('确认重置 '+email+' 的客户门户密码？旧密码将立即失效，并生成一次性新密码。'))return;
+ const button=$('portal-account-reset');button.disabled=true;$('portal-created-password').textContent='';
+ try{
+ const token=await workspaceToken();
+ const response=await fetch('https://hcorkkudgicarsmexnqf.supabase.co/functions/v1/crm-create-client-account',{method:'POST',headers:{'Content-Type':'application/json',apikey:'sb_publishable_nB2eShVqNNkND-zOSHYSnQ_Pf2xtBgp',Authorization:'Bearer '+token},body:JSON.stringify({crm_company_id:id,email,mode:'reset'})});
+ const data=await response.json();if(!response.ok)throw Error(data.error||'重置失败');
+ $('portal-created-password').textContent='新临时密码（仅本次显示，请安全交付客户）：'+data.temporary_password;
+ await loadPortalAccount(id);
+ }catch(e){$('portal-account-status').textContent='重置失败：'+e.message}finally{button.disabled=false}
 });
