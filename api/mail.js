@@ -5,10 +5,11 @@ import {send as enqueue} from '@vercel/queue';
 import nodemailer from 'nodemailer';
 import {makeService,sender} from '../server/mail-service.js';
 import {createInquiryNotice} from '../server/inquiry-notice.js';
+import {createDailyHandler} from '../server/mail-daily.js';
 const inquiryRequest=request=>new URL(request.url).searchParams.get('_inquiry')==='1';
 const inquiryNotice=createInquiryNotice({createTransport:nodemailer.createTransport});
 export async function OPTIONS(request){return inquiryRequest(request)?inquiryNotice(request):new Response(null,{status:405});}
-export async function GET(request){if(sessionRequest(request))return sessionGET(request);try{const service=makeService({createTransport:nodemailer.createTransport});await service.authorize((request.headers.get('authorization')||'').replace(/^Bearer /i,''));return Response.json({configured:service.configured,sender,host:'smtp.feishu.cn',rules:await service.rules((request.headers.get('authorization')||'').replace(/^Bearer /i,''))},{headers:{'Cache-Control':'no-store'}});}catch{ return Response.json({error:'请使用已授权账号登录。'},{status:401});}}
+export async function GET(request){if(process.env.CRON_SECRET&&request.headers.get('authorization')===`Bearer ${process.env.CRON_SECRET}`)return createDailyHandler()(request);if(sessionRequest(request))return sessionGET(request);try{const service=makeService({createTransport:nodemailer.createTransport});await service.authorize((request.headers.get('authorization')||'').replace(/^Bearer /i,''));return Response.json({configured:service.configured,sender,host:'smtp.feishu.cn',rules:await service.rules((request.headers.get('authorization')||'').replace(/^Bearer /i,''))},{headers:{'Cache-Control':'no-store'}});}catch{ return Response.json({error:'请使用已授权账号登录。'},{status:401});}}
 export async function POST(request){
  if(inquiryRequest(request))return inquiryNotice(request);
  if(sessionRequest(request))return sessionPOST(request);
