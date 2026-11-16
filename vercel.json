@@ -4,6 +4,9 @@
   "buildCommand": "npm run build",
   "installCommand": "npm ci",
   "outputDirectory": "dist",
+  "crons": [
+    {"path": "/api/mail-daily", "schedule": "0 1 * * *"}
+  ],
   "headers": [
     {
       "source": "/(.*)",
