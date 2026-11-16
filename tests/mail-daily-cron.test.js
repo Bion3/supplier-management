@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createDailyHandler} from '../api/mail-daily.js';
+import {createDailyHandler} from '../server/mail-daily.js';
 
 const env={CRON_SECRET:'cron-token',MAIL_WORKER_SECRET:'worker-token'};
 const request=token=>new Request('https://crm.eurasiago.com/api/mail-daily',{headers:{authorization:token}});
