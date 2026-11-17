@@ -152,7 +152,7 @@ $('clear-leads').addEventListener('click',()=>{selectedLeadIds.clear();for(const
 $('leads-prev').addEventListener('click',()=>{leadPage=Math.max(1,leadPage-1);loadLeads(true);});
 $('leads-next').addEventListener('click',()=>{leadPage++;loadLeads(true);});
 $('batch-enrich').addEventListener('click',async()=>{
- const ids=orderUntriedLeads(leadRows.filter(r=>selectedLeadIds.has(r.id)&&r.provider!=='google_places'&&!r.enrichment_checked_at)).map(r=>r.id);
+ const ids=[...selectedLeadIds]; // Explicit multi-page/priority selections may not be visible in leadRows.
  if(!ids.length){$('enrich-summary').textContent='所选企业没有可核实的 HTTPS 官网。';return;}
  const button=$('batch-enrich');button.disabled=true;
  try{
