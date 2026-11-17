@@ -41,3 +41,14 @@ html.workspace-embedded body :is(.heading, .daily-head, .tracking-head, .map-top
   max-width: 100%;
   margin: 0;
 }
+
+/* Account controls live in the workspace toolbar, not in each task frame. */
+html.workspace-embedded body > main > p:has(> #account),
+html.workspace-embedded body > main > .crm-account,
+html.workspace-embedded body > main > .mail-account {
+  display: none;
+}
+html.workspace-embedded body > main,
+html.workspace-embedded body .orders-app main {
+  padding-top: 12px;
+}
