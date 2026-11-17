@@ -17,10 +17,11 @@ test('untouched and missing-contact prospects are prioritized before any checked
  const rows=[
   {id:'old',website:site,contacts:[],enrichment_checked_at:'2026-11-16T00:00:00Z'},
   {id:'hasboth',website:site,contacts:[{type:'email',value:'a@e.com'},{type:'phone',value:'1234567'}]},
-  {id:'new',website:site,contacts:[]},
+  {id:'new',website:site,contacts:[],crm_company_id:'linked-crm-id'},
   {id:'one',website:site,contacts:[{type:'phone',value:'1234567'}]},
   {id:'rejected',website:site,review_status:'rejected'},
   {id:'insecure',website:'http://example.com'}
  ];
  assert.deepEqual(orderUntriedLeads(rows).map(x=>x.id),['new','one','hasboth','old']);
+ // CRM-linked records can be checked without overwriting CRM contact tables.
 });
