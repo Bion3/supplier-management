@@ -2,7 +2,7 @@ import {mkdir, rm, cp, readFile, writeFile} from 'node:fs/promises';
 await rm('dist', {recursive:true,force:true});
 await mkdir('dist',{recursive:true});
 const htmlFiles=['inquiries.html','orders.html','assistant.html','workspace.html','index.html','crm.html','customs-data.html','exhibitions.html','industry-resources.html','discovery.html','lead-map.html','knowledge.html','mail.html','inbox.html','cost.html','rates.html','rail-rates.html','fcl-rail.html','container-rental.html','trucking.html','overseas-delivery.html','hub.html','daily-dashboard.html','pickup-rates.html','pricing.html','sales-prices.html','tracking.html'];
-const authBoot='<script data-auth-boot src="/src/auth-boot.js"></script>';
+const authBoot='<link rel="stylesheet" href="/src/workspace-page.css"><script data-auth-boot src="/src/auth-boot.js"></script>';
 htmlFiles.push('master-data.html','domestic-warehouses.html');
 for(const file of htmlFiles){
  const source=await readFile(file,'utf8');
