@@ -1,6 +1,7 @@
 import {companyStage,companySourceTypes,companyGroups,mailExclusionReason} from './crm-model.js';
 import {mailContent} from './mail-content.js';
 export function validEmail(value){return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(String(value))&&String(value).length<=254;}
+export function sentRecipientEmails(messages){return new Set(messages.filter(m=>m.status==='sent'&&m.purpose!=='测试').map(m=>String(m.recipient||'').trim().toLowerCase()).filter(Boolean));}
 export function eligibleContacts(contacts){const seen=new Set(),blocked=new Set(contacts.filter(c=>c.channel==='邮箱'&&c.email_allowed===false).map(c=>c.value.trim().toLowerCase()));return contacts.filter(c=>{const e=c.value?.trim().toLowerCase();if(c.channel!=='邮箱'||c.status!=='有效'||blocked.has(e)||!validEmail(e)||seen.has(e))return false;seen.add(e);return true;});}
 export function personalise(text,company,contact){return String(text).replace(/\{\{(company|name|routes)\}\}/g,(_,key)=>({company:company?.company_name||'',name:contact?.name||'',routes:company?.current_routes||'您的运输线路'}[key]));}
 export function validateMail(subject,body){subject=String(subject||'').trim();body=String(body||'').trim();if(!subject||subject.length>200||/[\r\n]/.test(subject))throw Error('主题需为1至200字的单行文本。');if(!body||body.length>20000)throw Error('正文需为1至20000字。');if(/\{\{[^}]+\}\}/.test(subject+body))throw Error('邮件仍有未替换的模板变量。');mailContent(body);return {subject,body};}
@@ -25,6 +26,7 @@ export function filterRecipients(contacts,companies,filters={}){
  &&(!filters.region||regionInfo(co).value===filters.region)&&(!filters.verification||c.status===filters.verification)
  &&(!filters.allowed||(filters.allowed==='yes'?c.email_allowed!==false:c.email_allowed===false))
  &&(!filters.group||(filters.group==='__ungrouped'?!groups.length:groups.includes(filters.group)))
+ &&(!filters.sendStatus||(filters.sendStatus==='sent'?filters.sentEmails?.has(c.value.trim().toLowerCase()):!filters.sentEmails?.has(c.value.trim().toLowerCase())))
  &&(!filters.sendable||(eligible.has(c.id)&&!mailExclusionReason(co)))
  &&(!filters.selectedOnly||filters.selected?.has(c.id));});
 }
