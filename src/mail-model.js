@@ -23,7 +23,7 @@ export function filterRecipients(contacts,companies,filters={}){
  return c.channel==='邮箱'&&(!q||[c.value,c.name,co?.company_name,co?.current_routes,JSON.stringify(co?.historical_routes),groups.join(' ')].join(' ').toLowerCase().includes(q))
  &&(!filters.stage||companyStage(co||{})===filters.stage)&&(!filters.focus||co?.is_key_customer===true)&&(!filters.source||companySourceTypes(co||{}).includes(filters.source))
  &&(!filters.status||co?.status===filters.status)&&(!filters.role||(co?.role||'待核实')===filters.role)
- &&(!filters.region||regionInfo(co).value===filters.region)&&(!filters.verification||c.status===filters.verification)
+ &&(!filters.region?.trim()||regionInfo(co).value.toLocaleLowerCase().includes(filters.region.trim().toLocaleLowerCase()))&&(!filters.verification||c.status===filters.verification)
  &&(!filters.allowed||(filters.allowed==='yes'?c.email_allowed!==false:c.email_allowed===false))
  &&(!filters.group||(filters.group==='__ungrouped'?!groups.length:groups.includes(filters.group)))
  &&(!filters.sendStatus||(filters.sendStatus==='sent'?filters.sentEmails?.has(c.value.trim().toLowerCase()):!filters.sentEmails?.has(c.value.trim().toLowerCase())))
