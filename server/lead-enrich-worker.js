@@ -16,7 +16,7 @@ export function makeLeadWorker({fetcher=fetch,enqueue,secret=process.env.LEAD_WO
    const claimed=await rpc('claim',id);if(!claimed.website)continue;
    try{
     const found=await researcher(claimed.website);
-    if(!found.evidence?.length)throw Error('官网无法访问或无可读取页面');
+    if(!found.evidence?.length)throw Error('官网无法访问或无可读取页面：'+String(found.errors?.[0]||'未返回可读取内容').slice(0,220));
     await rpc('finish',id,{contacts:found.contacts,evidence:found.evidence,checked_pages:found.checked_pages});
    }catch(e){await rpc('finish',id,{error:String(e.message||'补全失败').slice(0,300)});}
   }
