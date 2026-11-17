@@ -12,9 +12,10 @@ export async function POST(request){
   const data=await request.json(),ids=data.ids,retryFailed=data.retry_failed===true,priority=data.action==='enqueue_priority';
   if(priority&&retryFailed)return respond({error:'首次补全不可同时请求失败任务重试'},400);
   if(priority&&(!Number.isInteger(data.limit)||data.limit<1||data.limit>40))return respond({error:'每批首次补全限1–40家'},400);
+  if(priority&&data.city!=null&&(typeof data.city!=='string'||data.city.length>120))return respond({error:'城市参数无效'},400);
   if(!priority&&(!Array.isArray(ids)||ids.length<1||ids.length>(retryFailed?100:500)||ids.some(x=>!uuid.test(x))))return respond({error:'企业编号无效或超过每批限制'},400);
   const rpc=priority?'lead_enqueue_next_unchecked':retryFailed?'lead_retry_failed_batch':'lead_enqueue_batch';
-  const payload=priority?{p_limit:data.limit}:{p_ids:[...new Set(ids)]};
+  const payload=priority?{p_limit:data.limit,p_city:data.city||null}:{p_ids:[...new Set(ids)]};
   const r=await fetch(BASE+'/rest/v1/rpc/'+rpc,{method:'POST',headers:{apikey:KEY,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
   if(!r.ok)return respond({error:'创建补全任务失败，请检查账号权限或企业官网'},r.status>=500?503:403);
   const jobs=await r.json();
