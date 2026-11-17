@@ -24,7 +24,7 @@ export function orderUntriedLeads(rows){
   const phone=c.some(x=>x.type==='phone'&&x.value);
   return Number(!email)+Number(!phone);
  };
- return rows.filter(x=>x.website?.startsWith('https://')&&x.review_status!=='rejected'&&!x.crm_company_id)
+ return rows.filter(x=>x.website?.startsWith('https://')&&x.review_status!=='rejected')
  .sort((a,b)=>Number(Boolean(a.enrichment_checked_at||a.enrichment_result_category))-Number(Boolean(b.enrichment_checked_at||b.enrichment_result_category))||
   missing(b)-missing(a));
 }
