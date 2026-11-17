@@ -1,6 +1,7 @@
 -- Atomically queue only genuinely unattempted website prospects.
 -- The auth allowlist matches the existing CRM enrichment RPC.
-create or replace function public.lead_enqueue_next_unchecked(p_limit integer default 30)
+drop function if exists public.lead_enqueue_next_unchecked(integer);
+create or replace function public.lead_enqueue_next_unchecked(p_limit integer default 30,p_city text default null)
 returns uuid[] language plpgsql security definer set search_path='' as $$
 declare result uuid[];
 begin
@@ -16,6 +17,7 @@ begin
     and l.crm_company_id is null and l.provider<>'google_places'
     and l.enrichment_checked_at is null
     and l.enrichment_result_category is null
+    and (p_city is null or lower(l.city)=lower(p_city))
     and l.website ~* '^https://'
     and length(l.website)<500
     and not exists (select 1 from public.lead_enrich_jobs j where j.lead_id=l.id)
