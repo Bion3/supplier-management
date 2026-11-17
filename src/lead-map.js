@@ -1,3 +1,4 @@
+import {contactOutcomeLabels} from './lead-enrich-outcomes.js';
 import {openAcquisitionMail} from './mail-acquisition.js';
 import {installContactProgress} from './contact-progress.js';
 import {cloudRequest,currentUser,appRequest} from './cloud.js';
@@ -92,7 +93,7 @@ function render(){
    }else td.textContent=r.source==='database'?'待核实':'尚未入库';
    tr.append(td);
   }
-  const verification=document.createElement('td');verification.textContent=r.verificationStatus==='unverified'?'未核实':r.verificationStatus||'未核实';tr.append(verification);
+  const verification=document.createElement('td');verification.textContent=r.enrichmentCategory?(contactOutcomeLabels[r.enrichmentCategory]||r.enrichmentCategory):(r.verificationStatus==='unverified'?'未核实':r.verificationStatus||'未核实');verification.title=r.enrichmentNote||'联系方式尚未完成官网核实';tr.append(verification);
   for(const value of [r.address||'—',r.source==='file'?'新文件 · 待保存':'现有候选']){
    const td=document.createElement('td');td.textContent=value;tr.append(td);
   }
@@ -319,17 +320,28 @@ $('map-file').onchange=async()=>{
 // enqueue a small batch from the current map-filtered region.
 $('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
  const button=$('map-auto-contact'),notice=$('map-contact-status');
- const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&r.website?.startsWith('https://'));
- if(!candidates.length){notice.textContent='当前筛选没有可补全的官网线索。';return;}
- button.disabled=true;contactProgress.start(Math.min(100,candidates.length),'地图企业联系方式补全');let attempted=0;
- try{for(const row of candidates){if(attempted>=100)break;contactProgress.begin(row.name);try{
- const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
- if(result.error)throw Error(result.error);
- if(!result.skipped)attempted++;
- contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
- }catch(e){attempted++;contactProgress.finish({name:row.name,error:e.message});}}
- await loadDb();notice.textContent='本批处理完成；已检查且没有新线索的企业自动跳过。';
- }catch(e){contactProgress.interrupt(e.message);}finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
+ const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&
+  r.website?.startsWith('https://')&&r.reviewStatus!=='rejected'&&!r.enrichmentCheckedAt)
+  .sort((a,b)=>contactPriority(a)-contactPriority(b));
+ const maxBatch=40,selected=candidates.slice(0,maxBatch);
+ if(!selected.length){
+  notice.textContent='当前筛选没有尚未补全过的 HTTPS 官网企业。历史无信息或失败的企业请在「企业线索 → 官网核实进度」查看分类，按需手动重试。';
+  return;
+ }
+ button.disabled=true;contactProgress.start(selected.length,'首次官网联系方式补全');let attempted=0;
+ try{
+  for(const row of selected){
+   contactProgress.begin(row.name);
+   try{
+    const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
+    if(!result.skipped)attempted++;
+    contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
+   }catch(e){attempted++;contactProgress.finish({name:row.name,error:e.message});}
+  }
+  await loadDb();
+  notice.textContent='本批首次检查 '+attempted+' 家，历史已检查企业不会重复进入本批。失败原因已分类保存，仍需核实官网公开信息。';
+ }catch(e){contactProgress.interrupt(e.message);}
+ finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
 };
 $('map-dispatch-queued').onclick=async()=>{if(contactProgress.active)return;
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
@@ -385,7 +397,7 @@ async function loadRegion(force=false,quiet=false){
   const longitude=lngSpan>=180||Math.abs(lat)+latSpan>=90?'':west<-180?'&or=(map_lng.gte.'+(west+360)+',map_lng.lte.'+east+')':
    east>180?'&or=(map_lng.gte.'+west+',map_lng.lte.'+(east-360)+')':
    '&map_lng=gte.'+west+'&map_lng=lte.'+east;
-  const query='lead_discovery_leads?select=id,provider_place_id,company_name,website,address,map_lat,map_lng,map_category,review_status,contacts,verification_status'
+  const query='lead_discovery_leads?select=id,provider_place_id,company_name,website,address,map_lat,map_lng,map_category,review_status,contacts,verification_status,enrichment_result_category,enrichment_result_note,enrichment_checked_at'
    +'&map_lat=gte.'+(lat-latSpan)+'&map_lat=lte.'+(lat+latSpan)+longitude+'&review_status=neq.rejected&order=id.asc&limit=500';
   const leads=[];
   try{
