@@ -10,7 +10,7 @@ import {mailContent,personaliseBody} from './mail-content.js';
 import {createMailEditor} from './mail-editor.js';
 import {defaultRules,chinaInput,scheduleISO,validateRules} from './mail-rules.js';
 import {login,logout,currentUser,cloudRequest,appRequest,syncAuthShell} from './cloud.js';
-import {personalise,validateMail,validEmail,filterRecipients,regionInfo,groupNames,selectRows,selectionState,emailContactScope} from './mail-model.js';
+import {personalise,validateMail,validEmail,filterRecipients,regionInfo,groupNames,selectRows,selectionState,emailContactScope,sentRecipientEmails} from './mail-model.js';
 const $=id=>document.getElementById(id);
 const selectedTemplates=new Set();
 let draftBulk=null,mailView="recipients";
@@ -47,7 +47,7 @@ function cell(text){const td=document.createElement('td');td.textContent=text;re
 function button(text,fn){const b=document.createElement('button');b.type='button';b.className='secondary';b.textContent=text;b.addEventListener('click',async()=>{b.disabled=true;try{await fn();}catch(e){$('notice').textContent=e.message;}finally{b.disabled=false;}});return b;}
 function renderTemplates(){const purpose=$('purpose').value;$('template').replaceChildren();for(const t of templatePool(templates,purpose)){const o=document.createElement('option');o.value=t.id;o.textContent=t.name;$('template').append(o);}useTemplate();renderTemplatePool();}
 function useTemplate(){const t=templatePool(templates,$('purpose').value).find(t=>t.id===$('template').value);$('subject').value=t?.subject||'';editor.set(t?.body||'');$('template-name').value=t?.name?.replace(/^参考 · /,'')||'';}
-function filters(){return {stage:$('stage').value,focus:$('focus').value,source:$('source').value,query:$('search').value,status:$('status').value,role:$('role').value,region:$('region').value,verification:$('verification').value,allowed:$('allowed').value,group:$('group').value,sendable:$('view-mode').value==='sendable',selectedOnly:$('view-mode').value==='selected',selected};}
+function filters(){return {stage:$('stage').value,focus:$('focus').value,source:$('source').value,query:$('search').value,status:$('status').value,role:$('role').value,region:$('region').value,verification:$('verification').value,allowed:$('allowed').value,group:$('group').value,sendStatus:$('send-status').value,sentEmails:sentRecipientEmails(messages),sendable:$('view-mode').value==='sendable',selectedOnly:$('view-mode').value==='selected',selected};}
 function filtered(){return filterRecipients(contacts,companies,filters());}
 function renderFilterOptions(){
  for(const [id,values,label] of [['region',companies.map(c=>regionInfo(c).value),'全部地区'],['role',[...companies.map(c=>c.role||'待核实'),'直客','指定货发货人','同行','海外代理','客户兼供应商','其他'],'全部类型'],['group',companyGroupOptions(companies,contacts).map(g=>g.name),'全部分组']]){
@@ -68,7 +68,7 @@ function setMailView(view){
 }
 for(const button of document.querySelectorAll('[data-mail-view]'))button.addEventListener('click',()=>setMailView(button.dataset.mailView));
 function render(){
- const company=names(),rows=filtered();
+ const company=names(),rows=filtered(),sentEmails=sentRecipientEmails(messages);
  const daily=recipientLoadState==='ready'?dailyOutreachPlan(rows,contacts,companies,messages,{audience:$('daily-audience').value}):null;
  $('daily-summary').textContent=daily?`今日已有 ${daily.used} 封开发邮件提交 · 当前筛选可准备 ${daily.rows.length} 家${daily.available>daily.rows.length?'（其余留待后续）':''}`:'正在读取今日发信记录…';
  $('prepare-daily').disabled=!configured||!daily?.rows.length;
@@ -86,8 +86,9 @@ function render(){
   const verify=cell(c.status);if(c.status!=='有效'&&validEmail(c.value)&&c.email_allowed!==false)verify.append(button('标记有效',async()=>{await updateContactRows([c.id],{status:'有效'});render();}));
   const opt=cell(c.email_allowed!==false?'允许':'停止联系');opt.append(button(c.email_allowed!==false?'停止联系':'恢复联系',()=>setAllowed(c,c.email_allowed===false)));
   const region=regionInfo(co),location=cell(region.value);if(region.inferred){const note=document.createElement('small');note.className='region-inferred';note.textContent='地区按地址推断';location.append(note);}
-  const email=cell(c.value),groups=cell('');for(const group of c.mail_groups||[]){const badge=document.createElement('span');badge.className='mail-group-badge';badge.textContent=group;groups.append(badge);}
-  tr.append(choose,cell(co?.company_name||'—'),cell(c.name||'姓名待补充'),location,cell(co?.role||'待核实'),email,groups,verify,opt);$('recipients').append(tr);
+  const email=cell(c.value),sendState=cell(''),badge=document.createElement('span');badge.className=sentEmails.has(c.value.trim().toLowerCase())?'mail-sent-badge':'mail-unsent-badge';badge.textContent=sentEmails.has(c.value.trim().toLowerCase())?'已发送':'无发送记录';sendState.append(badge);
+  const groups=cell('');for(const group of c.mail_groups||[]){const groupBadge=document.createElement('span');groupBadge.className='mail-group-badge';groupBadge.textContent=group;groups.append(groupBadge);}
+  tr.append(choose,cell(co?.company_name||'—'),cell(c.name||'姓名待补充'),location,cell(co?.role||'待核实'),email,sendState,groups,verify,opt);$('recipients').append(tr);
  }
  draftBulk?.render();applyMailView();
 }
@@ -142,10 +143,10 @@ $('login-form').addEventListener('submit',async e=>{e.preventDefault();await gua
 $('login-form').querySelector('button').id='login-button';
 $('logout').addEventListener('click',async()=>{++epoch;loadController?.abort();stopProgressPolling();try{await logout();}catch{}companies=[];contacts=[];messages=[];templates=[];configured=false;$('quick-test').disabled=true;recipientLoadState='loading';selectedTemplates.clear();$('template-pool').replaceChildren();$('template').replaceChildren();selected.clear();previewRows=[];savedDrafts=[];$('preview-dialog').close();$('mail-settings').close();editor.clear();$('subject').value='';setMailView('recipients');authUI();render();});
 $('refresh').addEventListener('click',load);$('purpose').addEventListener('change',renderTemplates);$('template').addEventListener('change',useTemplate);
-for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group','view-mode','one-per-company','recent-days'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
+for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group','send-status','view-mode','one-per-company','recent-days'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
 $('daily-audience').addEventListener('change',render);
 $('retry-recipients').addEventListener('click',load);$('reset-empty-filters').addEventListener('click',()=>$('reset-filters').click());
-$('reset-filters').addEventListener('click',()=>{for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group'])$(id).value='';$('view-mode').value='sendable';page=1;render();});
+$('reset-filters').addEventListener('click',()=>{for(const id of ['search','stage','focus','source','status','region','role','verification','allowed','group','send-status'])$(id).value='';$('view-mode').value='sendable';page=1;render();});
 for(const id of ['preview','compose-preview'])$(id).addEventListener('click',()=>{try{preparePreview();}catch(e){$('notice').textContent=e.message;}});
 $('clear-selection').addEventListener('click',()=>{selected.clear();render();});
 for(const [id,whole] of [['select-page',false],['select-filtered',true]])$(id).addEventListener('click',()=>{const rows=filtered(),take=whole?rows:rows.slice((page-1)*pager.size,page*pager.size);selected=selectRows(selected,take);render();});
