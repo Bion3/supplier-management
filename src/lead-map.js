@@ -175,10 +175,11 @@ async function autoEnrichCompletedJob(job){
  if(autoEnrichSeen.has(job.id)||localStorage.getItem(storageKey))return;
  autoEnrichSeen.add(job.id);
  try{
-  const leadRows=await cloudRequest('lead_discovery_leads?select=id,contacts,website,review_status,crm_company_id&city=eq.'+
+  const leadRows=await cloudRequest('lead_discovery_leads?select=id,contacts,website,review_status,crm_company_id,enrichment_checked_at,enrichment_result_category&city=eq.'+
    encodeURIComponent(job.city)+'&review_status=eq.pending&website=ilike.https%3A%2F%2F%25&order=created_at.desc&limit=500');
-  const lacking=leadRows.filter(x=>x.website?.startsWith('https://')&&
-    (!contactChannels(x).email||!contactChannels(x).phone)).slice(0,AUTO_ENRICH_MAX);
+  const lacking=leadRows.filter(x=>!x.enrichment_checked_at&&!x.enrichment_result_category&&x.website?.startsWith('https://')&&
+    (!contactChannels(x).email||!contactChannels(x).phone))
+    .sort((a,b)=>contactPriority(a)-contactPriority(b)).slice(0,AUTO_ENRICH_MAX);
   if(!lacking.length){localStorage.setItem(storageKey,'nothing-to-fill');return;}
   const response=await appRequest('/api/lead-batch',{method:'POST',
    body:JSON.stringify({ids:lacking.map(x=>x.id)})});
