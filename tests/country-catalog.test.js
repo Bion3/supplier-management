@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {countrySeed} from '../src/country-seed.js';
+import {findCountry,normalizeCountry,countryBusinessRegion,validateCountry,setCountryCatalog} from '../src/country-catalog.js';
+import {deliveryCountries} from '../src/delivery-countries.js';
+import {countries,supplierRegion} from '../src/supplier-geography.js';
+import {regionInfo} from '../src/mail-model.js';
+test('country aliases converge while provinces and unknown text are preserved',()=>{for(const alias of ['CZ','CZE','捷克','捷克共和国','Czech Republic','Czechia'])assert.equal(normalizeCountry(alias),'Czechia');assert.equal(normalizeCountry('浙江'),'浙江');assert.equal(regionInfo({region:'浙江'}).value,'浙江');assert.equal(findCountry('056'),null);});
+test('business region is separate from geography and stale supplier region',()=>{assert.equal(findCountry('IR').subregion,'南亚/Southern Asia');assert.equal(countryBusinessRegion('Iran'),'中东');assert.equal(supplierRegion({country:'Germany',region:'西欧'}),'欧洲');});
+test('catalog updates refresh both pickers and keep disabled aliases identifiable',()=>{const next=countrySeed.map(r=>r.iso2==='DE'?{...r,enabled:false,business_region:'其他'}:r);setCountryCatalog(next);assert.equal(deliveryCountries.some(r=>r.code==='DE'),false);assert.equal(countries.some(r=>r[3]==='DE'),false);assert.equal(normalizeCountry('德国'),'Germany');assert.equal(countryBusinessRegion('DE'),'其他');setCountryCatalog(countrySeed);});
+test('country validation preserves zero-padded numeric codes and rejects invalid subregion',()=>{const input={...countrySeed.find(r=>r.iso2==='BE'),aliases:'比利时;比利时'};assert.equal(validateCountry(input).numeric_code,'056');assert.throws(()=>validateCountry({...input,subregion:'中亚/Central Asia'}));assert.equal(new Set(countrySeed.map(r=>r.iso2)).size,247);});

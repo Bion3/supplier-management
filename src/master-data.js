@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {cloudRequest,login,syncAuthShell} from './cloud.js';
 import {addPagerAfter} from './pagination.js';
 import {deliveryCountries,normalizeCountry,countryLabel} from './delivery-countries.js';

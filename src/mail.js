@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {templatePool,assignTemplates} from './mail-templates.js';
 import {outreachPlan,handoffContacts} from './mail-acquisition-model.js';
 import {dailyOutreachPlan} from './mail-daily.js';

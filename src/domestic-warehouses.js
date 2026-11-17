@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {cloudRequest,login,syncAuthShell} from './cloud.js';
 import {warehouseFields,validateWarehouse,warehouseQuery} from './domestic-warehouses-model.js';
 const $=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -14,3 +16,5 @@ filters.onsubmit=e=>{e.preventDefault();page=1;load();};filters.onreset=()=>{set
 $('prev').onclick=()=>{page=Math.max(1,page-1);load();};$('next').onclick=()=>{page++;load();};
 $('login-form').onsubmit=async e=>{e.preventDefault();try{const d=new FormData(e.target);await login(d.get('email'),d.get('password'));e.target.reset();await load();}catch(error){$('notice').textContent=error.message;}};
 if(syncAuthShell())load();
+
+const countryList=document.createElement('datalist');countryList.id='warehouse-country-list';document.body.append(countryList);const {deliveryCountries,countryLabel}=await import('./delivery-countries.js');for(const c of deliveryCountries){const o=document.createElement('option');o.value=c.label;o.label=c.value;countryList.append(o);}form.elements.country.setAttribute('list',countryList.id);

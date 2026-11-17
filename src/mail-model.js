@@ -1,3 +1,4 @@
+import {locationLabel} from './country-catalog.js';
 import {companyStage,companySourceTypes,companyGroups,mailExclusionReason} from './crm-model.js';
 import {mailContent} from './mail-content.js';
 export function validEmail(value){return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/.test(String(value))&&String(value).length<=254;}
@@ -6,7 +7,7 @@ export function eligibleContacts(contacts){const seen=new Set(),blocked=new Set(
 export function personalise(text,company,contact){return String(text).replace(/\{\{(company|name|routes)\}\}/g,(_,key)=>({company:company?.company_name||'',name:contact?.name||'',routes:company?.current_routes||'您的运输线路'}[key]));}
 export function validateMail(subject,body){subject=String(subject||'').trim();body=String(body||'').trim();if(!subject||subject.length>200||/[\r\n]/.test(subject))throw Error('主题需为1至200字的单行文本。');if(!body||body.length>20000)throw Error('正文需为1至20000字。');if(/\{\{[^}]+\}\}/.test(subject+body))throw Error('邮件仍有未替换的模板变量。');mailContent(body);return {subject,body};}
 export function regionInfo(company){
- if(company?.region?.trim())return {value:company.region.trim(),inferred:false};
+ if(company?.region?.trim())return {value:locationLabel(company.region.trim()),inferred:false};
  const address=(company?.addresses||[]).join(' ');
  const province=address.match(/北京|上海|天津|重庆|河北|山西|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|海南|四川|贵州|云南|陕西|甘肃|青海|内蒙古|广西|西藏|宁夏|新疆|香港|澳门|台湾/);
  if(province)return {value:province[0],inferred:true};

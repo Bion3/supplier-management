@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {regions,countries,countryInfo,countryLabel,normalizeCountry,supplierRegion} from './supplier-geography.js';
 import {addPagerAfter} from './pagination.js';
 import {login,logout,currentUser,listSuppliers,saveSupplier,syncAuthShell} from './cloud.js';

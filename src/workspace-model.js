@@ -9,3 +9,5 @@ export function openTask(url){
  if(window.parent!==window&&typeof window.parent.eurasiagoWorkspace?.open==='function'){if(!window.parent.eurasiagoWorkspace.open(url))throw Error('请先保存并关闭一个任务，再打开新任务。');}
  else location.assign(url);
 }
+
+taskPages.add('/country-management.html');

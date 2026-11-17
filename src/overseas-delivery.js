@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {deliveryCountries,normalizeCountry,countryLabel} from './delivery-countries.js';
 import {containerChoices} from './price-table-controls.js';
 import {login,listSuppliers,cloudRequest,syncAuthShell} from './cloud.js';

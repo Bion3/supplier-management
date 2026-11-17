@@ -1,3 +1,5 @@
+import {loadCountryCatalog} from './country-loader.js';
+await loadCountryCatalog();
 import {openAcquisitionMail} from './mail-acquisition.js';
 import {installContactProgress} from './contact-progress.js';
 import {transferToCrm,installExhibitorCrm} from './crm-acquisition.js';
@@ -6,7 +8,7 @@ import {exhibitionCategories,exhibitionTypes,exhibitionTiers,exhibitionSources,t
 import {installExhibitionAuto} from './exhibitions-auto.js';
 import {cloudRequest,currentUser,syncAuthShell,appRequest} from './cloud.js';
 import {addPagerAfter} from './pagination.js';
-import {countryLabel} from './supplier-geography.js';
+import {countryLabel,countryInfo} from './supplier-geography.js';
 import {companyTypes,fairFields,exhibitorFields,validateEntry,identity,filterEntries,importPlan,entriesCSV,safeURL,editionYear} from './exhibitions-model.js';
 const $=id=>document.getElementById(id),tables={fairs:'freight_exhibitions',exhibitors:'freight_exhibitors'};
 let kind='fairs',fairs=[],exhibitors=[],visible=[],page=1,pageRows=[],editing=null,busy=false,plan=null,generation=0,exhibitorsLoaded=false;
@@ -19,7 +21,7 @@ function option(value,label=value){return new Option(label,value);}
 function options(id,values,label,format=v=>v){const el=$(id),old=el.value;el.replaceChildren(option('',label),...values.map(v=>option(v,format(v))));if([...el.options].some(o=>o.value===old))el.value=old;}
 function fillFilters(){options('year-filter',[...new Set(['2025','2026',...fairs.map(editionYear).filter(Boolean)])].sort(),'全部年份');options('category-filter',exhibitionCategories,'全部大类');options('tier-filter',exhibitionTiers,'全部级别');options('exhibition-type-filter',exhibitionTypes,'全部类型');options('region-filter',[...new Set(fairs.map(r=>r.region).filter(Boolean))].sort(),'全部地区');options('platform-filter',[...new Set(fairs.map(r=>r.source_platform).filter(Boolean))].sort(),'全部来源');const rows=kind==='fairs'?fairs:exhibitors;options('country-filter',[...new Set(rows.map(r=>r.country).filter(Boolean))].sort(),'全部国家',countryLabel);options('industry-filter',[...new Set(rows.map(r=>r.industry).filter(Boolean))].sort(),'全部行业');options('status-filter',statuses(),'全部状态');options('type-filter',companyTypes,'全部类型');options('tag-filter',[...new Set(exhibitors.flatMap(r=>r.tags||[]))].sort(),'全部标签');const old=$('fair-filter').value;$('fair-filter').replaceChildren(option('','全部展会'),...fairs.map(r=>option(r.id,r.name+' · '+r.edition)));if(fairs.some(r=>r.id===old))$('fair-filter').value=old;}
 async function all(table,order){const result=[];for(let offset=0;;offset+=500){const rows=await cloudRequest(table+'?select=*&order='+order+'&limit=500&offset='+offset);result.push(...rows);if(rows.length<500)return result;}}
-async function load(){if(!currentUser())return;const g=++generation;$('notice').textContent='正在加载…';try{const list=await all(tables.fairs,'starts_on.asc.nullslast,id.asc');let companies=exhibitors;if(kind==='exhibitors'||exhibitorsLoaded)companies=await all(tables.exhibitors,'company_name.asc,id.asc');if(g!==generation||!currentUser())return;fairs=list;exhibitors=companies;if(kind==='exhibitors')exhibitorsLoaded=true;selected.clear();fillFilters();render();$('notice').textContent='资料已同步。';}catch(error){if(g===generation)$('notice').textContent=error.message;}}
+async function load(){if(!currentUser())return;const g=++generation;$('notice').textContent='正在加载…';try{const list=await all(tables.fairs,'starts_on.asc.nullslast,id.asc');let companies=exhibitors;if(kind==='exhibitors'||exhibitorsLoaded)companies=await all(tables.exhibitors,'company_name.asc,id.asc');if(g!==generation||!currentUser())return;fairs=list.map(r=>({...r,region:countryInfo(r.country)?.[2]||r.region}));exhibitors=companies;if(kind==='exhibitors')exhibitorsLoaded=true;selected.clear();fillFilters();render();$('notice').textContent='资料已同步。';}catch(error){if(g===generation)$('notice').textContent=error.message;}}
 function link(value,label){const a=document.createElement('a');try{a.href=safeURL(value);if(!a.href||!value)return document.createTextNode('—');}catch{return document.createTextNode('无有效链接');}a.textContent=label;a.target='_blank';a.rel='noopener noreferrer';return a;}
 function td(text){const el=document.createElement('td');const value=String(text??'');el.textContent=value.length>160?value.slice(0,160)+'…':value;if(value.length>160)el.title=value;return el;}
 function contactCell(row,type){
