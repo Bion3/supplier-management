@@ -1,3 +1,4 @@
+import {contactOutcomeLabels,orderUntriedLeads} from './lead-enrich-outcomes.js';
 import {openAcquisitionMail} from './mail-acquisition.js';
 import {installContactProgress} from './contact-progress.js';
 import {transferToCrm} from './crm-acquisition.js';
@@ -75,7 +76,8 @@ async function loadLeads(cached=false){const body=$('leads');body.replaceChildre
  const evidenceBtn=document.createElement('button');evidenceBtn.type='button';evidenceBtn.className='secondary';evidenceBtn.textContent='证据';
  evidenceBtn.onclick=()=>showEvidence(lead);
  qBox.append(evidenceBtn);cell(tr,qBox);
- cell(tr,lead.verification_status||'未验证');const action=document.createElement('div');const stage=el('span',lead.crm?.development_stage||'待开发');action.append(stage);const add=document.createElement('button');add.type='button';add.className='secondary';add.textContent='补充联系';add.onclick=()=>{candidateId=lead.id;$('candidate-contact-form').reset();$('candidate-contact-error').textContent='';$('candidate-contact').showModal();};action.append(add);const enrich=document.createElement('button');enrich.type='button';enrich.className='secondary';enrich.textContent='官网核实';enrich.disabled=!lead.website;enrich.onclick=async()=>{if(directProgress.active)return;directProgress.start(1,'企业联系方式补全');directProgress.begin(lead.company_name);let recorded=false;enrich.disabled=true;enrich.textContent='核实中…';try{const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:lead.id})});directProgress.finish({name:lead.company_name,added:result.added,pages:result.checked_pages});recorded=true;$('enrich-summary').textContent=('已检查 '+result.checked_pages+' 页，新增 '+result.added+' 条待核实联系方式。'+(result.errors?.length?' 部分页面失败：'+result.errors.join('；'):''));await loadLeads();}catch(e){if(!recorded)directProgress.finish({name:lead.company_name,error:e.message});else directProgress.interrupt('结果已保存，但页面刷新失败：'+e.message);$('enrich-summary').textContent='官网提取失败：'+e.message;}finally{if(directProgress.active)directProgress.complete();enrich.textContent='官网提取联系方式';enrich.disabled=false;}};action.append(enrich);const imported=document.createElement('button');imported.type='button';imported.className='secondary';imported.textContent='直接跟进';imported.onclick=()=>transferToCrm('lead',lead,imported);action.append(imported);cell(tr,action);body.append(tr);}syncSelection();}catch(e){$('leads-empty').textContent='无法读取候选企业：'+e.message;}}
+ const checkStatus=cell(tr,lead.enrichment_result_category?(contactOutcomeLabels[lead.enrichment_result_category]||lead.enrichment_result_category):(lead.verification_status||'尚未补全'));
+ checkStatus.title=lead.enrichment_result_note||'';const action=document.createElement('div');const stage=el('span',lead.crm?.development_stage||'待开发');action.append(stage);const add=document.createElement('button');add.type='button';add.className='secondary';add.textContent='补充联系';add.onclick=()=>{candidateId=lead.id;$('candidate-contact-form').reset();$('candidate-contact-error').textContent='';$('candidate-contact').showModal();};action.append(add);const enrich=document.createElement('button');enrich.type='button';enrich.className='secondary';enrich.textContent='官网核实';enrich.disabled=!lead.website;enrich.onclick=async()=>{if(directProgress.active)return;directProgress.start(1,'企业联系方式补全');directProgress.begin(lead.company_name);let recorded=false;enrich.disabled=true;enrich.textContent='核实中…';try{const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:lead.id})});directProgress.finish({name:lead.company_name,added:result.added,pages:result.checked_pages});recorded=true;$('enrich-summary').textContent=('已检查 '+result.checked_pages+' 页，新增 '+result.added+' 条待核实联系方式。'+(result.errors?.length?' 部分页面失败：'+result.errors.join('；'):''));await loadLeads();}catch(e){if(!recorded)directProgress.finish({name:lead.company_name,error:e.message});else directProgress.interrupt('结果已保存，但页面刷新失败：'+e.message);$('enrich-summary').textContent='官网提取失败：'+e.message;}finally{if(directProgress.active)directProgress.complete();enrich.textContent='官网提取联系方式';enrich.disabled=false;}};action.append(enrich);const imported=document.createElement('button');imported.type='button';imported.className='secondary';imported.textContent='直接跟进';imported.onclick=()=>transferToCrm('lead',lead,imported);action.append(imported);cell(tr,action);body.append(tr);}syncSelection();}catch(e){$('leads-empty').textContent='无法读取候选企业：'+e.message;}}
 $('discovery-form').addEventListener('submit',async event=>{event.preventDefault();const f=event.currentTarget;const btn=f.querySelector('button[type=submit]');const fd=new FormData(f);const keywords=String(fd.get('keywords')||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);if(!keywords.length){$('task-notice').textContent='请输入关键词';return;}btn.disabled=true;$('task-notice').textContent='保存中…';try{if(!currentUser())throw Error('请先在客户资源页面登录');await cloudRequest('lead_discovery_tasks',{method:'POST',body:JSON.stringify({country:fd.get('country'),city:fd.get('city'),source:fd.get('source'),keywords,target_count:Number(fd.get('target_count')),status:'pending'})});$('task-notice').textContent='任务已保存。点击任务列表中的“实时搜索”查询地图企业。';await loadTasks();}catch(e){$('task-notice').textContent='保存失败：'+e.message;}finally{btn.disabled=false;}});
 $('refresh-tasks').addEventListener('click',()=>{loadTasks();loadLeads();});$('lead-status').addEventListener('change',()=>{leadPage=1;loadLeads();});loadTasks();loadLeads();loadEnrichJobs();
 function showEvidence(lead){
@@ -129,11 +131,28 @@ $('candidate-contact-form').addEventListener('submit',async e=>{
 });
 
 $('select-all-leads').addEventListener('click',selectCurrentPage);
+$('select-untouched-leads').addEventListener('click',async()=>{
+ const button=$('select-untouched-leads');button.disabled=true;
+ try{
+  const [leadPool,jobs]=await Promise.all([
+   cloudRequest('lead_discovery_leads?select=id,website,contacts,review_status,crm_company_id,enrichment_checked_at,enrichment_result_category&review_status=eq.pending&enrichment_checked_at=is.null&order=created_at.desc&limit=500'),
+   cloudRequest('lead_enrich_jobs?select=lead_id&order=created_at.desc&limit=500')
+  ]);
+  const seen=new Set(jobs.map(j=>j.lead_id));
+  const eligible=orderUntriedLeads(leadPool).filter(l=>!seen.has(l.id)).slice(0,100);
+  selectedLeadIds.clear();for(const row of eligible)selectedLeadIds.add(row.id);
+  for(const check of document.querySelectorAll('.lead-choose'))check.checked=selectedLeadIds.has(check.dataset.id);
+  syncSelection();
+  $('enrich-summary').textContent='优先选中 '+eligible.length+' 家从未执行官网补全的企业，缺邮箱/电话的排前；已完成、无新增和报错的企业不会混入。点击「批量官网补全」提交。';
+ }catch(e){$('enrich-summary').textContent='筛选首次补全企业失败：'+e.message;}
+ finally{button.disabled=false;}
+});
+
 $('clear-leads').addEventListener('click',()=>{selectedLeadIds.clear();for(const box of document.querySelectorAll('.lead-choose'))box.checked=false;syncSelection();});
 $('leads-prev').addEventListener('click',()=>{leadPage=Math.max(1,leadPage-1);loadLeads(true);});
 $('leads-next').addEventListener('click',()=>{leadPage++;loadLeads(true);});
 $('batch-enrich').addEventListener('click',async()=>{
- const ids=leadRows.filter(r=>selectedLeadIds.has(r.id)&&r.website?.startsWith('https://')&&r.provider!=='google_places').map(r=>r.id);
+ const ids=orderUntriedLeads(leadRows.filter(r=>selectedLeadIds.has(r.id)&&r.provider!=='google_places'&&!r.enrichment_checked_at)).map(r=>r.id);
  if(!ids.length){$('enrich-summary').textContent='所选企业没有可核实的 HTTPS 官网。';return;}
  const button=$('batch-enrich');button.disabled=true;
  try{
@@ -147,21 +166,22 @@ function showEnrichProgress(jobs,names){let box=$('enrich-live-progress');if(!bo
 async function loadEnrichJobs(){clearTimeout(enrichPoll);let needsPoll=false;
  const tbody=$('enrich-jobs');tbody.replaceChildren();
  try{
-  const jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id,status,attempts,added_count,checked_pages,error,created_at,finished_at&order=created_at.desc&limit=500');
+  const jobs=await cloudRequest('lead_enrich_jobs?select=id,lead_id,status,attempts,added_count,checked_pages,error,result_category,result_note,created_at,finished_at&order=created_at.desc&limit=500');
   const names=new Map(leadRows.map(l=>[l.id,l.company_name]));needsPoll=showEnrichProgress(jobs,names);
   const stats={queued:0,running:0,completed:0,failed:0};
   for(const j of jobs)stats[j.status]=(stats[j.status]||0)+1;
-  $('enrich-summary').textContent='任务 '+jobs.length+' 条 · 排队 '+stats.queued+' · 执行中 '+stats.running+' · 成功 '+stats.completed+' · 失败 '+stats.failed+'（任务记录保存在数据库，离开页面不丢失）';
+  const noNew=jobs.filter(j=>j.result_category==='no_new_contacts').length;
+  $('enrich-summary').textContent='任务 '+jobs.length+' 条 · 排队 '+stats.queued+' · 执行中 '+stats.running+' · 已完成 '+stats.completed+'（其中无新增 '+noNew+'）· 失败 '+stats.failed+'；失败原因已按类别记录，不自动重复重试。';
   const labels={queued:'排队中',running:'执行中',completed:'已完成',failed:'失败，可重试'};
   for(const job of jobs.slice(0,80)){
    const tr=document.createElement('tr');
    cell(tr,names.get(job.lead_id)||job.lead_id);
-   cell(tr,labels[job.status]||job.status);cell(tr,job.attempts);
+   cell(tr,(contactOutcomeLabels[job.result_category]||labels[job.status]||job.status));cell(tr,job.attempts);
    cell(tr,job.added_count);cell(tr,job.checked_pages);
-   cell(tr,job.finished_at?new Date(job.finished_at).toLocaleString():'—');const statusCell=cell(tr,job.error||'—');
+   cell(tr,job.finished_at?new Date(job.finished_at).toLocaleString():'—');const statusCell=cell(tr,job.result_note||job.error||'—');
    if(job.status==='failed'){
-    const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='重试';
-    retry.onclick=async()=>{retry.disabled=true;try{const x=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:[job.lead_id]})});$('enrich-summary').textContent=x.message||x.error||'任务已重新提交';await loadEnrichJobs();}catch(e){alert('重新派发失败：'+e.message);}finally{retry.disabled=false;}};
+    const retry=document.createElement('button');retry.type='button';retry.className='secondary';retry.textContent='明确重试';retry.title='仅手动触发，距上次失败至少 60 分钟，最多重试 5 次';
+    retry.onclick=async()=>{retry.disabled=true;try{const x=await appRequest('/api/lead-batch',{method:'POST',body:JSON.stringify({ids:[job.lead_id],retry_failed:true})});$('enrich-summary').textContent=x.message||x.error||'任务已重新提交';await loadEnrichJobs();}catch(e){alert('重新派发失败：'+e.message);}finally{retry.disabled=false;}};
     statusCell.append(document.createElement('br'),retry);
    }
    tbody.append(tr);
