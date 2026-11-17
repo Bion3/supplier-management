@@ -56,3 +56,11 @@ html.workspace-embedded body>main{padding:18px clamp(16px,2vw,28px) 28px}
 .mail-sent-badge,.mail-unsent-badge{display:inline-block;white-space:nowrap;border-radius:14px;padding:4px 8px;font-size:11px}
 .mail-sent-badge{background:#e6f4ed;color:#21674b}
 .mail-unsent-badge{background:#f0f3f4;color:#61737a}
+.recipient-filter-card>.recipient-filters{grid-template-columns:minmax(260px,2fr) repeat(3,minmax(145px,1fr));align-items:end}
+.recipient-filter-card>.recipient-filters .search-filter{grid-column:auto}
+.recipient-filter-card .more-recipient-filters{grid-column:1/-1}
+.recipient-filter-card .more-recipient-filters .recipient-filters{grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.recipient-filter-card .advanced-mail-actions>summary,.recipient-filter-card .more-recipient-filters>summary{padding:7px 10px;font-size:12px}
+.recipient-filter-card .reset-filters{padding:7px 10px;font-size:12px}
+@media(max-width:900px){.recipient-filter-card>.recipient-filters{grid-template-columns:repeat(2,minmax(130px,1fr))}.recipient-filter-card>.recipient-filters .search-filter{grid-column:1/-1}}
+@media(max-width:600px){.recipient-filter-card>.recipient-filters{grid-template-columns:1fr 1fr}.recipient-filter-card .more-recipient-filters .recipient-filters{grid-template-columns:repeat(2,minmax(120px,1fr))}}
