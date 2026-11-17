@@ -18,11 +18,12 @@ export function websiteUrl(value){
 function readHtml(url,address){
  return new Promise((resolve,reject)=>{
   const req=https.request({hostname:address,port:443,path:url.pathname+url.search,method:'GET',servername:url.hostname,headers:{Host:url.hostname,'User-Agent':'EurasiagoLeadResearch/1.0 (+https://eurasiago.com; business-contact research)','Accept':'text/html','Accept-Encoding':'identity'},timeout:7000,rejectUnauthorized:true},res=>{
-   if(res.statusCode!==200){res.resume();reject(Error('网页未返回200'));return;}
+   if([301,302,303,307,308].includes(res.statusCode)&&res.headers.location){res.resume();resolve({redirect:String(res.headers.location)});return;}
+   if(res.statusCode!==200){res.resume();reject(Error('HTTP '+res.statusCode));return;}
    if(!/text\/html/i.test(String(res.headers['content-type']||''))){res.resume();reject(Error('非 HTML 页面'));return;}
    const parts=[];let size=0;
-   res.on('data',part=>{size+=part.length;if(size>250000){req.destroy(Error('网页超过大小限制'));return;}parts.push(part);});
-   res.on('end',()=>resolve(Buffer.concat(parts).toString('utf8')));
+   res.on('data',part=>{size+=part.length;if(size>500000){const excess=size-500000;parts.push(part.subarray(0,Math.max(0,part.length-excess)));resolve({html:Buffer.concat(parts).toString('utf8'),truncated:true});req.destroy();return;}parts.push(part);});
+   res.on('end',()=>resolve({html:Buffer.concat(parts).toString('utf8')}));
   });
   req.on('timeout',()=>req.destroy(Error('页面读取超时')));req.on('error',reject);req.end();
  });
@@ -33,12 +34,22 @@ export function selectPublicIPv4(records){
  if(!ipv4.length||usable.length!==ipv4.length)throw Error('网站地址不符合安全访问要求');
  return usable[0].address;
 }
-async function fetchSafe(url){
- const records=await lookup(url.hostname,{all:true,verbatim:true});
- // Node DNS returns IPv4 and IPv6. The downloader intentionally connects to
- // a vetted IPv4 address; valid IPv6 answers must not make ordinary sites fail.
- // Reject all private/reserved IPv4 answers, and require at least one public IPv4.
- return readHtml(url,selectPublicIPv4(records));
+async function fetchSafe(url,hops=0){
+ let records;
+ try{records=await lookup(url.hostname,{all:true,verbatim:true});}
+ catch(e){
+  if((e.code==='EBUSY'||e.code==='EAI_AGAIN')&&hops<3){
+   await new Promise(resolve=>setTimeout(resolve,180));
+   records=await lookup(url.hostname,{all:true,verbatim:true});
+  }else throw e;
+ }
+ const result=await readHtml(url,selectPublicIPv4(records));
+ if(!result.redirect)return result.html;
+ if(hops>=3)throw Error('HTTP 重定向次数过多');
+ const next=websiteUrl(new URL(result.redirect,url).href);
+ const base=host=>host.toLowerCase().replace(/^www\./,'');
+ if(!next||base(next.hostname)!==base(url.hostname))throw Error('HTTP 重定向指向其他域名，需人工复核');
+ return fetchSafe(next,hops+1);
 }
 function decode(s){return s.replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n)).replace(/&commat;/g,'@').replace(/&amp;/g,'&');}
 function getContactLinks(html,base){
@@ -102,14 +113,16 @@ export async function researchWebsite(website){
   try{
    const html=await fetchSafe(url),items=extract(html,url);evidence.push({url:url.href,found:items.length,checked_at:new Date().toISOString()});
    for(const item of items)if(!contacts.some(x=>x.type===item.type&&x.value.toLowerCase()===item.value.toLowerCase()))contacts.push(item);
-   if(i===0){
+   if(i===0||(url.pathname==='/'&&seen.size<=2)){
     const linked=getContactLinks(html,url).slice(0,2);
     for(const link of linked)pages.push(link);
     // Some websites do not link Contact / Impressum in crawlable markup.
     // Only probe a couple of same-origin conventional pages if no contact links were found.
     if(!linked.length)for(const path of ['/kontakt','/impressum'])pages.push(new URL(path,root));
    }
-  }catch(e){errors.push(url.href+': '+e.message);}
+  }catch(e){errors.push(url.href+': '+e.message);
+   if(i===0&&url.pathname!=='/'&&!seen.has(root.href))pages.push(root);
+  }
  }
  return {contacts:contacts.slice(0,40),evidence,errors,checked_pages:seen.size};
 }
