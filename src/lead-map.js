@@ -8,7 +8,7 @@ const progressNames=new Map();
 const progressName=id=>dbRows.find(r=>r.dbId===id)?.name||progressNames.get(id)||'企业 '+String(id).slice(0,8);
 async function loadProgressNames(jobs){try{const list=await cloudRequest('lead_discovery_leads?select=id,company_name&id=in.'+encodeURIComponent('('+jobs.map(j=>j.lead_id).join(',')+')'));for(const row of list)progressNames.set(row.id,row.company_name);}catch{}}
 function mapProgressBatch(batch){contactProgress.begin('本组：'+batch.map(j=>progressName(j.lead_id)).join('、')+'（依次处理）');}
-function mapProgressResult(result){for(const r of result.results||[])contactProgress.finish({name:progressName(r.lead_id||r.id),added:r.added,pages:r.checked_pages,error:r.status==='failed'?r.error||'官网读取失败':'',skipped:r.status==='skipped'});}
+function mapProgressResult(result){for(const r of result.results||[])contactProgress.finish({name:progressName(r.lead_id||r.id),added:r.added,pages:r.checked_pages,error:r.status==='failed'?r.error||'官网读取失败':'',skipped:r.status==='skipped',reason:r.reason||''});}
 const CITIES={hamburg:{name:'Hamburg',country:'Germany',center:[53.5511,9.9937]},rotterdam:{name:'Rotterdam',country:'Netherlands',center:[51.9244,4.4777]},duisburg:{name:'Duisburg',country:'Germany',center:[51.4344,6.7623]},warsaw:{name:'Warsaw',country:'Poland',center:[52.2297,21.0122]},budapest:{name:'Budapest',country:'Hungary',center:[47.4979,19.0402]}};
 let center=CITIES.hamburg.center.slice(),radius=50,dbRows=[],fileRows=[],rows=[],page=1,activeId=null,taskCountry='Germany',taskCity='Hamburg';
 const chosen=new Set(),selectedVerify=new Set(),PAGE_SIZE=20;
@@ -336,7 +336,7 @@ $('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
    try{
     const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
     if(!result.skipped)attempted++;
-    contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages});
+    contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages,reason:result.reason||''});
    }catch(e){attempted++;contactProgress.finish({name:row.name,error:e.message});}
   }
   await loadDb();
