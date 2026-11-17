@@ -319,30 +319,21 @@ $('map-file').onchange=async()=>{
 };
 // One clear primary action: reuse outstanding research jobs first; otherwise
 // enqueue a small batch from the current map-filtered region.
-$('map-auto-contact').onclick=async()=>{if(contactProgress.active)return;
+$('map-auto-contact').onclick=async()=>{
  const button=$('map-auto-contact'),notice=$('map-contact-status');
- const candidates=rows.filter(r=>r.source==='database'&&r.dbId&&
-  r.website?.startsWith('https://')&&r.reviewStatus!=='rejected'&&!r.enrichmentCheckedAt)
-  .sort((a,b)=>contactPriority(a)-contactPriority(b));
- const maxBatch=40,selected=candidates.slice(0,maxBatch);
- if(!selected.length){
-  notice.textContent='当前筛选没有尚未补全过的 HTTPS 官网企业。历史无信息或失败的企业请在「企业线索 → 官网核实进度」查看分类，按需手动重试。';
-  return;
- }
- button.disabled=true;contactProgress.start(selected.length,'首次官网联系方式补全');let attempted=0;
+ if(button.disabled)return;
+ button.disabled=true;
  try{
-  for(const row of selected){
-   contactProgress.begin(row.name);
-   try{
-    const result=await appRequest('/api/lead-enrich',{method:'POST',body:JSON.stringify({lead_id:row.dbId})});
-    if(!result.skipped)attempted++;
-    contactProgress.finish({name:row.name,added:result.added,skipped:result.skipped,pages:result.checked_pages,reason:result.reason||''});
-   }catch(e){attempted++;contactProgress.finish({name:row.name,error:e.message});}
-  }
-  await loadDb();
-  notice.textContent='本批首次检查 '+attempted+' 家，历史已检查企业不会重复进入本批。失败原因已分类保存，仍需核实官网公开信息。';
- }catch(e){contactProgress.interrupt(e.message);}
- finally{if(contactProgress.active)contactProgress.complete();button.disabled=false;}
+  const city=CITIES[$('map-city').value]?.name||null;
+  if(!city){notice.textContent='请先选择支持的城市，再领取首次补全任务。';return;}
+  notice.textContent='正在领取 '+city+' 从未补全的企业，并交给后台执行…';
+  const result=await appRequest('/api/lead-batch',{method:'POST',
+   body:JSON.stringify({action:'enqueue_priority',limit:30,city})});
+  notice.textContent=(result.message||result.error||'任务已提交')+
+   ' · 入队 '+(result.queued||0)+' 家 · 已派发 '+(result.published||0)+' 家。'+
+   '后台独立运行；成功、无新增、网站失败分别记录，不会自动发送邮件。';
+ }catch(error){notice.textContent='后台补全提交失败：'+error.message;}
+ finally{button.disabled=false;}
 };
 $('map-dispatch-queued').onclick=async()=>{if(contactProgress.active)return;
  const btn=$('map-dispatch-queued'),notice=$('map-contact-status');btn.disabled=true;
