@@ -29,7 +29,7 @@ export async function POST(request){
   if(!lead.website)return reply({error:'该企业没有官网，无法自动提取'},400);
   // Do not enrich Google Places records into a persistent independent business database.
   if(lead.provider==='google_places')return reply({error:'请先用独立来源核实网站，再持久化相关资料'},400);
-  if(lead.crm_company_id||lead.review_status==='rejected')return reply({added:0,skipped:true,reason:'企业已导入 CRM 或标记不相关，不重复补全'});
+  if(lead.review_status==='rejected')return reply({added:0,skipped:true,reason:'企业已标记不相关，不能自动补全'});
   const running=await rest('lead_enrich_jobs?select=status&lead_id=eq.'+encodeURIComponent(id)+'&status=in.(queued,running)&limit=1');
   if(running.length)return reply({added:0,skipped:true,reason:'官网补全任务正在后台排队或执行，无需重复领取'});
 
