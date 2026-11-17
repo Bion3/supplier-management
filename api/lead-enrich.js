@@ -1,3 +1,4 @@
+import {classifyWebsiteError} from '../src/lead-enrich-outcomes.js';
 import {contactAlreadyChecked,contactClueKey} from '../server/contact-check.js';
 import {createExhibitorContactCompletion} from '../server/exhibitor-contact-completion.js';
 import {createMapDispatcher} from '../server/lead-map-dispatch.js';
@@ -22,21 +23,44 @@ export async function POST(request){
    const response=await fetch(BASE+'/rest/v1/'+path,{...options,headers:{...auth,...options.headers},signal:AbortSignal.timeout(12000)});
    if(!response.ok)throw Error('数据库操作失败，请检查登录权限');return response.json().catch(()=>null);
   };
-  const leads=await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id)+'&select=id,company_name,website,provider,contacts,source_evidence,crm_company_id,review_status&limit=1');
+  const leads=await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id)+'&select=id,company_name,website,provider,contacts,source_evidence,crm_company_id,review_status,enrichment_result_category,enrichment_result_note,enrichment_checked_at&limit=1');
   if(leads.length!==1)return reply({error:'企业不存在或没有访问权限'},404);
   const lead=leads[0];
   if(!lead.website)return reply({error:'该企业没有官网，无法自动提取'},400);
   // Do not enrich Google Places records into a persistent independent business database.
   if(lead.provider==='google_places')return reply({error:'请先用独立来源核实网站，再持久化相关资料'},400);
-  if(contactAlreadyChecked(lead))return reply({added:0,skipped:true,reason:'已补全，暂无新线索'});
-  const researched=await researchWebsite(lead.website);
-  if(!researched.evidence.length)return reply({error:'无法安全访问官网；'+researched.errors.slice(0,2).join('；')},422);
+  const markOutcome=async(category,note)=>{
+   await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id),{
+    method:'PATCH',headers:{Prefer:'return=minimal'},
+    body:JSON.stringify({enrichment_result_category:category,
+      enrichment_result_note:String(note||'').slice(0,300),
+      enrichment_checked_at:new Date().toISOString()})});
+  };
+  if(lead.enrichment_checked_at){
+   return reply({added:0,skipped:true,reason:'已有补全记录：'+(lead.enrichment_result_note||lead.enrichment_result_category||'已检查')});
+  }
+  if(contactAlreadyChecked(lead)){
+   await markOutcome('already_checked','历史官网已检查，无须重复采集；已有联系方式保留');
+   return reply({added:0,skipped:true,reason:'历史官网已经检查'});
+  }
+  let researched;
+  try{researched=await researchWebsite(lead.website);}
+  catch(error){
+   const message=String(error.message||'官网检查失败').slice(0,260);
+   await markOutcome(classifyWebsiteError(message),message);
+   return reply({error:message},422);
+  }
+  if(!researched.evidence.length){
+   const message='无法安全访问官网：'+researched.errors.slice(0,2).join('；');
+   await markOutcome(classifyWebsiteError(message),message);
+   return reply({error:message},422);
+  }
   const existing=Array.isArray(lead.contacts)?lead.contacts:[];
   const additions=researched.contacts.filter(c=>!existing.some(x=>x.type===c.type&&String(x.value).toLowerCase()===c.value.toLowerCase()));
   const updated=[...existing,...additions].slice(0,100);
   const evidence=[...(Array.isArray(lead.source_evidence)?lead.source_evidence:[]),...researched.evidence,{contact_check:contactClueKey(lead),checked_at:new Date().toISOString()}].slice(-60);
   // Never auto-approve. Existing manually approved lead moves back to pending review.
-  await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({contacts:updated,source_evidence:evidence,verification_status:'website_found_unverified',review_status:'pending',updated_at:new Date().toISOString()})});
+  await rest('lead_discovery_leads?id=eq.'+encodeURIComponent(id),{method:'PATCH',headers:{Prefer:'return=minimal'},body:JSON.stringify({contacts:updated,source_evidence:evidence,verification_status:'website_found_unverified',enrichment_result_category:additions.length?'new_contacts':'no_new_contacts',enrichment_result_note:additions.length?'获取 '+additions.length+' 条官网公开联系方式（待核实）':'官网已检查，未发现新增联系方式；保留原有记录',enrichment_checked_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   return reply({added:additions.length,total:updated.length,checked_pages:researched.checked_pages,errors:researched.errors,notice:'从公开官网提取，尚未经交叉验证；联系方式已同步客户档案，可继续跟进。'});
  }catch(e){return reply({error:e?.name==='TimeoutError'?'连接超时':e.message||'官网核实失败'},500);}
 }
