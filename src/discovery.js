@@ -135,11 +135,11 @@ $('select-untouched-leads').addEventListener('click',async()=>{
  const button=$('select-untouched-leads');button.disabled=true;
  try{
   const [leadPool,jobs]=await Promise.all([
-   cloudRequest('lead_discovery_leads?select=id,website,contacts,review_status,crm_company_id,enrichment_checked_at,enrichment_result_category&review_status=eq.pending&enrichment_checked_at=is.null&order=created_at.desc&limit=500'),
+   cloudRequest('lead_discovery_leads?select=id,provider,website,contacts,review_status,crm_company_id,enrichment_checked_at,enrichment_result_category&review_status=eq.pending&enrichment_checked_at=is.null&order=created_at.desc&limit=500'),
    cloudRequest('lead_enrich_jobs?select=lead_id&order=created_at.desc&limit=500')
   ]);
   const seen=new Set(jobs.map(j=>j.lead_id));
-  const eligible=orderUntriedLeads(leadPool).filter(l=>!seen.has(l.id)).slice(0,100);
+  const eligible=orderUntriedLeads(leadPool).filter(l=>!seen.has(l.id)&&l.provider!=='google_places').slice(0,100);
   selectedLeadIds.clear();for(const row of eligible)selectedLeadIds.add(row.id);
   for(const check of document.querySelectorAll('.lead-choose'))check.checked=selectedLeadIds.has(check.dataset.id);
   syncSelection();
