@@ -25,3 +25,26 @@ header a{color:white;font-size:14px}.setup,.compose,.history{padding:24px;margin
 .daily-outreach{display:flex;align-items:center;gap:18px;justify-content:space-between;padding:16px 18px;margin:14px 0;background:#f1faf6;border:1px solid #c9e2db;border-radius:10px}.daily-outreach strong{font-size:17px;color:#225b4c}.daily-outreach p{margin:5px 0;font-size:13px;line-height:1.5;color:#315c55}.daily-outreach span{font-size:12px;color:#426e63}.daily-outreach button{flex:0 0 auto}@media(max-width:760px){.daily-outreach{display:block}.daily-outreach button{width:100%;margin-top:12px}}
 
 #recipient-table[hidden],#recipient-pager[hidden]{display:none}
+.mail-account{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin:10px 28px;font-size:12px}
+.mail-account button{padding:7px 10px;font-size:12px}
+html.workspace-embedded .mail-account{display:none}
+html.workspace-embedded body>main{padding:18px clamp(16px,2vw,28px) 28px}
+#workspace>.heading{align-items:end;gap:14px;margin-bottom:10px}
+#workspace>.heading h1{font-size:26px;margin:0 0 4px;letter-spacing:-.5px}
+#workspace>.heading p{margin:0;font-size:12px;line-height:1.5}
+#workspace>.heading .heading-actions{justify-content:flex-end;gap:6px}
+#workspace>.heading .heading-actions button,#workspace>.heading .heading-actions a{min-height:36px;padding:7px 11px;font-size:12px;white-space:nowrap}
+#workspace .mail-workspace-nav{position:static;box-shadow:none;padding:7px;margin:10px 0}
+#workspace .mail-workspace-nav button{min-height:36px;padding:7px 12px;font-size:13px}
+#workspace .mail-workspace-nav span{display:none}
+#workspace #notice{margin:6px 0;font-size:12px}
+#workspace #notice:empty{display:none}
+#workspace .top-mail-actions{padding:10px 14px;margin:10px 0}
+#workspace .mail-work-panel{margin:10px 0;padding:14px}
+.settings-scope{padding:18px;border-top:1px solid #e1e9eb;display:grid;gap:12px}
+.settings-scope h3,.settings-scope p{margin:0}
+.settings-scope p{font-size:12px;line-height:1.5}
+.settings-scope label{max-width:300px}
+.settings-scope .scope-toggle{display:flex;flex-direction:row;align-items:center;gap:8px}
+@media(max-width:900px){#workspace>.heading{align-items:stretch;flex-direction:column}#workspace>.heading .heading-actions{justify-content:flex-start}}
+@media(max-width:600px){#workspace>.heading .heading-actions{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}#workspace>.heading .heading-actions>*{flex:0 0 auto}html.workspace-embedded body>main{padding:12px 14px 24px}}

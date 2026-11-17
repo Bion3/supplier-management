@@ -1,6 +1,6 @@
 import {originalUIText} from './ui-language.js';
 import {taskURL} from './workspace-model.js';
-import {workspaceToken} from './cloud.js';
+import {workspaceToken,currentUser,logout} from './cloud.js';
 
 const tabs=document.getElementById('task-tabs'),panels=document.getElementById('task-panels'),status=document.getElementById('task-status');
 const tasks=[];let active=null,nextId=0;
@@ -10,6 +10,12 @@ const api={open,token:workspaceToken,beforeLogout(){
  window.onbeforeunload=null;return true;
 }};
 window.eurasiagoWorkspace=api;
+document.getElementById('workspace-account-email').textContent=currentUser()?.email||'已登录';
+document.getElementById('workspace-logout').addEventListener('click',async()=>{
+ if(!api.beforeLogout())return;
+ const button=document.getElementById('workspace-logout');button.disabled=true;
+ try{await logout();}catch{location.replace('/login.html');}
+});
 
 function activate(task,history=true){
  active=task;
