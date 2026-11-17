@@ -38,5 +38,5 @@ begin
  select array_agg(id) into result from inserted;
  return coalesce(result,array[]::uuid[]);
 end $$;
-revoke all on function public.lead_enqueue_next_unchecked(integer) from public,anon;
-grant execute on function public.lead_enqueue_next_unchecked(integer) to authenticated;
+revoke all on function public.lead_enqueue_next_unchecked(integer,text) from public,anon;
+grant execute on function public.lead_enqueue_next_unchecked(integer,text) to authenticated;
