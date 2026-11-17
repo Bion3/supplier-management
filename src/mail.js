@@ -50,7 +50,9 @@ function useTemplate(){const t=templatePool(templates,$('purpose').value).find(t
 function filters(){const scope=$('view-mode').value;return {stage:$('stage').value,source:$('source').value,query:$('search').value,role:$('role').value,region:$('region').value,verification:$('verification').value,allowed:$('allowed').value,group:$('group').value,sendStatus:['sent','unsent'].includes(scope)?scope:'',sentEmails:sentRecipientEmails(messages),sendable:scope==='sendable',selectedOnly:scope==='selected',selected};}
 function filtered(){return filterRecipients(contacts,companies,filters());}
 function renderFilterOptions(){
- for(const [id,values,label] of [['region',companies.map(c=>regionInfo(c).value),'全部地区'],['role',[...companies.map(c=>c.role||'待核实'),'直客','指定货发货人','同行','海外代理','客户兼供应商','其他'],'全部类型'],['group',companyGroupOptions(companies,contacts).map(g=>g.name),'全部分组']]){
+ const regionOptions=$('region-options');regionOptions.replaceChildren();
+ for(const name of [...new Set(companies.map(c=>regionInfo(c).value))].sort((a,b)=>a.localeCompare(b,'zh-CN'))){const option=document.createElement('option');option.value=name;regionOptions.append(option);}
+ for(const [id,values,label] of [['role',[...companies.map(c=>c.role||'待核实'),'直客','指定货发货人','同行','海外代理','客户兼供应商','其他'],'全部类型'],['group',companyGroupOptions(companies,contacts).map(g=>g.name),'全部分组']]){
   const select=$(id),previous=select.value;select.replaceChildren();const all=document.createElement('option');all.value='';all.textContent=label;select.append(all);
   if(id==='group'){const empty=document.createElement('option');empty.value='__ungrouped';empty.textContent='未分组';select.append(empty);}
   for(const name of [...new Set(values)].sort((a,b)=>a.localeCompare(b,'zh-CN'))){const o=document.createElement('option');o.value=name;o.textContent=name;select.append(o);}select.value=previous;if(select.selectedIndex<0)select.value='';
@@ -143,7 +145,7 @@ $('login-form').addEventListener('submit',async e=>{e.preventDefault();await gua
 $('login-form').querySelector('button').id='login-button';
 $('logout').addEventListener('click',async()=>{++epoch;loadController?.abort();stopProgressPolling();try{await logout();}catch{}companies=[];contacts=[];messages=[];templates=[];configured=false;$('quick-test').disabled=true;recipientLoadState='loading';selectedTemplates.clear();$('template-pool').replaceChildren();$('template').replaceChildren();selected.clear();previewRows=[];savedDrafts=[];$('preview-dialog').close();$('mail-settings').close();editor.clear();$('subject').value='';setMailView('recipients');authUI();render();});
 $('refresh').addEventListener('click',load);$('purpose').addEventListener('change',renderTemplates);$('template').addEventListener('change',useTemplate);
-for(const id of ['search','stage','source','region','role','verification','allowed','group','view-mode','one-per-company','recent-days'])$(id).addEventListener(id==='search'?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
+for(const id of ['search','stage','source','region','role','verification','allowed','group','view-mode','one-per-company','recent-days'])$(id).addEventListener(['search','region'].includes(id)?'input':'change',()=>{page=1;render();});$('prev').addEventListener('click',()=>{page--;render();});$('next').addEventListener('click',()=>{page++;render();});
 $('daily-audience').addEventListener('change',render);
 $('retry-recipients').addEventListener('click',load);$('reset-empty-filters').addEventListener('click',()=>$('reset-filters').click());
 $('reset-filters').addEventListener('click',()=>{for(const id of ['search','stage','source','region','role','verification','allowed','group'])$(id).value='';$('view-mode').value='sendable';page=1;render();});
