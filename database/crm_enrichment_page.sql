@@ -129,27 +129,69 @@ end
 $function$;
 
 
-create or replace function public.freight_crm_page(p_filters jsonb default '{}',p_offset integer default 0,p_limit integer default 30,p_mode text default 'page',p_ids text[] default null)
-returns jsonb language plpgsql stable set search_path=public set jit=off as $$
-declare result jsonb; matching text[]; state_filter text:=coalesce(p_filters->>'enrichment','');
+CREATE OR REPLACE FUNCTION public.freight_crm_page(p_filters jsonb DEFAULT '{}'::jsonb, p_offset integer DEFAULT 0, p_limit integer DEFAULT 30, p_mode text DEFAULT 'page'::text, p_ids text[] DEFAULT NULL::text[])
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE
+ SET search_path TO 'public'
+ SET jit TO 'off'
+AS $function$
+declare filtered_total integer; result jsonb; matching text[]; state_filter text:=coalesce(p_filters->>'enrichment','');
 begin
  if state_filter<>'' then
   if state_filter not in ('uncollected','running','collected','checked','failed','no_website') then raise exception '无效补全状态'; end if;
-  select coalesce(array_agg(c.id),'{}'::text[]) into matching
-  from public.freight_companies c
-  where (p_ids is null or c.id=any(p_ids))
-   and (state_filter='no_website' or c.source_refs @? '$[*] ? (exists(@.lead_id) || exists(@.exhibitor_id))')
-   and public.freight_crm_enrichment_state(c.source_refs)=state_filter;
-  p_ids:=matching;
+  with candidates as materialized (
+   select c.id,c.created_at,c.source_refs from public.freight_companies c
+   where (p_ids is null or c.id=any(p_ids))
+     and (state_filter='no_website' or c.source_refs @? '$[*] ? (exists(@.lead_id) || exists(@.exhibitor_id))')
+  ), refs as materialized (
+   select c.id as company_id,r from candidates c
+   cross join lateral jsonb_array_elements(c.source_refs) r
+   where jsonb_typeof(r)='object' and r ?| array['lead_id','exhibitor_id']
+  ), outcomes as (
+ select refs.company_id, case
+ when exists(select 1 from public.lead_enrich_jobs j where j.lead_id=l.id and j.status in ('queued','running')) then 'running'
+ when l.enrichment_result_category='new_contacts' then 'collected'
+ when l.enrichment_checked_at is not null and l.enrichment_result_category in ('no_new_contacts','already_checked') then 'checked'
+ when l.enrichment_checked_at is not null then 'failed'
+ when exists(select 1 from jsonb_array_elements(coalesce(l.source_evidence,'[]')) e where e->>'contact_check'=public.freight_crm_clue_key(l.website,null,l.source_evidence)) then 'checked'
+ when l.website ~* '^https://' then 'uncollected'
+ else 'no_website' end state
+ from refs join public.lead_discovery_leads l on l.id=case when refs.r->>'lead_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'lead_id')::uuid end
+ union all
+ select refs.company_id, case
+ when case when strpos(coalesce(e.notes,''),'[contact-check:')>0 then position('[contact-check:'||public.freight_crm_uri_component(public.freight_crm_clue_key(e.website,e.source_url,'[]'))||']' in coalesce(e.notes,''))>0 else false end then 'checked'
+ when e.website ~* '^https://' then 'uncollected'
+ else 'no_website' end
+ from refs join public.freight_exhibitors e on e.id=case when refs.r->>'exhibitor_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'exhibitor_id')::uuid end
+  ), ranked as (
+   select company_id,min(array_position(array['running','uncollected','collected','failed','checked','no_website'],state)) as priority
+   from outcomes group by company_id
+  )
+  select coalesce(array_agg(c.id order by c.created_at desc,c.id desc),'{}'::text[]) into matching
+  from candidates c left join ranked on ranked.company_id=c.id
+  where coalesce(priority,6)=array_position(array['running','uncollected','collected','failed','checked','no_website'],state_filter);
+  if p_mode in ('page','ids') and not exists (
+   select 1 from jsonb_each_text(p_filters-'enrichment') f where coalesce(f.value,'')<>''
+  ) then
+   filtered_total:=cardinality(matching);
+   if p_mode='ids' then return jsonb_build_object('total',filtered_total,'ids',matching); end if;
+   p_ids:=matching[greatest(p_offset,0)+1:greatest(p_offset,0)+least(greatest(p_limit,1),500)];
+   p_offset:=0;
+  else
+   p_ids:=matching;
+  end if;
  end if;
  result:=public.freight_crm_page_before_enrichment(p_filters-'enrichment',p_offset,p_limit,p_mode,p_ids);
+ if filtered_total is not null then result:=jsonb_set(result,'{total}',to_jsonb(filtered_total)); end if;
  if p_mode='page' then
   select jsonb_set(result,'{companies}',coalesce(jsonb_agg(
    c||jsonb_build_object('source_refs',(select coalesce(jsonb_agg(case when jsonb_typeof(ref)='object' then ref||jsonb_build_object('_enrichment_state',public.freight_crm_enrichment_state(jsonb_build_array(ref))) else ref end),'[]') from jsonb_array_elements(coalesce(c->'source_refs','[]')) ref),
     '_enrichment_state',public.freight_crm_enrichment_state(c->'source_refs'),
     '_lower_priority',public.freight_crm_enrichment_state(c->'source_refs') in ('collected','checked','failed','running'))
-   order by ord),'[]'::jsonb)) into result
+   order by case when filtered_total is not null then array_position(p_ids,c->>'id') end,ord),'[]'::jsonb)) into result
   from jsonb_array_elements(coalesce(result->'companies','[]')) with ordinality x(c,ord);
  end if;
  return result;
-end $$;
+end $function$
+;
