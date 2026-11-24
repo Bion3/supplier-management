@@ -148,22 +148,28 @@ begin
    select c.id as company_id,r from candidates c
    cross join lateral jsonb_array_elements(c.source_refs) r
    where jsonb_typeof(r)='object' and r ?| array['lead_id','exhibitor_id']
+  ), active_jobs as materialized (
+   select distinct lead_id from public.lead_enrich_jobs where status in ('queued','running')
+  ), visible_leads as materialized (
+   select id,enrichment_result_category,enrichment_checked_at,source_evidence,website from public.lead_discovery_leads
+  ), visible_exhibitors as materialized (
+   select id,notes,website,source_url from public.freight_exhibitors
   ), outcomes as (
  select refs.company_id, case
- when exists(select 1 from public.lead_enrich_jobs j where j.lead_id=l.id and j.status in ('queued','running')) then 'running'
+ when l.id in (select lead_id from active_jobs) then 'running'
  when l.enrichment_result_category='new_contacts' then 'collected'
  when l.enrichment_checked_at is not null and l.enrichment_result_category in ('no_new_contacts','already_checked') then 'checked'
  when l.enrichment_checked_at is not null then 'failed'
  when exists(select 1 from jsonb_array_elements(coalesce(l.source_evidence,'[]')) e where e->>'contact_check'=public.freight_crm_clue_key(l.website,null,l.source_evidence)) then 'checked'
  when l.website ~* '^https://' then 'uncollected'
  else 'no_website' end state
- from refs join public.lead_discovery_leads l on l.id=case when refs.r->>'lead_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'lead_id')::uuid end
+ from refs join visible_leads l on l.id=case when refs.r->>'lead_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'lead_id')::uuid end
  union all
  select refs.company_id, case
  when case when strpos(coalesce(e.notes,''),'[contact-check:')>0 then position('[contact-check:'||public.freight_crm_uri_component(public.freight_crm_clue_key(e.website,e.source_url,'[]'))||']' in coalesce(e.notes,''))>0 else false end then 'checked'
  when e.website ~* '^https://' then 'uncollected'
  else 'no_website' end
- from refs join public.freight_exhibitors e on e.id=case when refs.r->>'exhibitor_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'exhibitor_id')::uuid end
+ from refs join visible_exhibitors e on e.id=case when refs.r->>'exhibitor_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then (refs.r->>'exhibitor_id')::uuid end
   ), ranked as (
    select company_id,min(array_position(array['running','uncollected','collected','failed','checked','no_website'],state)) as priority
    from outcomes group by company_id
