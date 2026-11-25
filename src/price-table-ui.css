@@ -112,3 +112,18 @@ td[data-col="public-rate"]{max-width:200px}
 #workspace.cost-route-layout .cost-filter-area label{flex:1 1 140px;min-width:0;max-width:none;margin:0}
 #workspace.cost-route-layout .cost-filter-area input:focus{outline:2px solid #178477;outline-offset:1px}
 @media(max-width:680px){#workspace.cost-route-layout .cost-filter-area{flex-basis:100%}#workspace.cost-route-layout .cost-filter-area label{flex-basis:100%}}
+
+/* Keep pricing editors inside their own cells, including narrow table layouts. */
+#workspace td[data-col="operation-fee"]{min-width:210px;width:210px;max-width:none;white-space:normal}
+#workspace td[data-col="selling-price"]{min-width:170px;width:170px;max-width:none;white-space:normal}
+#workspace td[data-col="public-rate"]{min-width:145px;width:145px;white-space:normal}
+#workspace td[data-col="operation-fee"] .sale-cell{display:flex;gap:10px;align-items:flex-start;width:100%;box-sizing:border-box}
+#workspace td[data-col="operation-fee"] .sale-inputs{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;flex:1;min-width:0}
+#workspace td[data-col="operation-fee"] .sale-inputs label{display:flex;flex-direction:column;position:static;float:none;width:auto;min-width:0;margin:0;gap:5px;line-height:1.5;white-space:normal}
+#workspace td[data-col="operation-fee"] .sale-inputs input{display:block;position:static;box-sizing:border-box;width:100%;min-width:0;max-width:100%;height:34px;margin:0;padding:6px 9px;line-height:20px}
+#workspace .sale-cell>input[type="checkbox"],#workspace .sale-publish input[type="checkbox"]{width:15px;min-width:15px;height:15px;margin:3px 0 0;flex:none;padding:0}
+#workspace td[data-col="selling-price"] .sale-inputs{display:grid;gap:12px}
+#workspace td[data-col="selling-price"] .sale-result{display:flex;position:static;flex-direction:column;gap:6px;padding:8px 0;line-height:1.5}
+#workspace td[data-col="selling-price"] .sale-result strong{display:block;font-size:16px;line-height:1.5;white-space:nowrap}
+#workspace td[data-col="selling-price"] .sale-result small{display:block;position:static;line-height:1.5;overflow-wrap:anywhere;white-space:normal}
+#workspace .sale-publish{display:flex;flex-direction:row;align-items:center;width:auto;min-width:0;margin:0;gap:7px;line-height:1.5}
