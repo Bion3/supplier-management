@@ -1,0 +1,10 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {pickupCities} from '../src/coc-pickup.js';
+import {estimateFcl,estimateFclVariants} from '../src/cost-unified-model.js';
+const input={transport:'fcl',origin:'上海',station:'金华',destination:'汉堡',equipment:'COC',box:'40HQ',quantity:1,date:'2026-12-10',fx:7,profitMode:'fixed',profit:0,truck:true,rent:true,preview:true};
+const rail={id:'r',origin:'金华',destination:'汉堡',status:'draft',quote:{equipment:'COC',container:'40HQ',scope:'站到站',unit:'柜',currency:'USD',price:9400,pickupPlaces:['上海','宁波']}};
+const trucks=['上海','宁波','青岛'].map((origin,n)=>({id:'t'+n,origin,destination:'金华',status:'confirmed',quote:{loadingPlace:'上海',container:'40HQ',unit:'柜',currency:'CNY',price:700*(n+1)}}));
+test('normalize city input without losing existing multi-city data',()=>{assert.deepEqual(pickupCities({pickupPlace:'上海 / 宁波、上海'}),['上海','宁波']);});
+test('each COC pickup city generates a separate valid truck combination without rental',()=>{const result=estimateFclVariants(input,{fcl:[rail],trucks,rentals:[]});assert.equal(result.length,2);assert.deepEqual(result.map(r=>r.inputs.pickupPlace).sort(),['上海','宁波']);assert.deepEqual(result.map(r=>r.result.cost).sort(),[9500,9600]);for(const r of result){assert(!r.inputs.sources.rent);assert.equal(r.inputs.sources.truck.origin,r.inputs.pickupPlace);}});
+test('missing or disallowed city cannot use unrelated truck prices',()=>{for(const q of [{...rail.quote,pickupPlaces:[]},rail.quote]){const r=estimateFcl({...input,pickupPlace:'青岛'},{fcl:[{...rail,quote:q}],trucks,rentals:[]});assert.equal(r.inputs.sources.truck,undefined);assert.equal(r.result.complete,false);}});
+test('missing truck for one allowed city remains visible as incomplete',()=>{const r=estimateFclVariants(input,{fcl:[rail],trucks:trucks.slice(0,1),rentals:[]});assert.equal(r.length,2);assert(r.find(x=>x.inputs.pickupPlace==='宁波').result.pending.some(x=>x.includes('国内拖车')));});

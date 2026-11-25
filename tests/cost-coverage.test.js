@@ -217,7 +217,7 @@ test('factory district and generic city match correct trucking tariff loading pl
 });
 test('auto-compare FCL uses pickup, rail and container rental segments and ranks by complete known cost',()=>{
  const railSoc={...source(),id:'rail-soc',quote:{...source().quote,equipment:'SOC',price:8100}};
- const railCoc={...source(),id:'rail-coc',quote:{...source().quote,equipment:'COC',price:9800}};
+ const railCoc={...source(),id:'rail-coc',quote:{...source().quote,equipment:'COC',pickupPlaces:['上海'],price:9800}};
  const truck={id:'truck-sh',origin:'上海',destination:'西安',supplier_id:'supplier-t',status:'confirmed',quote:{price:7350,currency:'CNY',unit:'40HQ',container:'40HQ',loadingPlace:'上海市,浦东新区',validUntil:'2026-11-30',fees:[],priceBasis:'采购价'}};
  const rent={id:'rental',origin:'西安',destination:'汉堡',supplier_id:'supplier-r',status:'confirmed',quote:{price:1800,currency:'USD',unit:'柜',container:'40HQ',service:'整柜',fees:[],validUntil:'2026-11-30'}};
  const query={...input,station:'',origin:'上海',equipment:'',quantity:1,date:'2026-11-10'};
@@ -256,7 +256,7 @@ test('FCL hub comparison does not repeat identical routes for every supplier rec
  assert.equal(results[1].result.cost,8100);
 });
 test('FCL sorting compares normalized USD-equivalent trucking cost across currencies',()=>{
- const base={...source(),id:'soc',quote:{...source().quote,equipment:'COC',price:8000}};
+ const base={...source(),id:'soc',quote:{...source().quote,equipment:'COC',pickupPlaces:['上海'],price:8000}};
  const rmb={id:'rmb-truck',origin:'上海',destination:'西安',status:'confirmed',quote:{price:7000,currency:'CNY',unit:'40HQ',container:'40HQ',loadingPlace:'上海市,浦东新区'}};
  const usd={...rmb,id:'usd-truck',quote:{...rmb.quote,price:1100,currency:'USD'}};
  const results=estimateFclVariants({...input,station:'',equipment:'COC',origin:'上海',quantity:1}, {fcl:[base],trucks:[usd,rmb],rentals:[]});

@@ -1,3 +1,4 @@
+import {pickupCities} from './coc-pickup.js';
 import {matchCosts,placeMatches} from './cost-matching.js';
 import {calculate} from './cost-model.js';
 export const currentLeaves=rows=>{const old=new Set(rows.map(r=>r.supersedes_id).filter(Boolean));return rows.filter(r=>!old.has(r.id));};
@@ -63,6 +64,13 @@ export function finish(lines,pending,i){
 }
 export function estimateFcl(input,data,choices={}){
  const i=validateInput(normalizeFclInput(input,data)),available=candidates(i,data),lines=[],pending=[],sources={},validity=[];
+ const chosenRail=choices.rail?available.rail.find(r=>r.id===choices.rail):available.rail[0];
+ if(i.equipment==='COC'&&i.truck&&chosenRail){
+  const cities=pickupCities(chosenRail.quote);
+  if(!cities.length){available.truck=[];pending.push('国内拖车：供应商COC提箱城市待填写');}
+  else if(i.pickupPlace&&!cities.some(c=>placeMatches(c,i.pickupPlace))){available.truck=[];pending.push('国内拖车：所选提箱城市不在供应商允许范围');}
+  else available.truck=available.truck.filter(t=>cities.some(c=>placeMatches(t.origin,c)));
+ }
  const usd=(value,currency,label)=>{if(value===null||value===''||!Number.isFinite(value)||value<0){pending.push(label+'：金额待确认');return null;}if(currency==='USD')return value;if(currency==='CNY')return value/i.fx;if(currency==='EUR'&&Number.isFinite(i.eurFx)&&i.eurFx>0)return value*i.eurFx;pending.push(label+'：币种或EUR汇率待确认');return null;};
  function segment(key,label){
   const list=available[key],r=choices[key]?list.find(x=>x.id===choices[key]):list[0];if(!r){pending.push(label+'：未匹配适用报价');return;}
@@ -89,7 +97,7 @@ export function estimateFcl(input,data,choices={}){
  * A single known origin city may match district-level factory tariffs, but
  * those remain city-level estimates until the actual loading district is set. */
 export function estimateFclVariants(input,data,{limit=30}={}){
- const rows=currentLeaves(data.fcl||[]).filter(r=>r.status==='confirmed'&&
+ const rows=currentLeaves(data.fcl||[]).filter(r=>(r.status==='confirmed'||input.preview&&r.status==='draft')&&
   placeMatches(r.destination,input.destination)&&r.quote?.scope==='站到站'&&
   (box(r.quote?.container)===box(input.box||'40HQ')||(box(input.box||'40HQ')==='40HQ'&&r.quote?.container==='40尺'))&&
   (r.quote?.unit==='柜'||box(r.quote?.unit)===box(input.box||'40HQ')));
@@ -123,16 +131,17 @@ export function estimateFclVariants(input,data,{limit=30}={}){
   const railChoices=rails.length?[...rails].sort(priceSort).slice(0,5):[null];
   const truckChoices=trucks.length?[...trucks].sort(priceSort).slice(0,5):[null];
   const rentChoices=rents.length?[...rents].sort(priceSort).slice(0,3):[null];
-  for(const r of railChoices)for(const t of truckChoices)for(const rental of rentChoices){
+  for(const r of railChoices)for(const pickup of (equipment==='COC'?(input.pickupPlace?[input.pickupPlace]:(pickupCities(r?.quote).length?pickupCities(r.quote):[''])):[input.pickupPlace||'']))for(const t of (pickup?(trucks.filter(t=>t&&placeMatches(t.origin,pickup)).sort(priceSort).slice(0,5).length?trucks.filter(t=>t&&placeMatches(t.origin,pickup)).sort(priceSort).slice(0,5):[null]):truckChoices))for(const rental of rentChoices){
+   if(equipment==='COC'&&pickup&&pickupCities(r?.quote).length&&!pickupCities(r.quote).some(c=>placeMatches(c,pickup)))continue;
    const choice={...r?{rail:r.id}:{},...t?{truck:t.id}:{},...rental?{rent:rental.id}:{}};
    // If the caller did not specify the factory district, exclude alternatives
    // that require selecting one from their score; keep them for comparisons.
-   const key=[hub,equipment,r?.id||'',t?.id||'',rental?.id||''].join('|');
+   const key=[hub,equipment,pickup,r?.id||'',t?.id||'',rental?.id||''].join('|');
    if(combinations.has(key))continue;
-   const result=estimateFcl(candidateInput,data,choice);
+   const result=estimateFcl({...candidateInput,pickupPlace:pickup},data,choice);
    result.id='fcl-option-'+key;
    result.inputs.route=[input.origin&&truck?input.origin:null,hub,input.destination].filter(Boolean).join(' → ');
-   result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ');
+   result.label=result.inputs.route+' · '+equipment+' · '+(input.box||'40HQ')+(pickup?' · '+pickup+'提空':'');
    const matchedTruck=result.inputs.sources?.truck;
    const loadingPlace=matchedTruck?.quote?.loadingPlace||'';
    result.matchScope=truck?(loadingPlace?'装箱地 '+loadingPlace+' · 提空箱 '+matchedTruck.origin:'国内拖车待补'):'铁路站到站';
