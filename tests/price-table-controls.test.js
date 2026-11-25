@@ -45,3 +45,17 @@ test('route and station selection selects all matching supplier rows without cha
  assert.equal(filterCostRoutes(rows,{}).length,4);
  assert.deepEqual(rows,snapshot);
 });
+test('editable route filters support partial text, casing, empty and no-match inputs',()=>{
+ const rows=[{...rate('1'),origin:'上海市,浦东新区',destination:'Hamburg'},{...rate('2'),origin:'上海市,嘉定区',destination:'汉堡'},{...rate('3'),origin:'深圳平湖南'}];
+ assert.deepEqual(filterCostRoutes(rows,{origin:' 上海 ',destination:' hAmB '}).map(r=>r.id),['1']);
+ assert.equal(filterCostRoutes(rows,{origin:'上海'}).length,2);
+ assert.equal(filterCostRoutes(rows,{destination:'不存在的站点'}).length,0);
+ assert.equal(filterCostRoutes(rows,{origin:'  '}).length,3);
+ assert.equal(filterCostRoutes(rows,{group:'欧'}).length,3);
+});
+test('regions recognize return routes, country metadata and new European stations',()=>{
+ assert.equal(costRouteGroup({origin:'汉堡',destination:'西安',quote:{direction:'回程'}}),'欧洲');
+ assert.equal(costRouteGroup({destination:'不熟悉的小站',quote:{destinationCountry:'Germany'}}),'欧洲');
+ assert.equal(costRouteGroup({destination:'不熟悉的小站',quote:{destinationCountry:'Russia'}}),'俄罗斯 / 白俄罗斯');
+ for(const destination of ['里昂','科佩尔','克雷姆斯','贝尔格莱德'])assert.equal(costRouteGroup({destination}),'欧洲');
+});

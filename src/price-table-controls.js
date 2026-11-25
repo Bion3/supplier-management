@@ -1,3 +1,4 @@
+import {countryBusinessRegion,findCountry} from './country-catalog.js';
 // Shared pricing controls. Keep every edit versioned; never rewrite historic quotations.
 export const CONTAINER_OPTIONS=['20尺','40尺','40HQ','45HQ','2×20尺'];
 export const EQUIPMENT_OPTIONS=['待确认','SOC','COC'];
@@ -94,17 +95,25 @@ export function installBatchPricing({getFiltered,getSelected,getRows,getLatest,v
 // Navigation only: procurement values and historical records remain untouched.
 export function costRouteGroup(row,kind='') {
  if(['domestic','trucking'].includes(kind))return '国内运输';
- const destination=String(row.destination||'').toLowerCase();
+ const returning=(row.quote?.direction||row.inputs?.direction)==='回程';
+ const destination=String((returning?row.origin:row.destination)||'').toLowerCase();
+ const country=returning?row.quote?.originCountry:row.quote?.destinationCountry;
+ const countryCode=findCountry(country)?.iso2;
+ if(['RU','BY'].includes(countryCode))return '俄罗斯 / 白俄罗斯';
+ const region=countryBusinessRegion(country);
+ if(region)return region==='中东'?'伊朗 / 中东':region;
  const groups=[
  ['俄罗斯 / 白俄罗斯',/俄罗斯|白俄罗斯|莫斯科|圣彼得堡|叶卡|新西伯利亚|克列西哈|明斯克|布列斯特|moscow|moskva|petersburg|yekaterinburg|novosibirsk|minsk|brest/],
  ['中亚',/哈萨克|乌兹别克|吉尔吉斯|塔吉克|土库曼|阿拉木图|阿斯塔纳|塔什干|比什凯克|杜尚别|阿什哈巴德|阿腾科里|almaty|astana|tashkent|bishkek|altynkol/],
  ['伊朗 / 中东',/伊朗|德黑兰|阿富汗|海拉顿|海拉特|土耳其|伊斯坦布尔|tehran|iran|istanbul|hairatan|herat/],
- ['欧洲',/德国|波兰|荷兰|比利时|法国|英国|意大利|西班牙|捷克|匈牙利|汉堡|杜伊斯堡|马拉|华沙|罗兹|鹿特丹|安特卫普|巴黎|伦敦|米兰|布拉格|布达佩斯|汉诺威|hamburg|duisburg|malaszewicze|warsaw|lodz|rotterdam|antwerp|paris|london|milan|prague|budapest|tilbury/]
+ ['欧洲',/德国|波兰|荷兰|比利时|法国|英国|意大利|西班牙|捷克|匈牙利|汉堡|杜伊斯堡|马拉|华沙|罗兹|鹿特丹|安特卫普|巴黎|伦敦|米兰|布拉格|布达佩斯|汉诺威|波兹南|里昂|切斯卡|克雷姆斯|多瑙|贝尔格莱德|慕尼黑|维罗纳|维也纳|蒂尔堡|科佩尔|布加勒斯特|斯德哥尔摩|奥斯陆|赫尔辛基|hamburg|duisburg|malaszewicze|warsaw|lodz|rotterdam|antwerp|paris|london|milan|prague|budapest|tilbury/]
  ];
  return groups.find(([,re])=>re.test(destination))?.[0]||'其他 / 未归类';
 }
 export function filterCostRoutes(rows,{group='',origin='',destination=''}={},kind='') {
- return rows.filter(r=>(!group||costRouteGroup(r,kind)===group)&&(!origin||r.origin===origin)&&(!destination||r.destination===destination));
+ const clean=v=>String(v??'').trim().toLocaleLowerCase().replace(/\s+/g,'');
+ const matches=(value,query)=>!clean(query)||clean(value).includes(clean(query));
+ return rows.filter(r=>matches(costRouteGroup(r,kind),group)&&matches(r.origin,origin)&&matches(r.destination,destination));
 }
 export function installCostRouteBrowser({kind,onChange}) {
  const workspace=document.getElementById('workspace');
@@ -115,20 +124,26 @@ export function installCostRouteBrowser({kind,onChange}) {
  const nativeGroup=toolbar.querySelector('#line-group-filter');
  const search=toolbar.querySelector('#search,#rail-search');
  if(search){const label=search.closest('label');label.classList.add('cost-primary-search');box.append(label);}
- const controls={};
+ const controls={},lists={};
+ const areas={};
+ for(const [key,title] of [['route','线路与区域'],['stations','起运与到达']]){const fieldset=document.createElement('fieldset');fieldset.className='cost-filter-area';const legend=document.createElement('legend');legend.textContent=title;fieldset.append(legend);box.append(fieldset);areas[key]=fieldset;}
+ if(nativeGroup)areas.route.append(nativeGroup.closest('label'));
  for(const [key,label] of [['group','航线分类'],['origin',['trucking','rental'].includes(kind)?'起始地 / 提箱地':'起运站'],['destination','目的地']]){
-  if(key==='group'&&nativeGroup){box.append(nativeGroup.closest('label'));continue;}
-  const field=document.createElement('label');field.textContent=label;const select=document.createElement('select');select.setAttribute('aria-label',label);field.append(select);box.append(field);controls[key]=select;
-  select.onchange=()=>{state[key]=select.value;if(key==='group'){state.origin='';state.destination='';}if(key==='origin')state.destination='';onChange();};
+  const field=document.createElement('label');field.textContent=key==='group'?'目的地区域':label;
+  const input=document.createElement('input');input.type='text';input.placeholder=key==='group'?'全部区域，可输入或选择':'全部，可输入站点关键词';input.setAttribute('aria-label',field.textContent);
+  const list=document.createElement('datalist');list.id='cost-route-options-'+kind+'-'+key;input.setAttribute('list',list.id);input.autocomplete='off';
+  field.append(input,list);areas[key==='group'?'route':'stations'].append(field);controls[key]=input;lists[key]=list;
+  input.addEventListener('input',()=>{state[key]=input.value;onChange();});
  }
  const reset=document.createElement('button');reset.type='button';reset.className='secondary';reset.textContent='重置';reset.onclick=()=>{Object.keys(state).forEach(k=>state[k]='');for(const el of [...box.querySelectorAll('input,select'),...toolbar.querySelectorAll('input,select')]){if(Object.values(controls).includes(el))continue;if(el.tagName==='SELECT')el.selectedIndex=Math.max(0,[...el.options].findIndex(o=>o.defaultSelected));else el.value=el.defaultValue;}onChange();updateSummary();};box.append(reset);
  const count=document.createElement('small');count.setAttribute('aria-live','polite');box.append(count);toolbar.before(box);
  const details=document.createElement('details');details.className='cost-more-filters';const summary=document.createElement('summary');summary.textContent='更多筛选';details.append(summary);toolbar.before(details);details.append(toolbar);
  const updateSummary=()=>{const n=[...details.querySelectorAll('input,select')].filter(el=>el.tagName==='SELECT'?el.selectedIndex!==Math.max(0,[...el.options].findIndex(o=>o.defaultSelected)):el.value!==el.defaultValue).length;summary.textContent='更多筛选'+(n?' · 已设置 '+n+' 项':'');};details.addEventListener('input',updateSummary);details.addEventListener('change',updateSummary);updateSummary();
  // Keep the one canonical route filter and move existing controls, preserving listeners.
- if(nativeGroup)nativeGroup.addEventListener('change',()=>{state.origin='';state.destination='';onChange();});
- const lead=workspace.querySelector('.heading p');if(lead)lead.textContent='先选航线和起运站，再查看、更新或批量维护费用。';
+ if(nativeGroup)nativeGroup.addEventListener('change',()=>onChange());
+ const lead=workspace.querySelector('.heading p');if(lead)lead.textContent='按区域、起运站和目的地筛选；支持直接输入关键词或选择已有站点。';
  workspace.classList.add('cost-route-layout');
- function options(key,values){const select=controls[key];if(!select)return;select.replaceChildren(new Option('全部',''));const counts=new Map();for(const value of values)if(value)counts.set(value,(counts.get(value)||0)+1);for(const [value,n] of [...counts].sort(([a],[b])=>a.localeCompare(b,'zh-CN')))select.add(new Option(value+' · '+n,value));if(state[key]&&!counts.has(state[key]))state[key]='';select.value=state[key];}
+ function options(key,values){const input=controls[key];if(!input)return;const counts=new Map();for(const value of values)if(value)counts.set(value,(counts.get(value)||0)+1);const options=[...counts].sort(([a],[b])=>a.localeCompare(b,'zh-CN')).map(([value,n])=>new Option(value+' · '+n+'条',value));lists[key].replaceChildren(...options);if(input.value!==state[key])input.value=state[key];}
+
  return {apply(rows){options('group',rows.map(r=>costRouteGroup(r,kind)));const grouped=filterCostRoutes(rows,{group:state.group},kind);options('origin',grouped.map(r=>r.origin));const origins=filterCostRoutes(grouped,{origin:state.origin},kind);options('destination',origins.map(r=>r.destination));const result=filterCostRoutes(rows,state,kind);count.textContent=result.length+' 条费用';return result;}};
 }
