@@ -143,8 +143,29 @@ declare
  state_filter text:=coalesce(p_filters->>'enrichment','');
  mail_permission text:=coalesce(p_filters->>'mail_permission','');
  mail_group text:=coalesce(p_filters->>'mail_group','');
+ mail_sent boolean:=coalesce(p_filters->>'mail_sent','')='sent';
 begin
- if p_mode in ('page','ids') and (mail_permission<>'' or mail_group<>'') then
+ if p_mode in ('page','ids') and mail_sent then
+  with sent as materialized (
+   select m.company_id,lower(btrim(m.recipient)) email
+   from public.freight_mail_messages m
+   where m.status='sent' and m.purpose<>'测试'
+  ), matched as (
+   -- Keep company-linked history even if the original contact was removed.
+   select s.company_id from sent s
+   where mail_permission='' and mail_group='' and s.company_id is not null
+   union
+   select c.company_id from sent s
+   join public.freight_contacts c on c.channel='邮箱' and btrim(c.value)<>'' and lower(btrim(c.value))=s.email
+    and (s.company_id is null or s.company_id=c.company_id)
+   where (mail_permission='' or c.email_allowed=(mail_permission='yes'))
+    and (mail_group='' or
+      (mail_group='__ungrouped' and cardinality(c.mail_groups)=0) or
+      (mail_group<>'__ungrouped' and mail_group=any(c.mail_groups)))
+  )
+  select coalesce(array_agg(company_id),'{}'::text[]) into p_ids
+  from matched where p_ids is null or company_id=any(p_ids);
+ elsif p_mode in ('page','ids') and (mail_permission<>'' or mail_group<>'') then
   if mail_permission not in ('','yes','no') then raise exception '无效邮件联系筛选'; end if;
   -- Permission and group must match the same email contact.
   select coalesce(array_agg(distinct c.company_id),'{}'::text[]) into p_ids
@@ -156,7 +177,7 @@ begin
       (mail_group='__ungrouped' and cardinality(c.mail_groups)=0) or
       (mail_group<>'__ungrouped' and mail_group=any(c.mail_groups)));
  end if;
- p_filters:=p_filters-'mail_permission'-'mail_group';
+ p_filters:=p_filters-'mail_permission'-'mail_group'-'mail_sent';
  if state_filter<>'' then
   if state_filter not in ('uncollected','running','collected','checked','failed','no_website') then raise exception '无效补全状态'; end if;
   with candidates as materialized (
