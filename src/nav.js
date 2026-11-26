@@ -17,13 +17,14 @@ const pages=[
  {group:'首页',items:[['/hub.html','系统首页'],['/assistant.html','业务助手'],['/daily-dashboard.html','每日任务驾驶舱']]},
  {group:'基础资料',items:[['/master-data.html','基础信息'],['/country-management.html','国家管理'],['/domestic-warehouses.html','国内仓库'],['/','供应商档案']]},
  {group:'成本中心',items:[['/cost.html','成本测算'],['/pricing.html','采购价格中心']]},
- {group:'客户开发',items:[['/crm.html','客户资源'],['/crm.html?view=peers','同行客户'],['/exhibitions.html','展会与展商'],['/industry-resources.html','行业名录与资源'],['/customs-data.html','海关数据'],['/lead-map.html','地图获客'],['/discovery.html','企业线索'],['/inquiries.html','全部询价'],['/inbox.html','回复与跟进'],['/mail.html','开发邮件']]},
+ {group:'客户开发',items:[['/crm.html','客户资源'],['/crm.html?view=key','重点客户'],['/crm.html?view=peers','同行客户'],['/exhibitions.html','展会与展商'],['/industry-resources.html','行业名录与资源'],['/customs-data.html','海关数据'],['/lead-map.html','地图获客'],['/discovery.html','企业线索'],['/inquiries.html','全部询价'],['/inbox.html','回复与跟进'],['/mail.html','开发邮件']]},
  {group:'运输管理',items:[['/orders.html','订单管理'],['/tracking.html','运踪与时效']]},
  {group:'知识中心',items:[['/knowledge.html','货代知识库']]}
 ];
 const path=location.pathname==='/index.html'?'/':location.pathname;
 const pricePages={'/overseas-delivery.html':['境外配送','境外配送成本'],'/trucking.html':['国内运输','国内拖车费'],'/container-rental.html':['集装箱与箱务','集装箱租箱价格'],'/pickup-rates.html':['国内运输','本地提货费'],'/rates.html':['国内运输','国内干线费'],'/rail-rates.html':['国际运输','铁路拼箱运费'],'/fcl-rail.html':['国际运输','整箱铁路运费']};
-const currentPath=path==='/crm.html'&&new URLSearchParams(location.search).get('view')==='peers'?'/crm.html?view=peers':path;
+const customerView=new URLSearchParams(location.search).get('view');
+const currentPath=path==='/crm.html'&&['key','peers'].includes(customerView)?`/crm.html?view=${customerView}`:path;
 const activePath=pricePages[path]?'/pricing.html':currentPath;
 const header=document.querySelector('body>header');
 if(header&&!embedded){
