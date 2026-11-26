@@ -291,7 +291,7 @@ async function loadMailTimeline(id,dg){
   if(dg!==detailGeneration||selected!==id)return;section.replaceChildren(title);
   section.append(btn('写邮件',()=>openAcquisitionMail('company',[{id}]).catch(e=>{section.append(paragraph(e.message));})));
   const states={draft:'草稿',scheduled:'后台排队',sending:'发送中',sent:'服务器已接受',failed:'失败',unknown:'结果待核查'};
-  const outgoing=results[0].status==='fulfilled'?results[0].value.map(m=>({date:m.created_at,label:'发出 · '+(states[m.status]||m.status)+' · '+m.recipient,subject:m.subject,body:()=>mailContent(m.body||'').text})):[];
+  const outgoing=results[0].status==='fulfilled'?results[0].value.map(m=>({date:m.status==='sent'?(m.sent_at||m.created_at):m.created_at,label:'发出 · '+(states[m.status]||m.status)+' · '+m.recipient,subject:m.subject,body:()=>mailContent(m.body||'').text})):[];
   const incoming=results[1].status==='fulfilled'?results[1].value.map(m=>({date:m.received_at,label:'收到 · '+m.from_email,subject:m.subject,body:()=>m.body_text||''})):[];
   for(const [index,result] of results.entries())if(result.status==='rejected')section.append(paragraph((index?'收件':'发件')+'记录暂不可读取：'+result.reason.message));
   const timeline=[...outgoing,...incoming].sort((a,b)=>String(b.date).localeCompare(String(a.date)));

@@ -19,10 +19,10 @@ test('workspace pages remotely, keeps cross-page selection, queries full filtere
  let releaseIds;delayIds=new Promise(resolve=>{releaseIds=resolve;});const inFlight=get('select-filtered').onclick();get('clear-selection').onclick();releaseIds();await inFlight;assert.match(get('company-selection').textContent,/已选 0/);
  get('mail-permission-filter').value='yes';get('mail-permission-filter').events.change();
  get('mail-group-filter').value='Europe';get('mail-group-filter').events.change();
- get('mail-sent-filter').value='sent';get('mail-sent-filter').events.change();
+ get('mail-sent-filter').value='3m';get('mail-sent-filter').events.change();
  get('apply-filters').onclick();await flush();
  const mailFilters=requestLog.at(-1).p_filters;
- assert.equal(mailFilters.mail_permission,'yes');assert.equal(mailFilters.mail_group,'Europe');assert.equal(mailFilters.mail_sent,'sent');
+ assert.equal(mailFilters.mail_permission,'yes');assert.equal(mailFilters.mail_group,'Europe');assert.equal(mailFilters.mail_sent,'3m');
  await get('select-filtered').onclick();assert.deepEqual(requestLog.at(-1).p_filters,mailFilters);
  fail=true;get('refresh').events.click();await flush();assert.equal(get('rows').children.length,1);assert.match(get('notice').textContent,/保留上次列表/);
 });

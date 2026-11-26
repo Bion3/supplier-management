@@ -143,13 +143,17 @@ declare
  state_filter text:=coalesce(p_filters->>'enrichment','');
  mail_permission text:=coalesce(p_filters->>'mail_permission','');
  mail_group text:=coalesce(p_filters->>'mail_group','');
- mail_sent boolean:=coalesce(p_filters->>'mail_sent','')='sent';
+ mail_sent text:=coalesce(p_filters->>'mail_sent','');
+ sent_months integer:=case mail_sent when '1m' then 1 when '3m' then 3 when '6m' then 6 when '12m' then 12 end;
+ sent_since timestamptz:=((now() at time zone 'Asia/Shanghai')-make_interval(months=>sent_months)) at time zone 'Asia/Shanghai';
 begin
- if p_mode in ('page','ids') and mail_sent then
+ if p_mode in ('page','ids') and mail_sent<>'' then
+  if mail_sent not in ('sent','1m','3m','6m','12m') then raise exception '无效的邮件发送时间范围'; end if;
   with sent as materialized (
    select m.company_id,lower(btrim(m.recipient)) email
    from public.freight_mail_messages m
    where m.status='sent' and m.purpose<>'测试'
+     and (sent_since is null or m.sent_at between sent_since and now())
   ), matched as (
    -- Keep company-linked history even if the original contact was removed.
    select s.company_id from sent s
