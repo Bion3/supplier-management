@@ -1,4 +1,4 @@
-export const crmFilterFields={query:'search',stage:'stage-filter',source:'source-filter',directory:'directory-filter',group:'group-filter',status:'status',due:'due',region:'region-filter',role:'role-filter',industry:'industry-filter',owner:'owner-filter',contact:'contact-filter',enrichment:'enrichment-filter'};
+export const crmFilterFields={query:'search',stage:'stage-filter',source:'source-filter',directory:'directory-filter',group:'group-filter',mail_permission:'mail-permission-filter',mail_group:'mail-group-filter',status:'status',due:'due',region:'region-filter',role:'role-filter',industry:'industry-filter',owner:'owner-filter',contact:'contact-filter',enrichment:'enrichment-filter'};
 export function crmViewFilters(view, filters = {}) {
  if (view === 'key') return {focus:'key'};
  if (view === 'peers') return {...filters,role:'同行'};

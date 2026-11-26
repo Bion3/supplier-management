@@ -136,8 +136,27 @@ CREATE OR REPLACE FUNCTION public.freight_crm_page(p_filters jsonb DEFAULT '{}':
  SET search_path TO 'public'
  SET jit TO 'off'
 AS $function$
-declare filtered_total integer; result jsonb; matching text[]; state_filter text:=coalesce(p_filters->>'enrichment','');
+declare
+ filtered_total integer;
+ result jsonb;
+ matching text[];
+ state_filter text:=coalesce(p_filters->>'enrichment','');
+ mail_permission text:=coalesce(p_filters->>'mail_permission','');
+ mail_group text:=coalesce(p_filters->>'mail_group','');
 begin
+ if p_mode in ('page','ids') and (mail_permission<>'' or mail_group<>'') then
+  if mail_permission not in ('','yes','no') then raise exception '无效邮件联系筛选'; end if;
+  -- Permission and group must match the same email contact.
+  select coalesce(array_agg(distinct c.company_id),'{}'::text[]) into p_ids
+  from public.freight_contacts c
+  where c.channel='邮箱' and btrim(c.value)<>''
+    and (p_ids is null or c.company_id=any(p_ids))
+    and (mail_permission='' or c.email_allowed=(mail_permission='yes'))
+    and (mail_group='' or
+      (mail_group='__ungrouped' and cardinality(c.mail_groups)=0) or
+      (mail_group<>'__ungrouped' and mail_group=any(c.mail_groups)));
+ end if;
+ p_filters:=p_filters-'mail_permission'-'mail_group';
  if state_filter<>'' then
   if state_filter not in ('uncollected','running','collected','checked','failed','no_website') then raise exception '无效补全状态'; end if;
   with candidates as materialized (
@@ -190,6 +209,18 @@ begin
  end if;
  result:=public.freight_crm_page_before_enrichment(p_filters-'enrichment',p_offset,p_limit,p_mode,p_ids);
  if filtered_total is not null then result:=jsonb_set(result,'{total}',to_jsonb(filtered_total)); end if;
+ if p_mode='facets' then
+  select result||jsonb_build_object('mail_groups',coalesce(jsonb_agg(to_jsonb(g) order by g.name),'[]'::jsonb)) into result
+  from (
+   select grp.name,count(distinct co.id) count
+   from public.freight_contacts c
+   join public.freight_companies co on co.id=c.company_id
+   cross join lateral unnest(c.mail_groups) grp(name)
+   where c.channel='邮箱' and btrim(c.value)<>'' and btrim(grp.name)<>''
+     and (coalesce(p_filters->>'role','')='' or co.role=p_filters->>'role')
+   group by grp.name
+  ) g;
+ end if;
  if p_mode='page' then
   select jsonb_set(result,'{companies}',coalesce(jsonb_agg(
    c||jsonb_build_object('source_refs',(select coalesce(jsonb_agg(case when jsonb_typeof(ref)='object' then ref||jsonb_build_object('_enrichment_state',public.freight_crm_enrichment_state(jsonb_build_array(ref))) else ref end),'[]') from jsonb_array_elements(coalesce(c->'source_refs','[]')) ref),

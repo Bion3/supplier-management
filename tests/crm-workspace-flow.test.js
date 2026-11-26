@@ -17,6 +17,12 @@ test('workspace pages remotely, keeps cross-page selection, queries full filtere
  idOverride=['c0','c1'];await get('select-filtered').onclick();assert.match(get('notice').textContent,/请核对刷新后的数量/);assert.match(get('company-selection').textContent,/已选 0/);
  idOverride=null;await get('select-filtered').onclick();assert.equal(get('company-selection').textContent,'筛选匹配 1 家 · 已选 1 家');assert.equal(get('rows').children[0].children[0].children[0].checked,true);
  let releaseIds;delayIds=new Promise(resolve=>{releaseIds=resolve;});const inFlight=get('select-filtered').onclick();get('clear-selection').onclick();releaseIds();await inFlight;assert.match(get('company-selection').textContent,/已选 0/);
+ get('mail-permission-filter').value='yes';get('mail-permission-filter').events.change();
+ get('mail-group-filter').value='Europe';get('mail-group-filter').events.change();
+ get('apply-filters').onclick();await flush();
+ const mailFilters=requestLog.at(-1).p_filters;
+ assert.equal(mailFilters.mail_permission,'yes');assert.equal(mailFilters.mail_group,'Europe');
+ await get('select-filtered').onclick();assert.deepEqual(requestLog.at(-1).p_filters,mailFilters);
  fail=true;get('refresh').events.click();await flush();assert.equal(get('rows').children.length,1);assert.match(get('notice').textContent,/保留上次列表/);
 });
 
