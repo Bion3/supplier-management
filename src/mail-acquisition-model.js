@@ -25,3 +25,11 @@ export function handoffContacts(handoff,userId,contacts,now=Date.now()){
  if(!handoff||handoff.userId!==userId||!Number.isFinite(handoff.createdAt)||now-handoff.createdAt>1800000||handoff.createdAt>now||!Array.isArray(handoff.companyIds))return null;
  const ids=new Set(handoff.companyIds);return contacts.filter(c=>ids.has(c.company_id)&&c.channel==='邮箱');
 }
+
+export function previewAdditions(rows,contacts,messages,options={}){
+ const emails=new Set(rows.map(row=>address(row.recipient)));
+ const companies=new Set(rows.map(row=>row.company_id));
+ const candidates=contacts.filter(contact=>!emails.has(address(contact.value))
+  &&(!options.onePerCompany||!companies.has(contact.company_id)));
+ return outreachPlan(candidates,contacts,messages,{...options,onePerCompany:false}).rows;
+}

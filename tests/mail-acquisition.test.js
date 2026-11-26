@@ -1,9 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {outreachPlan,handoffContacts} from '../src/mail-acquisition-model.js';
+import {outreachPlan,handoffContacts,previewAdditions} from '../src/mail-acquisition-model.js';
 import {filterRecipients} from '../src/mail-model.js';
 const now=Date.parse('2026-10-29T08:00:00Z');
 const contact=(id,company_id=id,extra={})=>({id,company_id,channel:'邮箱',value:id+'@example.com',status:'有效',email_allowed:true,...extra});
+test('preview additions respect duplicate addresses, company limits, outreach history and opt-outs',()=>{
+ const contacts=[contact('a','same'),contact('b','same'),contact('duplicate','other',{value:' A@EXAMPLE.COM '}),contact('blocked'),contact('queued'),contact('new'),contact('unverified','pending',{status:'待核实'}),contact('stop','x',{value:'BLOCKED@example.com',email_allowed:false})];
+ const messages=[{recipient:'queued@example.com',status:'scheduled'}];
+ const rows=[{recipient:'a@example.com',company_id:'same'}];
+ const options={onePerCompany:true,now};
+ assert.deepEqual(previewAdditions(rows,contacts,messages,options).map(c=>c.id),['new']);
+ assert.deepEqual(previewAdditions(rows,contacts,messages,{...options,onePerCompany:false}).map(c=>c.id),['b','new']);
+ assert.deepEqual(previewAdditions([],contacts,messages,options).map(c=>c.id),['a','b','new']);
+});
 test('outreach independently skips blocked, unverified, duplicate and other company mailboxes',()=>{
  const chosen=[contact('a'),contact('b','a'),contact('dup','x',{value:' A@EXAMPLE.COM '}),contact('c','c',{status:'待核实'}),contact('d')];
  const result=outreachPlan(chosen,[...chosen,contact('ban','z',{value:'D@example.com',email_allowed:false})],[],{now,onePerCompany:true});

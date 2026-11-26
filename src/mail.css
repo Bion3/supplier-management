@@ -64,3 +64,12 @@ html.workspace-embedded body>main{padding:18px clamp(16px,2vw,28px) 28px}
 .recipient-filter-card .reset-filters{padding:7px 10px;font-size:12px}
 @media(max-width:900px){.recipient-filter-card>.recipient-filters{grid-template-columns:repeat(2,minmax(130px,1fr))}.recipient-filter-card>.recipient-filters .search-filter{grid-column:1/-1}}
 @media(max-width:600px){.recipient-filter-card>.recipient-filters{grid-template-columns:1fr 1fr}.recipient-filter-card .more-recipient-filters .recipient-filters{grid-template-columns:repeat(2,minmax(120px,1fr))}}
+.preview-recipients{margin:12px 0;padding:12px;border:1px solid #d5e4e4;border-radius:8px}
+.preview-recipients>summary{cursor:pointer;font-weight:600}
+.preview-recipient-controls{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;align-items:end;gap:10px;margin-top:10px}
+.preview-recipient-controls select,.preview-recipient-controls input{width:100%;min-width:0}
+#preview-recipient-feedback{margin:8px 0 0;font-size:13px}
+.preview-recipient{position:relative}
+.preview-recipient:has(.preview-recipient-remove:not([hidden])) summary{padding-right:5.5rem}
+.preview-recipient-remove{position:absolute;top:8px;right:0;padding:6px 12px}
+@media(max-width:680px){.preview-recipient-controls{grid-template-columns:1fr}.preview-recipient-controls button{justify-self:start}}
