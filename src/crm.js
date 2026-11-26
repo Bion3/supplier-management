@@ -141,18 +141,76 @@ function render(){
  $('empty').hidden=visible.length>0;$('empty').textContent=generation?'没有符合条件的公司。':'正在加载客户…';
  pager.update(listTotal,page);$('page').textContent=`${page} / ${pages}`;$('prev').disabled=page<=1;$('next').disabled=page>=pages;syncCompanySelection();
 }
+const bounceLabels={bounce_invalid:'地址无效',bounce_policy:'策略拦截',bounce_dns:'域名异常',bounce_temporary:'临时退信',bounce_review:'退信待核实'};
+let mailPermissions=new Map(),mailPermissionsError='',mailPermissionContact=null;
+async function loadContactMailPermissions(companyId,detailVersion){
+ try{
+  const rows=await cloudRequest('rpc/freight_crm_mail_permissions',{method:'POST',body:JSON.stringify({p_company_id:companyId})});
+  if(detailVersion!==detailGeneration||selected!==companyId)return;
+  mailPermissions=new Map(rows.map(row=>[row.contact_id,row]));
+  mailPermissionsError='';
+ }catch(error){
+  if(detailVersion!==detailGeneration||selected!==companyId)return;
+  mailPermissionsError=error.message;
+ }
+ renderDetail();
+}
+function appendContactMailPermission(card,contact){
+ const info=mailPermissions.get(contact.id);
+ if(info){
+  card.append(paragraph(info.stopped?'邮件联系：已停发':'邮件联系：允许'));
+  if(info.stopped)card.append(paragraph('停发原因：'+(info.stop_reason||'未单独记录')));
+  if(info.bounce_reason){
+   const details=document.createElement('details'),summary=document.createElement('summary');
+   summary.textContent='最近退信 · '+(bounceLabels[info.bounce_kind]||'待核实');
+   details.append(summary,paragraph(info.bounce_reason));card.append(details);
+  }
+ }else card.append(paragraph(mailPermissionsError?'邮件联系状态读取失败，请重新打开客户档案。':'正在读取邮件联系状态…'));
+ const edit=btn('修改邮件联系',()=>{
+  mailPermissionContact={id:contact.id,companyId:selected,detailVersion:detailGeneration};
+  $('mail-permission-address').textContent=contact.value;
+  $('mail-permission-value').value=info.stopped?'no':'yes';
+  $('mail-stop-reason').value=info.stop_reason||'';
+  $('mail-permission-error').textContent='';
+  updateMailPermissionForm();
+  $('mail-permission-editor').showModal();
+ });
+ edit.disabled=!info;card.append(edit);
+}
+function updateMailPermissionForm(){
+ const stop=$('mail-permission-value').value==='no';
+ $('mail-stop-reason-label').hidden=!stop;
+ $('mail-stop-reason').required=stop;
+}
+$('mail-permission-value').addEventListener('change',updateMailPermissionForm);
+$('mail-permission-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const contact=mailPermissionContact,saveButton=$('save-mail-permission');
+ if(!contact||saveButton.disabled||contact.detailVersion!==detailGeneration||contact.companyId!==selected)return;
+ saveButton.disabled=true;$('close-mail-permission').disabled=true;$('mail-permission-error').textContent='';
+ try{
+  const allowed=$('mail-permission-value').value==='yes';
+  await cloudRequest('rpc/freight_crm_set_mail_permission',{method:'POST',body:JSON.stringify({p_contact_id:contact.id,p_allowed:allowed,p_reason:allowed?null:$('mail-stop-reason').value.trim()})});
+  $('mail-permission-editor').close();
+  await loadContactMailPermissions(contact.companyId,contact.detailVersion);
+  if(contact.detailVersion===detailGeneration&&contact.companyId===selected)void load();
+ }catch(error){$('mail-permission-error').textContent=error.message;}
+ finally{saveButton.disabled=false;$('close-mail-permission').disabled=false;}
+});
+$('mail-permission-editor').addEventListener('cancel',event=>{if($('save-mail-permission').disabled)event.preventDefault();});
 function renderDetail(){
  const c=companies.find(x=>x.id===selected);if(!c)return;
  $('detail-title').textContent=c.company_name;$('detail-note').textContent=[`开发阶段：${companyStage(c)} · ${c.is_key_customer?'★ 重点关注':'普通客户'} · 来源：${companySourceTypes(c).join(' / ')}`,`名录分类：${companyDirectoryTypes(c).join(' / ')||'其他来源'}`,`状态：${c.status} · 角色：${c.role} · 负责人：${c.owner||'未分配'}`,`当前需求：${c.current_routes||'待核实'}`,`地址：${(c.addresses||[]).join('； ')||'待补充'}`,c.notes].filter(Boolean).join('\n');
  $('contacts').replaceChildren();for(const contact of contacts.filter(x=>x.company_id===selected)){
-  const card=document.createElement('div');card.className='contact-card';card.append(paragraph(`${contact.name||'姓名待补充'} · ${contact.channel}：${contact.value}\n${contact.context||''} · ${contact.status}`),btn('编辑',()=>openContact(contact)));$('contacts').append(card);
+  const card=document.createElement('div');card.className='contact-card';card.append(paragraph(`${contact.name||'姓名待补充'} · ${contact.channel}：${contact.value}\n${contact.context||''} · ${contact.status}`),btn('编辑',()=>openContact(contact)));if(contact.channel==='邮箱'&&contact.value?.trim())appendContactMailPermission(card,contact);$('contacts').append(card);
  }if(!$('contacts').children.length)$('contacts').append(paragraph('暂无联系方式。'));
  $('followups').replaceChildren();for(const f of followups.filter(x=>x.company_id===selected).sort((a,b)=>b.created_at.localeCompare(a.created_at))){const card=document.createElement('div');card.className='followup-card';card.append(paragraph(`${new Date(f.created_at).toLocaleString('zh-CN',{timeZone:'Asia/Shanghai'})}：${f.result}`),paragraph(`下一步：${f.next_action||'未安排'} · 下次联系：${f.next_date||'未安排'}`));$('followups').append(card);}
  $('history').replaceChildren();for(const s of shipments.filter(x=>x.company_id===selected).sort((a,b)=>(b.train_date||'').localeCompare(a.train_date||''))){const tr=document.createElement('tr');tr.append(td(s.train_date),td(s.origin),td(s.destination),td(s.container_type),td(s.container_quantity));$('history').append(tr);}
 }
 async function openDetail(id){
+ mailPermissions=new Map();mailPermissionsError='';
  selected=id;$('portal-created-password').textContent='';void loadPortalAccount(id);
- $('edit-company').disabled=true;$('add-contact').disabled=true;const dg=++detailGeneration;loadMailTimeline(id,dg);$('followup-form').reset();$('followup-error').textContent='正在读取客户详情…';$('detail-title').textContent='正在读取…';$('detail-note').textContent='';for(const id of ['contacts','followups','history'])$(id).replaceChildren();$('sources').textContent='正在读取来源…';if(!$('detail').open)$('detail').showModal();
+ $('edit-company').disabled=true;$('add-contact').disabled=true;const dg=++detailGeneration;void loadContactMailPermissions(id,dg);loadMailTimeline(id,dg);$('followup-form').reset();$('followup-error').textContent='正在读取客户详情…';$('detail-title').textContent='正在读取…';$('detail-note').textContent='';for(const id of ['contacts','followups','history'])$(id).replaceChildren();$('sources').textContent='正在读取来源…';if(!$('detail').open)$('detail').showModal();
  try{const full=await cloudRequest('freight_companies?id=eq.'+encodeURIComponent(id)+'&select=*&limit=1');if(dg!==detailGeneration||selected!==id)return;if(!full.length)throw Error('客户不存在或无权访问');companies=mergeRows(companies,full);$('edit-company').disabled=false;$('add-contact').disabled=false;$('followup-error').textContent='';renderDetail();const detailResults=await Promise.allSettled([all('freight_contacts?company_id=eq.'+encodeURIComponent(id)),all('freight_followups?company_id=eq.'+encodeURIComponent(id),'created_at.desc,id.desc'),all('freight_shipments?company_id=eq.'+encodeURIComponent(id))]);if(dg!==detailGeneration||selected!==id)return;for(const [i,result] of detailResults.entries()){if(result.status==='fulfilled'){if(i===0)contacts=[...contacts.filter(c=>c.company_id!==id),...result.value];if(i===1)followups=[...followups.filter(c=>c.company_id!==id),...result.value];if(i===2)shipments=[...shipments.filter(c=>c.company_id!==id),...result.value];}else $('followup-error').textContent='部分详情读取失败：'+result.reason.message;}renderDetail();const rows=await cloudRequest(`freight_sources?company_id=eq.${encodeURIComponent(id)}&select=*&order=sheet.asc,row_number.asc`);if(dg!==detailGeneration||selected!==id)return;$('sources').replaceChildren();appendAcquisitionSources(companies.find(c=>c.id===id));for(const r of rows){const details=document.createElement('details'),summary=document.createElement('summary');summary.textContent=`${r.source_filename} · ${r.sheet}!${r.row_number}`;details.append(summary,paragraph(Object.entries(r.raw).map(([k,v])=>`${k}：${v}`).join('\n')));$('sources').append(details);}if(!rows.length&&!$('sources').children.length)$('sources').textContent='手动新增档案，无导入来源。';}
  catch(e){if(dg===detailGeneration)$('sources').textContent=e.message;}
 }
@@ -169,10 +227,10 @@ async function save(table,data,id){const rows=await cloudRequest(table+(id?`?id=
 function formHandler(id,error,fn){$(id).addEventListener('submit',async e=>{e.preventDefault();const b=e.currentTarget.querySelector('[type=submit]');b.disabled=true;$(error).textContent='';try{await fn(Object.fromEntries(new FormData(e.currentTarget)));}catch(err){$(error).textContent=err.message;}finally{b.disabled=false;}});}
 formHandler('login-form','login-error',async()=>{await login($('login-email').value,$('login-password').value);$('login-password').value='';authUI();await load();});
 formHandler('company-form','company-error',async data=>{const value=validateCompany(data);if(companies.some(c=>c.id!==editingCompany&&c.company_name===value.company_name))throw Error('已有同名公司，请打开现有档案。');let saved;if(editingCompany){saved=await save('freight_companies',value,editingCompany);}else{const initial=readInitialContacts().map(c=>({id:crypto.randomUUID(),...c}));const result=await cloudRequest('rpc/freight_create_company',{method:'POST',body:JSON.stringify({p_company:{id:crypto.randomUUID(),...value},p_contacts:initial})});if(!result.company?.id||!Array.isArray(result.contacts))throw Error('保存结果异常，请刷新后检查。');saved=result.company;contacts=[...result.contacts,...contacts];}companies=editingCompany?companies.map(c=>c.id===editingCompany?saved:c):[saved,...companies];render();renderDetail();$('company-editor').close();facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
-formHandler('contact-form','contact-error',async data=>{if(!selected)throw Error('请先选择公司。');const value=validateContact(data);const saved=await save('freight_contacts',editingContact?value:{id:crypto.randomUUID(),company_id:selected,...value},editingContact);contacts=editingContact?contacts.map(c=>c.id===editingContact?saved:c):[saved,...contacts];render();renderDetail();$('contact-editor').close();facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
+formHandler('contact-form','contact-error',async data=>{if(!selected)throw Error('请先选择公司。');const value=validateContact(data);const saved=await save('freight_contacts',editingContact?value:{id:crypto.randomUUID(),company_id:selected,...value},editingContact);contacts=editingContact?contacts.map(c=>c.id===editingContact?saved:c):[saved,...contacts];render();renderDetail();$('contact-editor').close();void loadContactMailPermissions(selected,detailGeneration);facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
 formHandler('followup-form','followup-error',async data=>{const result=String(data.result||'').trim(),next_action=String(data.next_action||'').trim();if(!result)throw Error('请填写沟通结果。');if(data.next_date&&!next_action)throw Error('安排下次联系时，请填写下一步动作。');const saved=await save('freight_followups',{company_id:selected,result,next_action,next_date:data.next_date||null,owner_id:currentUser().id});followups.unshift(saved);render();renderDetail();$('followup-form').reset();facets=null;load();loadStats();if(document.querySelector('.crm-filters').open)loadFacets();});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>$(b.dataset.close).close()));
-$('logout').addEventListener('click',async()=>{++generation;++detailGeneration;++statsRequest;clearTimeout(loadTimer);stats=null;statsLoading=false;statsLoadedAt=0;statsRetryAfter=0;facets=null;listIds=[];listTotal=0;invalidateList();try{await logout();}catch{}companies=[];contacts=[];shipments=[];followups=[];selected=null;selectedCompanies.clear();for(const id of ['detail','company-editor','contact-editor'])$(id).close();render();authUI();});
+$('logout').addEventListener('click',async()=>{++generation;++detailGeneration;++statsRequest;clearTimeout(loadTimer);stats=null;statsLoading=false;statsLoadedAt=0;statsRetryAfter=0;facets=null;listIds=[];listTotal=0;invalidateList();try{await logout();}catch{}companies=[];contacts=[];shipments=[];followups=[];selected=null;selectedCompanies.clear();for(const id of ['detail','company-editor','contact-editor','mail-permission-editor'])$(id).close();render();authUI();});
 $('refresh').addEventListener('click',()=>{facets=null;load().then(()=>loadStats());if(document.querySelector('.crm-filters').open)loadFacets();});$('add-company').addEventListener('click',()=>openCompany());$('edit-company').addEventListener('click',async()=>{try{const id=selected,rows=await cloudRequest('freight_companies?id=eq.'+encodeURIComponent(id)+'&select=*&limit=1');if(selected!==id)return;if(!rows.length)throw Error('客户不存在或无权访问');companies=mergeRows(companies,rows);openCompany(rows[0]);}catch(e){$('followup-error').textContent=e.message;}});$('add-contact').addEventListener('click',()=>openContact());
 $('apply-filters').onclick=()=>{page=1;load();};
 $('search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();page=1;load();}});
