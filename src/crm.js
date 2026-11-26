@@ -59,26 +59,34 @@ async function loadStats(force=false){
 }
 async function loadFacets(){const user=currentUser()?.id;if(keyView||facets||!user)return;try{const data=await rpcPage({p_filters:crmViewFilters(customerView),p_mode:'facets'});if(user!==currentUser()?.id)return;facets=data;fillOwners();fillGroups();}catch(e){$('notice').textContent='分组筛选读取失败，可重新展开重试：'+e.message;}}
 document.querySelector('.crm-filters').addEventListener('toggle',e=>{if(e.target.open)loadFacets();});
-let listCurrent=false,selectingGeneration=null;
+let listCurrent=false,selectionFilterKey=null,selectRequest=null;
+function syncSelectionScope(currentFilters){
+ const key=JSON.stringify(currentFilters);
+ if(key===selectionFilterKey)return;
+ selectionFilterKey=key;
+ selectedCompanies.clear();
+ for(const box of $('rows').querySelectorAll('input[type="checkbox"]'))box.checked=false;
+}
 function syncListAvailability(){
- const disabled=!listCurrent;
- $('select-filtered').disabled=disabled||selectingGeneration===generation||!listTotal;
+ const disabled=!listCurrent||selectRequest?.generation===generation;
+ $('select-filtered').disabled=disabled||!listTotal;
  $('company-select-page').disabled=disabled||!listIds.length;
  for(const box of $('rows').querySelectorAll('input[type="checkbox"]'))box.disabled=disabled;
- $('count').textContent=listCurrent?'共 '+listTotal+' 家':listIds.length?'上次结果 '+listTotal+' 家':'等待筛选结果';
+ $('count').textContent=listCurrent?'筛选匹配 '+listTotal+' 家':listIds.length?'上次结果 '+listTotal+' 家':'等待筛选结果';
 }
-function invalidateList(){listCurrent=false;syncListAvailability();}
+function invalidateList(currentFilters=filters()){listCurrent=false;syncSelectionScope(currentFilters);syncCompanySelection();}
 function filterProgress(message){$('filter-progress').textContent=message;}
 async function load(){
  clearTimeout(loadTimer);
- invalidateList();
+ const currentFilters=filters();
+ invalidateList(currentFilters);
  if(!currentUser()){filterProgress('请先登录');return;}
  listController?.abort();listController=new AbortController();const controller=listController;
  const g=++generation;loading=true;
  filterProgress('正在查询…');
  const slow=setTimeout(()=>{if(g===generation&&loading)filterProgress('仍在查询，请稍候…');},4000);$('add-company').disabled=false;$('notice').textContent='正在读取第 '+page+' 页…';
 
- try{const data=await rpcPage(pageRequest(filters(),page,size),controller.signal);if(g!==generation)return;const pages=pageCount(data.total,size);if(page>pages){page=pages;return load();}absorb(data);listIds=data.companies.map(c=>c.id);listTotal=data.total;listCurrent=true;render();if(!stats&&!statsLoading)loadStats();filterProgress(listTotal?'筛选完成':'暂无匹配客户');$('notice').textContent='已加载本页 '+listIds.length+' 家，共 '+listTotal+' 家。';if(pendingOpen){const id=pendingOpen;pendingOpen=null;openDetail(id);}}
+ try{const data=await rpcPage(pageRequest(currentFilters,page,size),controller.signal);if(g!==generation)return;const pages=pageCount(data.total,size);if(page>pages){page=pages;return load();}absorb(data);listIds=data.companies.map(c=>c.id);listTotal=data.total;listCurrent=true;render();if(!stats&&!statsLoading)loadStats();filterProgress(listTotal?'筛选完成':'暂无匹配客户');$('notice').textContent='已加载本页 '+listIds.length+' 家，共 '+listTotal+' 家。';if(pendingOpen){const id=pendingOpen;pendingOpen=null;openDetail(id);}}
  catch(e){if(g!==generation||e.name==='AbortError')return;filterProgress(listIds.length?'查询失败，当前为上次结果。请重新加载。':'查询失败，请重新加载。');$('notice').textContent=(listIds.length?'更新失败，保留上次列表：':'客户暂未加载成功，请重试：')+e.message;authUI();}
  finally{clearTimeout(slow);if(g===generation)loading=false;}
 }
@@ -87,7 +95,30 @@ function scheduleLoad(){invalidateList();filterProgress('等待输入完成…')
 async function ensureIds(ids){const user=currentUser()?.id;for(let i=0;i<ids.length;i+=500){const data=await rpcPage(pageRequest({},1,500,{p_ids:ids.slice(i,i+500)}));if(user!==currentUser()?.id)throw Error('账号已切换，请重新操作');absorb(data);$('notice').textContent='准备操作资料 '+Math.min(i+500,ids.length)+' / '+ids.length+' 家…';}}
 async function selectedData(){await ensureIds([...selectedCompanies]);}
 async function matchingIds(custom=filters()){const user=currentUser()?.id;const data=await rpcPage({p_filters:custom,p_mode:'ids'});if(user!==currentUser()?.id)throw Error('账号已切换，请重新操作');return data.ids;}
-async function selectMatching(){if(!listCurrent||selectingGeneration===generation)return;const g=generation;selectingGeneration=g;syncListAvailability();try{const ids=await matchingIds();if(g!==generation)return;for(const id of ids)selectedCompanies.add(id);syncCompanySelection();$('notice').textContent='已选择全部筛选结果 '+ids.length+' 家；操作时按需读取资料。';}catch(e){$('notice').textContent=e.message;}finally{if(selectingGeneration===g)selectingGeneration=null;syncListAvailability();}}
+async function selectMatching(){
+ if(!listCurrent||selectRequest?.generation===generation)return;
+ const request={generation};
+ selectRequest=request;
+ syncCompanySelection();
+ try{
+  const ids=new Set(await matchingIds(JSON.parse(selectionFilterKey)));
+  if(selectRequest!==request||request.generation!==generation)return;
+  selectedCompanies.clear();
+  if(ids.size!==listTotal||listIds.some(id=>!ids.has(id))){
+   await load();
+   if(listCurrent&&generation===request.generation+1)$('notice').textContent='筛选结果已变化，请核对刷新后的数量，再重新全选。';
+   return;
+  }
+  for(const id of ids)selectedCompanies.add(id);
+  render();
+  $('notice').textContent='已选中当前筛选的全部 '+ids.size+' 家。';
+ }catch(e){
+  if(selectRequest===request&&request.generation===generation)$('notice').textContent=e.message;
+ }finally{
+  if(selectRequest===request)selectRequest=null;
+  syncCompanySelection();
+ }
+}
 
 function td(text){const el=document.createElement('td');el.textContent=text??'—';return el;}
 function paragraph(text){const el=document.createElement('p');el.textContent=text;return el;}
@@ -154,8 +185,19 @@ function fillGroups(){
  select.value=previous;if(select.selectedIndex<0)select.value='';
 }
 function fillOwners(){const value=$('owner-filter').value;$('owner-filter').replaceChildren(new Option('全部',''));for(const owner of (facets?.owners||[]))$('owner-filter').append(new Option(owner,owner));$('owner-filter').value=value;}
-function syncCompanySelection(){syncListAvailability();document.querySelector('.crm-selection').dataset.selected=String(selectedCompanies.size>0);const chosen=pageCompanies.filter(c=>selectedCompanies.has(c.id)).length;$('company-select-page').checked=pageCompanies.length>0&&chosen===pageCompanies.length;$('company-select-page').indeterminate=chosen>0&&chosen<pageCompanies.length;$('company-selection').textContent='已选 '+selectedCompanies.size+' 家（跨页、分组保留）';for(const id of ['mail-selected','bulk-company','bulk-followup','export-selected','complete-selected-contacts'])$(id).disabled=!selectedCompanies.size;$('apply-bulk-stage').disabled=!selectedCompanies.size||!$('bulk-stage').value;}
-$('company-select-page').onchange=e=>{if(!listCurrent)return;for(const c of pageCompanies)e.target.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);render();};$('select-filtered').onclick=selectMatching;$('clear-selection').onclick=()=>{selectedCompanies.clear();render();};$('clear-filters').onclick=()=>{priorityView='';for(const id of ['search','stage-filter','source-filter','directory-filter','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter','enrichment-filter','contact-added-filter','contact-added-date'])$(id).value='';$('contact-added-date-label').hidden=true;page=1;load();};
+function syncCompanySelection(){
+ syncListAvailability();
+ const count=selectedCompanies.size,chosen=listIds.filter(id=>selectedCompanies.has(id)).length;
+ const canBatch=listCurrent&&selectRequest?.generation!==generation&&count>0;
+ document.querySelector('.crm-selection').dataset.selected=String(count>0);
+ $('company-select-page').checked=listIds.length>0&&chosen===listIds.length;
+ $('company-select-page').indeterminate=chosen>0&&chosen<listIds.length;
+ $('company-selection').textContent=listCurrent?'筛选匹配 '+listTotal+' 家 · 已选 '+count+' 家':'已选 '+count+' 家';
+ for(const id of ['mail-selected','bulk-company','bulk-followup','export-selected','complete-selected-contacts'])$(id).disabled=!canBatch;
+ $('apply-bulk-stage').disabled=!canBatch||!$('bulk-stage').value;
+ $('bulk-email-verification').disabled=!listCurrent||selectRequest?.generation===generation||!listTotal;
+}
+$('company-select-page').onchange=e=>{if(!listCurrent)return;for(const c of pageCompanies)e.target.checked?selectedCompanies.add(c.id):selectedCompanies.delete(c.id);render();};$('select-filtered').onclick=selectMatching;$('clear-selection').onclick=()=>{selectRequest=null;selectedCompanies.clear();render();};$('clear-filters').onclick=()=>{priorityView='';for(const id of ['search','stage-filter','source-filter','directory-filter','group-filter','status','due','region-filter','role-filter','industry-filter','owner-filter','contact-filter','enrichment-filter','contact-added-filter','contact-added-date'])$(id).value='';$('contact-added-date-label').hidden=true;page=1;load();};
 const directDevelopment=installDirectDevelopment({prepareSelection:selectedData,getCompanies:()=>companies,getContacts:()=>contacts,isLowerPriority:lowerPriority,selected:selectedCompanies,apply:rows=>{const map=new Map(rows.map(r=>[r.id,r]));companies=companies.map(c=>map.get(c.id)||c);},refresh:load,render:refreshWorkspace,open:openDetail});$('bulk-stage').onchange=syncCompanySelection;
 installCrmBulk({prepareSelection:selectedData,getCompanies:()=>companies,getContacts:()=>contacts,selected:selectedCompanies,applyCompanies:rows=>{const map=new Map(rows.map(r=>[r.id,r]));companies=companies.map(c=>map.get(c.id)||c);fillOwners();render();},applyFollowups:rows=>{followups.unshift(...rows);render();},render:refreshWorkspace});
 installMailVerification({buttonId:'bulk-email-verification',prepare:async()=>{const ids=await matchingIds();await ensureIds([...new Set([...ids,...selectedCompanies])]);verificationIds=new Set(ids);},getContacts:()=>contacts,getEpoch:()=>generation,getScopes:()=>{
